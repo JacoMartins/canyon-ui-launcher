@@ -37,6 +37,7 @@ data class HomeState(
     val columns: Int,
     val rows: Int,
     val dockSlots: Int,
+    val iconSize: IconSize,
     val items: List<HomeItem>,
 ) {
     val drawerEnabled get() = mode == LayoutMode.HOME_AND_DRAWER
@@ -145,13 +146,14 @@ class HomeRepository(
         )
 
         val homeOnly = mode == LayoutMode.HOME_ONLY
-        val shown = if (homeOnly) resolved.visible.filter { it.key.toString() !in s.hiddenApps } else resolved.visible
+        val hidden = s.hiddenByMode.getValue(mode)
+        val shown = if (homeOnly) resolved.visible.filter { it.key.toString() !in hidden } else resolved.visible
         val visible = shown.mapNotNull { p -> byKey[p.key]?.let { HomeItem(p, it) } }.toMutableList()
 
         var additions = emptyList<LayoutResolver.NewPlacement>()
         if (homeOnly) {
             val onHome = resolved.visible.mapTo(HashSet()) { it.key }
-            val missing = appList.filter { it.key !in onHome && it.key.toString() !in s.hiddenApps }.map { it.key }
+            val missing = appList.filter { it.key !in onHome && it.key.toString() !in hidden }.map { it.key }
             additions = LayoutResolver.placeMissingApps(resolved.visible, pages.size, grid.columns, grid.rows, missing)
             // Show them right away; the insert's own emission follows a moment later.
             for (a in additions) {
@@ -165,7 +167,7 @@ class HomeRepository(
             (visible.maxOfOrNull { if (it.placed.container == Container.DESKTOP) it.placed.pageIndex else 0 } ?: 0) + 1,
             1,
         )
-        val state = HomeState(mode, pageCount, grid.columns, grid.rows, grid.dockSlots, visible)
+        val state = HomeState(mode, pageCount, grid.columns, grid.rows, grid.dockSlots, grid.iconSize, visible)
         return Computed(state, dao, resolved.updates, additions)
     }
 

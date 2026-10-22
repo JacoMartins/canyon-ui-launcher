@@ -38,10 +38,15 @@
     <string name="layout_home_and_apps_summary">Swipe up on the Home screen to see all apps</string>
     <string name="layout_home_only">Home screen only</string>
     <string name="layout_home_only_summary">Every app is on the Home screen; no Apps screen</string>
-    <string name="layout_separate_note">Each layout keeps its own pages, icons and grid.</string>
+    <string name="layout_separate_note">Each layout keeps its own pages, grid, icon size and hidden apps.</string>
     <string name="home_grid">Home screen grid</string>
     <string name="grid_columns">Columns</string>
     <string name="grid_rows">Rows</string>
+    <string name="icon_size">Icon size</string>
+    <string name="icon_size_small">Small</string>
+    <string name="icon_size_medium">Medium</string>
+    <string name="icon_size_large">Large</string>
+    <string name="hidden_apps_per_layout">Applies to the current layout only</string>
     <plurals name="hidden_count">
         <item quantity="one">%1$d app hidden</item>
         <item quantity="other">%1$d apps hidden</item>

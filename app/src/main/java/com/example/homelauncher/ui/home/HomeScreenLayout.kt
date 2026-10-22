@@ -34,7 +34,10 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     private val dockMarginH = (12 * d).toInt()
     private val dockMarginBottom = (8 * d).toInt()
     private val indicatorHeight = (24 * d).toInt()
-    private val pagePaddingH = (8 * d).toInt()
+    /** Matches the dock's inset so page columns line up with dock icons, as on One UI. */
+    private val pagePaddingH = (16 * d).toInt()
+    private val pagePaddingTop = (16 * d).toInt()
+    private val pagePaddingBottom = (4 * d).toInt()
 
     var showDockBackground = false
 
@@ -79,7 +82,7 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     fun setPageCount(count: Int) {
         while (workspace.childCount < count) {
             workspace.addView(CellLayout(context, gridColumns, gridRows).apply {
-                setPadding(pagePaddingH, 0, pagePaddingH, 0)
+                setPadding(pagePaddingH, pagePaddingTop, pagePaddingH, pagePaddingBottom)
                 // Icons consume their own long-press; this only fires on empty cells.
                 setOnLongClickListener { v ->
                     v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)

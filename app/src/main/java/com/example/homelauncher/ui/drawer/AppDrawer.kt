@@ -276,10 +276,10 @@ private fun AppGrid(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Image(app.image, contentDescription = null, modifier = Modifier.size(60.dp))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         app.label,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

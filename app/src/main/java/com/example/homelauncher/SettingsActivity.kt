@@ -38,6 +38,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.example.homelauncher.data.IconSize
 import com.example.homelauncher.data.LauncherSettings
 import com.example.homelauncher.data.LayoutMode
 import com.example.homelauncher.data.SettingsStore
@@ -140,8 +141,27 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             }
         }
 
+        Card {
+            SectionTitle(stringResource(R.string.icon_size))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (size in IconSize.entries) {
+                    val label = when (size) {
+                        IconSize.SMALL -> R.string.icon_size_small
+                        IconSize.MEDIUM -> R.string.icon_size_medium
+                        IconSize.LARGE -> R.string.icon_size_large
+                    }
+                    FilterChip(
+                        selected = s.grid.iconSize == size,
+                        onClick = { scope.launch { store.setIconSize(s.layoutMode, size) } },
+                        label = { Text(stringResource(label)) },
+                    )
+                }
+            }
+        }
+
         Card(onClick = { showHidden = true }) {
             Text(stringResource(R.string.hidden_apps), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.hidden_apps_per_layout), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 pluralHidden(s.hiddenApps.size),
                 style = MaterialTheme.typography.bodySmall,

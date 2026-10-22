@@ -21,13 +21,25 @@ enum class LayoutMode(val storageKey: String) {
     HOME_ONLY("home_only"),
 }
 
-/** Grid and dock of one layout mode. Each mode keeps its own. */
-data class GridSpec(val columns: Int = 4, val rows: Int = 6, val dockSlots: Int = 4)
+/** Home icon size as a share of the cell width, with an upper bound in dp. */
+enum class IconSize(val cellFraction: Float, val maxDp: Int) {
+    SMALL(0.58f, 56),
+    MEDIUM(0.68f, 64),
+    LARGE(0.78f, 72),
+}
+
+/** Grid, dock and icon size of one layout mode. Each mode keeps its own. */
+data class GridSpec(
+    val columns: Int = 4,
+    val rows: Int = 6,
+    val dockSlots: Int = 4,
+    val iconSize: IconSize = IconSize.MEDIUM,
+)
 
 data class LauncherSettings(
     val layoutMode: LayoutMode = LayoutMode.HOME_AND_DRAWER,
     val grids: Map<LayoutMode, GridSpec> = LayoutMode.entries.associateWith { GridSpec() },
-    val hiddenApps: Set<String> = emptySet(),
+    val hiddenByMode: Map<LayoutMode, Set<String>> = LayoutMode.entries.associateWith { emptySet() },
     val firstRunDone: Boolean = false,
     val drawerHintSeen: Boolean = false,
 ) {
@@ -37,6 +49,9 @@ data class LauncherSettings(
     val rows get() = grid.rows
     val dockSlots get() = grid.dockSlots
     val drawerEnabled get() = layoutMode == LayoutMode.HOME_AND_DRAWER
+
+    /** Hidden apps of the active mode. */
+    val hiddenApps: Set<String> get() = hiddenByMode.getValue(layoutMode)
 }
 
 /**
@@ -47,13 +62,16 @@ class SettingsStore(private val context: Context) {
 
     private object Keys {
         val LAYOUT_MODE = stringPreferencesKey("layout_mode")
-        val HIDDEN = stringSetPreferencesKey("hidden_apps")
+        /** Stage 1 kept one hidden list for everything; it seeds both modes' lists. */
+        val LEGACY_HIDDEN = stringSetPreferencesKey("hidden_apps")
         val FIRST_RUN_DONE = booleanPreferencesKey("first_run_done")
         val DRAWER_HINT_SEEN = booleanPreferencesKey("drawer_hint_seen")
 
         fun columns(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_columns")
         fun rows(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_rows")
         fun dock(m: LayoutMode) = intPreferencesKey("${m.storageKey}.dock_slots")
+        fun iconSize(m: LayoutMode) = stringPreferencesKey("${m.storageKey}.icon_size")
+        fun hidden(m: LayoutMode) = stringSetPreferencesKey("${m.storageKey}.hidden_apps")
     }
 
     private fun grid(p: Preferences, m: LayoutMode): GridSpec {
@@ -62,6 +80,7 @@ class SettingsStore(private val context: Context) {
             columns = (p[Keys.columns(m)] ?: d.columns).coerceIn(MIN_COLUMNS, MAX_COLUMNS),
             rows = (p[Keys.rows(m)] ?: d.rows).coerceIn(MIN_ROWS, MAX_ROWS),
             dockSlots = (p[Keys.dock(m)] ?: d.dockSlots).coerceIn(4, 5),
+            iconSize = p[Keys.iconSize(m)]?.let { v -> IconSize.entries.firstOrNull { it.name == v } } ?: d.iconSize,
         )
     }
 
@@ -70,7 +89,7 @@ class SettingsStore(private val context: Context) {
         LauncherSettings(
             layoutMode = p[Keys.LAYOUT_MODE]?.let { v -> LayoutMode.entries.firstOrNull { it.name == v } } ?: d.layoutMode,
             grids = LayoutMode.entries.associateWith { grid(p, it) },
-            hiddenApps = p[Keys.HIDDEN] ?: d.hiddenApps,
+            hiddenByMode = LayoutMode.entries.associateWith { p[Keys.hidden(it)] ?: p[Keys.LEGACY_HIDDEN] ?: emptySet() },
             firstRunDone = p[Keys.FIRST_RUN_DONE] ?: false,
             drawerHintSeen = p[Keys.DRAWER_HINT_SEEN] ?: false,
         )
@@ -89,11 +108,17 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    suspend fun setIconSize(mode: LayoutMode, size: IconSize) {
+        context.dataStore.edit { it[Keys.iconSize(mode)] = size.name }
+    }
+
+    /** Hides or shows an app in the active layout mode only. */
     suspend fun setHidden(key: String, hidden: Boolean) {
         context.dataStore.edit { p ->
-            val set = (p[Keys.HIDDEN] ?: emptySet()).toMutableSet()
+            val mode = p[Keys.LAYOUT_MODE]?.let { v -> LayoutMode.entries.firstOrNull { it.name == v } } ?: LayoutMode.HOME_AND_DRAWER
+            val set = (p[Keys.hidden(mode)] ?: p[Keys.LEGACY_HIDDEN] ?: emptySet()).toMutableSet()
             if (hidden) set += key else set -= key
-            p[Keys.HIDDEN] = set
+            p[Keys.hidden(mode)] = set
         }
     }
 

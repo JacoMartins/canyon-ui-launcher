@@ -22,7 +22,13 @@ import com.example.homelauncher.util.Motion
 class AppIconView(context: Context, private val style: LabelStyle) : View(context) {
 
     /** Colours for labels drawn over the wallpaper. */
-    class LabelStyle(var color: Int, var shadowColor: Int, var showLabel: Boolean = true)
+    class LabelStyle(
+        var color: Int,
+        var shadowColor: Int,
+        var showLabel: Boolean = true,
+        var iconCellFraction: Float = 0.68f,
+        var maxIconDp: Int = 64,
+    )
 
     var app: AppInfo? = null
         private set
@@ -32,7 +38,6 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
     private var shownLabel: String = ""
 
     private val dm = resources.displayMetrics
-    private val maxIconPx = (MAX_ICON_DP * dm.density).toInt()
     private val gapPx = 6 * dm.density
     private val iconRect = Rect()
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
@@ -79,7 +84,8 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
     override fun onDraw(canvas: Canvas) {
         val bmp = icon ?: return
         val textH = if (style.showLabel) textPaint.fontSpacing else 0f
-        val iconPx = minOf(maxIconPx, (width * ICON_TO_CELL).toInt(), (height - textH - gapPx).toInt()).coerceAtLeast(0)
+        val maxIconPx = (style.maxIconDp * dm.density).toInt()
+        val iconPx = minOf(maxIconPx, (width * style.iconCellFraction).toInt(), (height - textH - gapPx).toInt()).coerceAtLeast(0)
         val blockH = iconPx + if (style.showLabel) gapPx + textH else 0f
         val top = ((height - blockH) / 2f).toInt()
         val left = (width - iconPx) / 2
@@ -89,12 +95,6 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
             val baseline = top + iconPx + gapPx - textPaint.ascent() // ascent() does not allocate
             canvas.drawText(shownLabel, width / 2f, baseline, textPaint)
         }
-    }
-
-    companion object {
-        /** About 60dp on a 4-column grid of a 360dp-wide phone, like One UI's large icons. */
-        private const val ICON_TO_CELL = 0.68f
-        private const val MAX_ICON_DP = 64
     }
 
     override fun setPressed(pressed: Boolean) {

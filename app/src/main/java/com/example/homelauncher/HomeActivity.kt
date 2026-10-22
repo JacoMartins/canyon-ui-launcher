@@ -194,6 +194,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     // --- Binding -----------------------------------------------------------------------------
 
     private fun bind(state: HomeState) {
+        val size = state.iconSize
+        if (labelStyle.iconCellFraction != size.cellFraction || labelStyle.maxIconDp != size.maxDp) {
+            labelStyle.iconCellFraction = size.cellFraction
+            labelStyle.maxIconDp = size.maxDp
+            iconViews.values.forEach { it.invalidate() }
+        }
         if (drawerEnabled != state.drawerEnabled) {
             drawerEnabled = state.drawerEnabled
             dragLayer.drawerEnabled = drawerEnabled
