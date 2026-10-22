@@ -18,8 +18,8 @@ android {
         applicationId = "com.example.homelauncher"
         minSdk = 29
         targetSdk = 37
-        versionCode = 8
-        versionName = "0.1.6-stage1"
+        versionCode = 9
+        versionName = "0.1.7-stage1"
     }
 
     signingConfigs {
