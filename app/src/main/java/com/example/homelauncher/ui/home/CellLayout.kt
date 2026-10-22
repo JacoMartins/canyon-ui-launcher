@@ -20,6 +20,97 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
     class LayoutParams(var cellX: Int, var cellY: Int, var spanX: Int = 1, var spanY: Int = 1) :
         ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
 
+    private val d = resources.displayMetrics.density
+    private val hintRect = android.graphics.RectF()
+    private val hintPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val backdropPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private var hintVisible = false
+    private var hintFolder = false
+    private var hintX = 0
+    private var hintY = 0
+    private var hintSpanX = 1
+    private var hintSpanY = 1
+
+    init {
+        setWillNotDraw(false)
+    }
+
+    /** Edit mode: a rounded translucent card behind the page shows its bounds. */
+    var showBackdrop = false
+        set(value) {
+            if (field != value) { field = value; invalidate() }
+        }
+
+    fun setColors(hint: Int, backdrop: Int) {
+        hintPaint.color = hint
+        backdropPaint.color = backdrop
+        invalidate()
+    }
+
+    /**
+     * Highlights where a dragged item will land. [folder] marks a drop that makes or fills a
+     * folder: the highlight is the icon-sized square of the target instead of the cell.
+     */
+    fun showDropHint(x: Int, y: Int, spanX: Int, spanY: Int, folder: Boolean) {
+        if (hintVisible && x == hintX && y == hintY && spanX == hintSpanX && spanY == hintSpanY && folder == hintFolder) return
+        hintVisible = true
+        hintX = x; hintY = y; hintSpanX = spanX; hintSpanY = spanY; hintFolder = folder
+        invalidate()
+    }
+
+    fun clearDropHint() {
+        if (!hintVisible) return
+        hintVisible = false
+        invalidate()
+    }
+
+    /** Cell under a point in this view's coordinates, or null outside the grid. */
+    fun cellAt(x: Float, y: Float, out: IntArray): Boolean {
+        val cw = cellWidth
+        val ch = cellHeight
+        if (cw <= 0 || ch <= 0) return false
+        var col = ((x - paddingLeft) / cw).toInt()
+        val row = ((y - paddingTop) / ch).toInt()
+        if (x < paddingLeft || y < paddingTop || col !in 0 until columns || row !in 0 until rows) return false
+        if (layoutDirection == LAYOUT_DIRECTION_RTL) col = columns - 1 - col
+        out[0] = col
+        out[1] = row
+        return true
+    }
+
+    /** Left/top of a cell in this view's coordinates (RTL-aware). */
+    fun cellLeft(col: Int, spanX: Int = 1): Int {
+        val c = if (layoutDirection == LAYOUT_DIRECTION_RTL) columns - col - spanX else col
+        return paddingLeft + c * cellWidth
+    }
+
+    fun cellTop(row: Int): Int = paddingTop + row * cellHeight
+
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        if (showBackdrop) {
+            val r = 28 * d
+            hintRect.set(4 * d, 0f, width - 4 * d, height.toFloat())
+            canvas.drawRoundRect(hintRect, r, r, backdropPaint)
+        }
+        if (hintVisible) {
+            val cw = cellWidth
+            val ch = cellHeight
+            val left = cellLeft(hintX, hintSpanX).toFloat()
+            val top = cellTop(hintY).toFloat()
+            if (hintFolder) {
+                val size = minOf(cw, ch) * 0.86f
+                val cx = left + cw / 2f
+                val cy = top + ch / 2f
+                hintRect.set(cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2)
+                canvas.drawRoundRect(hintRect, size * 0.3f, size * 0.3f, hintPaint)
+            } else {
+                val inset = 4 * d
+                hintRect.set(left + inset, top + inset, left + cw * hintSpanX - inset, top + ch * hintSpanY - inset)
+                canvas.drawRoundRect(hintRect, 20 * d, 20 * d, hintPaint)
+            }
+        }
+    }
+
     fun setGridSize(columns: Int, rows: Int) {
         if (columns == this.columns && rows == this.rows) return
         this.columns = columns

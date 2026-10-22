@@ -1,6 +1,7 @@
 package com.example.homelauncher.ui.drawer
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -28,6 +29,9 @@ class DrawerModel(
 ) {
     /** Compose state so the text field updates synchronously while typing. */
     var query by mutableStateOf("")
+
+    /** Bumped when a drag leaves the drawer, so open item menus close. */
+    var dragEpoch by mutableIntStateOf(0)
 
     private val all = apps.apps.filterNotNull()
     private val hiddenKeys = settings.settings.map { it.hiddenApps }

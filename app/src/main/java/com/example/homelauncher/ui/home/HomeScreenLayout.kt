@@ -44,6 +44,26 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     /** Long-press on an empty part of a page. */
     var onEmptyLongPress: (() -> Unit)? = null
 
+    /** Tap on an empty part of a page (closes edit mode). */
+    var onEmptyTap: (() -> Unit)? = null
+
+    private var backdropColor = 0x26FFFFFF
+    private var hintColor = 0x40FFFFFF
+    private var backdrops = false
+
+    /** Edit mode: every page shows its rounded card. */
+    fun setPageBackdrops(show: Boolean) {
+        backdrops = show
+        for (i in 0 until workspace.childCount) workspace.pageAt(i)?.showBackdrop = show
+    }
+
+    fun setEditColors(backdrop: Int, hint: Int) {
+        backdropColor = backdrop
+        hintColor = hint
+        for (i in 0 until workspace.childCount) workspace.pageAt(i)?.setColors(hint, backdrop)
+        hotseat.setColors(hint, backdrop)
+    }
+
     var gridColumns = columns
         private set
     var gridRows = rows
@@ -89,6 +109,9 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
                     onEmptyLongPress?.invoke()
                     onEmptyLongPress != null
                 }
+                setOnClickListener { onEmptyTap?.invoke() }
+                setColors(hintColor, backdropColor)
+                showBackdrop = backdrops
             })
         }
         while (workspace.childCount > count) workspace.removeViewAt(workspace.childCount - 1)

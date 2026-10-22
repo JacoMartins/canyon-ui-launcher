@@ -64,4 +64,32 @@
         <item quantity="one">%1$d app hidden</item>
         <item quantity="other">%1$d apps hidden</item>
     </plurals>
+
+    <!-- Stage 2: editing -->
+    <string name="menu_remove">Remove</string>
+    <string name="menu_make_large">Make large</string>
+    <string name="menu_make_normal">Make normal size</string>
+    <string name="menu_ungroup">Ungroup</string>
+    <string name="folder_default_title">Folder</string>
+    <string name="folder_name">Folder name</string>
+    <string name="folder_color">Folder colour</string>
+    <string name="folder_no_room">Not enough room on this page for a large folder</string>
+    <string name="delete_page">Delete page</string>
+    <string name="add_page">Add page</string>
+    <string name="pages">Pages</string>
+    <string name="page_n">Page %1$d</string>
+    <string name="page_overview_hint">Tap to open, hold and drag to reorder</string>
+    <string name="undo">Undo</string>
+    <string name="snack_removed">Removed from Home screen</string>
+    <string name="snack_hidden">%1$s hidden</string>
+    <string name="snack_page_deleted">Page deleted</string>
+    <string name="snack_ungrouped">Folder ungrouped</string>
+    <string name="snack_folder_created">Folder created</string>
+    <string name="snack_moved_page">Moved to page %1$d</string>
+    <string name="snack_page_moved">Page moved</string>
+    <string name="no_room">No room here</string>
+    <string name="target_remove">Remove</string>
+    <string name="target_hide">Hide</string>
+    <string name="target_app_info">App info</string>
+    <string name="target_uninstall">Uninstall</string>
 </resources>

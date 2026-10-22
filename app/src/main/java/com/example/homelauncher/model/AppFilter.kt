@@ -32,6 +32,16 @@ object AppFilter {
     /** Calendar icons are named prefix + day of month, e.g. "calendar_31". */
     fun calendarDrawable(prefix: String, dayOfMonth: Int): String = prefix + dayOfMonth
 
+    private val WEEKDAYS = arrayOf("sun", "mon", "tue", "wed", "thu", "fri", "sat")
+
+    /**
+     * Optional weekday variant, e.g. "calendar_31_fri". The appfilter convention only switches
+     * by day of month; packs that also want the weekday on the icon (OneDepth) ship these, and
+     * this launcher tries them first. [dayOfWeek] uses java.util.Calendar numbering (Sunday = 1).
+     */
+    fun calendarWeekdayDrawable(prefix: String, dayOfMonth: Int, dayOfWeek: Int): String =
+        "$prefix${dayOfMonth}_${WEEKDAYS[(dayOfWeek - 1).coerceIn(0, 6)]}"
+
     /**
      * Lookup rule shared by plain and calendar entries: the exact activity first, then any entry
      * for the same package (apps sometimes rename their launcher activity).

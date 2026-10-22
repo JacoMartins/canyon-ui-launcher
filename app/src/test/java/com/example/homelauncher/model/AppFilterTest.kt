@@ -38,4 +38,10 @@ class AppFilterTest {
         assertEquals("pkg", AppFilter.lookup("com.a", "com.a.Renamed", byComponent, byPackage))
         assertNull(AppFilter.lookup("com.c", "com.c.Main", byComponent, byPackage))
     }
+
+    @Test fun weekdayVariantName() {
+        assertEquals("calendar_31_fri", AppFilter.calendarWeekdayDrawable("calendar_", 31, java.util.Calendar.FRIDAY))
+        assertEquals("calendar_1_sun", AppFilter.calendarWeekdayDrawable("calendar_", 1, java.util.Calendar.SUNDAY))
+        assertEquals("calendar_7_sat", AppFilter.calendarWeekdayDrawable("calendar_", 7, java.util.Calendar.SATURDAY))
+    }
 }

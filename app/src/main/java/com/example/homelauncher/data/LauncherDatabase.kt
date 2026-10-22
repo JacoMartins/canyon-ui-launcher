@@ -12,6 +12,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 /** A home screen page. Pages are shown in [rank] order. */
@@ -22,29 +24,38 @@ data class PageEntity(
 )
 
 /**
- * Anything placed on the home screen or dock. Stage 1 stores apps only; folders and widgets
- * reuse this table in later stages ([type]).
+ * Anything placed on the home screen, the dock or in a folder ([type]: app or folder; widgets
+ * reuse this table in Stage 3).
  */
-@Entity(tableName = "items", indices = [Index("pageId")])
+@Entity(tableName = "items", indices = [Index("pageId"), Index("parentId")])
 data class ItemEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val type: Int = TYPE_APP,
     /** [com.example.homelauncher.model.Container]. */
     val container: Int,
-    /** Page id for desktop items, 0 for the dock. */
+    /** Page id for desktop items, 0 for the dock and for apps in folders. */
     val pageId: Long,
+    /** Cell, or for an app in a folder: cellX is its rank in the folder. */
     val cellX: Int,
     val cellY: Int,
     val spanX: Int = 1,
     val spanY: Int = 1,
+    /** Empty for folders. */
     val packageName: String,
     val className: String,
     val userSerial: Long,
     /** When the app was found uninstalled; null while installed. */
     val missingSince: Long? = null,
+    /** Folder name (folders only). */
+    val title: String? = null,
+    /** Folder colour as ARGB; 0 = theme default (folders only). */
+    val color: Int = 0,
+    /** The folder an app is in (container FOLDER), else 0. */
+    val parentId: Long = 0,
 ) {
     companion object {
         const val TYPE_APP = 0
+        const val TYPE_FOLDER = 1
     }
 }
 
@@ -67,6 +78,39 @@ interface LauncherDao {
 
     @Insert
     suspend fun insertPage(page: PageEntity): Long
+
+    @Insert
+    suspend fun insertPages(pages: List<PageEntity>)
+
+    @Update
+    suspend fun updatePages(pages: List<PageEntity>)
+
+    @Query("DELETE FROM pages WHERE id = :id")
+    suspend fun deletePage(id: Long)
+
+    @Query("DELETE FROM items")
+    suspend fun deleteAllItems()
+
+    @Query("DELETE FROM pages")
+    suspend fun deleteAllPages()
+
+    @Update
+    suspend fun updateItem(item: ItemEntity)
+
+    @Query("SELECT * FROM items WHERE id = :id")
+    suspend fun item(id: Long): ItemEntity?
+
+    @Query("SELECT * FROM items WHERE parentId = :folderId ORDER BY cellX, id")
+    suspend fun children(folderId: Long): List<ItemEntity>
+
+    /** Puts back a saved layout exactly (same ids), for undo. */
+    @Transaction
+    suspend fun replaceAll(pages: List<PageEntity>, items: List<ItemEntity>) {
+        deleteAllItems()
+        deleteAllPages()
+        insertPages(pages)
+        insertItems(items)
+    }
 
     @Insert
     suspend fun insertItem(item: ItemEntity): Long
@@ -94,18 +138,30 @@ interface LauncherDao {
     }
 }
 
-@Database(entities = [PageEntity::class, ItemEntity::class], version = 1, exportSchema = true)
+@Database(entities = [PageEntity::class, ItemEntity::class], version = 2, exportSchema = true)
 abstract class LauncherDatabase : RoomDatabase() {
     abstract fun dao(): LauncherDao
 
     companion object {
+        /** Stage 2: folders (title, colour, parent link). Existing rows keep their values. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE items ADD COLUMN title TEXT")
+                db.execSQL("ALTER TABLE items ADD COLUMN color INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE items ADD COLUMN parentId INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_items_parentId ON items (parentId)")
+            }
+        }
+
         /** One database per layout mode, so each mode keeps its own pages and icons. */
         fun create(context: Context, mode: LayoutMode): LauncherDatabase {
             val name = when (mode) {
                 LayoutMode.HOME_AND_DRAWER -> "launcher.db" // Name kept from Stage 1 so layouts survive.
                 LayoutMode.HOME_ONLY -> "launcher_home_only.db"
             }
-            return Room.databaseBuilder(context, LauncherDatabase::class.java, name).build()
+            return Room.databaseBuilder(context, LauncherDatabase::class.java, name)
+                .addMigrations(MIGRATION_1_2)
+                .build()
         }
     }
 }

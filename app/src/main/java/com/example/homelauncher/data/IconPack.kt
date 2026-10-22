@@ -37,11 +37,9 @@ class IconPack private constructor(
 
     /** The pack's icon for an activity, or null when the pack does not cover it. */
     fun drawableFor(pkg: String, cls: String, densityDpi: Int): Drawable? {
-        val name = AppFilter.lookup(pkg, cls, calendarByComponent, calendarByPackage)
-            ?.let { AppFilter.calendarDrawable(it, Calendar.getInstance().get(Calendar.DAY_OF_MONTH)) }
-            ?: AppFilter.lookup(pkg, cls, byComponent, byPackage)
+        val id = calendarId(pkg, cls)
+            ?: AppFilter.lookup(pkg, cls, byComponent, byPackage)?.let(::idFor)
             ?: return null
-        val id = idFor(name)
         if (id == 0) return null
         return try {
             res.getDrawableForDensity(id, densityDpi, null)
@@ -50,6 +48,16 @@ class IconPack private constructor(
         } catch (e: OutOfMemoryError) {
             null
         }
+    }
+
+    /** Today's calendar icon: the weekday variant if the pack has it, else the date-only one. */
+    private fun calendarId(pkg: String, cls: String): Int? {
+        val prefix = AppFilter.lookup(pkg, cls, calendarByComponent, calendarByPackage) ?: return null
+        val now = Calendar.getInstance()
+        val day = now.get(Calendar.DAY_OF_MONTH)
+        val withWeekday = idFor(AppFilter.calendarWeekdayDrawable(prefix, day, now.get(Calendar.DAY_OF_WEEK)))
+        val id = if (withWeekday != 0) withWeekday else idFor(AppFilter.calendarDrawable(prefix, day))
+        return id.takeIf { it != 0 }
     }
 
     // Icon pack resources can only be found by name; there is no compile-time R class for them.

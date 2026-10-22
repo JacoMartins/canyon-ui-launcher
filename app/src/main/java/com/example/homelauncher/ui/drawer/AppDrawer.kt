@@ -99,6 +99,9 @@ interface DrawerActions {
     fun addToHome(app: AppInfo)
     fun openSettings()
 
+    /** Long-press in the drawer: moving the finger then drags the app onto the home screen. */
+    fun armDrag(app: AppInfo, bounds: Rect?)
+
     /** Null when no speech recognizer is installed (the mic button is then hidden). */
     val voiceSearch: (() -> Unit)?
 }
@@ -273,7 +276,7 @@ private fun AppGrid(
     ) {
         items(apps, key = { it.key.toString() }, contentType = { 0 }) { app ->
             val coords = remember { Coords() }
-            var menu by remember { mutableStateOf(false) }
+            var menu by remember(model.dragEpoch) { mutableStateOf(false) }
             Box {
                 Column(
                     Modifier
@@ -286,6 +289,7 @@ private fun AppGrid(
                             onLongClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 menu = true
+                                actions.armDrag(app, coords.bounds())
                             },
                             onClick = { actions.launch(app, coords.bounds()) },
                         )

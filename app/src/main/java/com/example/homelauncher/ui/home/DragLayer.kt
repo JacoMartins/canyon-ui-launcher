@@ -27,6 +27,9 @@ class DragLayer(context: Context) : FrameLayout(context) {
 
     lateinit var drawer: DrawerController
 
+    /** Drag and drop of home items; takes the gesture over once a long-press has armed it. */
+    var drag: DragController? = null
+
     /** False in "Home screen only" mode: there is no drawer to drag. */
     var drawerEnabled = true
     val drawerTouch = DrawerTouchState()
@@ -39,7 +42,24 @@ class DragLayer(context: Context) : FrameLayout(context) {
     private var lastY = 0f
     private var dragging = false
 
+    /** Where the current gesture went down, in this view's coordinates. */
+    val lastDownX get() = downX
+    val lastDownY get() = downY
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        val d = drag
+        if (d != null) {
+            if (d.isDragging) return true
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { downX = ev.x; downY = ev.y }
+                MotionEvent.ACTION_MOVE -> if (d.armed != null && (abs(ev.x - downX) > slop || abs(ev.y - downY) > slop)) {
+                    d.begin(ev.x, ev.y)
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> d.disarm()
+            }
+            if (d.armed != null) return false
+        }
         if (!drawerEnabled && drawer.isClosed) return false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -74,6 +94,14 @@ class DragLayer(context: Context) : FrameLayout(context) {
 
     @SuppressLint("ClickableViewAccessibility") // The drawer also opens from a button and accessibility actions.
     override fun onTouchEvent(ev: MotionEvent): Boolean {
+        drag?.takeIf { it.isDragging }?.let { d ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> d.move(ev.x, ev.y)
+                MotionEvent.ACTION_UP -> d.drop(ev.x, ev.y)
+                MotionEvent.ACTION_CANCEL -> d.cancel()
+            }
+            return true
+        }
         if (!dragging) return super.onTouchEvent(ev)
         track(ev)
         when (ev.actionMasked) {

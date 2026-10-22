@@ -88,15 +88,23 @@ class AppIconView(context: Context, private var style: LabelStyle) : View(contex
         shownLabel = if (avail <= 0f) label else TextUtils.ellipsize(label, textPaint, avail, TextUtils.TruncateAt.END).toString()
     }
 
-    override fun onDraw(canvas: Canvas) {
-        val bmp = icon ?: return
+    /** Where the icon is drawn, in this view's coordinates (also used for the drag image). */
+    fun iconBounds(out: Rect): Rect {
         val textH = if (style.showLabel) textPaint.fontSpacing else 0f
         val maxIconPx = (style.maxIconDp * dm.density).toInt()
         val iconPx = minOf(maxIconPx, (width * style.iconCellFraction).toInt(), (height - textH - gapPx).toInt()).coerceAtLeast(0)
         val blockH = iconPx + if (style.showLabel) gapPx + textH else 0f
         val top = ((height - blockH) / 2f).toInt()
         val left = (width - iconPx) / 2
-        iconRect.set(left, top, left + iconPx, top + iconPx)
+        out.set(left, top, left + iconPx, top + iconPx)
+        return out
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val bmp = icon ?: return
+        iconBounds(iconRect)
+        val iconPx = iconRect.width()
+        val top = iconRect.top
         canvas.drawBitmap(bmp, null, iconRect, bitmapPaint)
         if (style.showLabel) {
             val baseline = top + iconPx + gapPx - textPaint.ascent() // ascent() does not allocate
