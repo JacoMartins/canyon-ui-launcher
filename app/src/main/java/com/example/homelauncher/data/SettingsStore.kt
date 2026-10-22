@@ -49,6 +49,8 @@ data class LauncherSettings(
     val hiddenByMode: Map<LayoutMode, Set<String>> = LayoutMode.entries.associateWith { emptySet() },
     val firstRunDone: Boolean = false,
     val drawerHintSeen: Boolean = false,
+    /** Package of the chosen icon pack; null = system icons. Shared by both layout modes. */
+    val iconPack: String? = null,
 ) {
     /** Grid of the active mode. */
     val grid: GridSpec get() = grids.getValue(layoutMode)
@@ -73,6 +75,7 @@ class SettingsStore(private val context: Context) {
         val LEGACY_HIDDEN = stringSetPreferencesKey("hidden_apps")
         val FIRST_RUN_DONE = booleanPreferencesKey("first_run_done")
         val DRAWER_HINT_SEEN = booleanPreferencesKey("drawer_hint_seen")
+        val ICON_PACK = stringPreferencesKey("icon_pack")
 
         fun columns(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_columns")
         fun rows(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_rows")
@@ -103,6 +106,7 @@ class SettingsStore(private val context: Context) {
             hiddenByMode = LayoutMode.entries.associateWith { p[Keys.hidden(it)] ?: p[Keys.LEGACY_HIDDEN] ?: emptySet() },
             firstRunDone = p[Keys.FIRST_RUN_DONE] ?: false,
             drawerHintSeen = p[Keys.DRAWER_HINT_SEEN] ?: false,
+            iconPack = p[Keys.ICON_PACK],
         )
     }.distinctUntilChanged()
 
@@ -117,6 +121,10 @@ class SettingsStore(private val context: Context) {
             it[Keys.columns(mode)] = columns.coerceIn(MIN_COLUMNS, MAX_COLUMNS)
             it[Keys.rows(mode)] = rows.coerceIn(MIN_ROWS, MAX_ROWS)
         }
+    }
+
+    suspend fun setIconPack(packageName: String?) {
+        context.dataStore.edit { if (packageName == null) it.remove(Keys.ICON_PACK) else it[Keys.ICON_PACK] = packageName }
     }
 
     suspend fun setIconSize(mode: LayoutMode, size: IconSize) {

@@ -35,17 +35,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
+import com.example.homelauncher.data.AppInfo
 import com.example.homelauncher.data.IconSize
 import com.example.homelauncher.data.LauncherSettings
 import com.example.homelauncher.data.LayoutMode
 import com.example.homelauncher.data.SettingsStore
 import com.example.homelauncher.ui.drawer.DrawerModel
 import com.example.homelauncher.ui.drawer.HiddenAppsDialog
+import com.example.homelauncher.ui.settings.IconPackPicker
 import com.example.homelauncher.ui.theme.HomeTheme
 import kotlinx.coroutines.launch
 
@@ -61,7 +64,8 @@ class SettingsActivity : ComponentActivity() {
             HomeTheme {
                 val settings by app.settings.settings.collectAsState(initial = null)
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainer) {
-                    settings?.let { SettingsScreen(it, app.settings, hiddenModel) }
+                    val apps by app.apps.apps.collectAsState()
+                    settings?.let { SettingsScreen(it, app.settings, hiddenModel, apps.orEmpty()) }
                 }
             }
         }
@@ -69,9 +73,11 @@ class SettingsActivity : ComponentActivity() {
 }
 
 @Composable
-private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenModel: DrawerModel) {
+private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenModel: DrawerModel, apps: List<AppInfo>) {
     val scope = rememberCoroutineScope()
     var showHidden by remember { mutableStateOf(false) }
+    var showPacks by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     Column(
         Modifier
             .fillMaxSize()
@@ -143,6 +149,18 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             }
         }
 
+        Card(onClick = { showPacks = true }) {
+            Text(stringResource(R.string.icon_pack), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                s.iconPack?.let { pkg ->
+                    runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }
+                        .getOrDefault(pkg)
+                } ?: stringResource(R.string.icon_pack_default),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
         Card {
             SectionTitle(stringResource(R.string.icon_size))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -186,6 +204,14 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
     }
     if (showHidden) HiddenAppsDialog(hiddenModel, onDismiss = { showHidden = false })
+    if (showPacks) {
+        IconPackPicker(
+            selected = s.iconPack,
+            apps = apps,
+            onSelect = { scope.launch { store.setIconPack(it) } },
+            onDismiss = { showPacks = false },
+        )
+    }
 }
 
 @Composable

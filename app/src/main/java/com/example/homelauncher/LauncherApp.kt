@@ -10,6 +10,14 @@ import com.example.homelauncher.data.LauncherDatabase
 import com.example.homelauncher.data.LayoutMode
 import com.example.homelauncher.data.SettingsStore
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 
 /** Process-wide objects, created once (manual dependency injection). */
 class LauncherApp : Application() {
@@ -31,6 +39,22 @@ class LauncherApp : Application() {
         home = HomeRepository(daos, settings, apps, DefaultApps(this), scope)
         apps.start()
         home.start()
+        scope.launch {
+            settings.settings.map { it.iconPack }.distinctUntilChanged().collect { apps.setIconPack(it) }
+        }
+        val dateFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_DATE_CHANGED)
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        }
+        ContextCompat.registerReceiver(
+            this,
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) = apps.dateChanged()
+            },
+            dateFilter,
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

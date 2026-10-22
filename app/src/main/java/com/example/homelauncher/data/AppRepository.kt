@@ -13,7 +13,6 @@ import android.os.Looper
 import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
-import android.util.Log
 import android.util.LruCache
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
@@ -23,6 +22,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.core.graphics.drawable.toDrawable
 import com.example.homelauncher.model.AppKey
 import com.example.homelauncher.model.AppSearch
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -50,7 +50,8 @@ class AppInfo(
 
 /**
  * Rendered app icons, keyed by [AppKey]. Bounded by bytes; entries for a package are dropped
- * when the package changes so updated icons are picked up.
+ * when the package changes so updated icons are picked up. When an icon [pack] is set, its
+ * drawable is used for every app it covers; other apps keep the system icon.
  */
 class IconCache(context: Context) {
     private val resources = context.resources
@@ -61,20 +62,29 @@ class IconCache(context: Context) {
         override fun sizeOf(key: AppKey, value: Bitmap) = value.allocationByteCount
     }
 
+    @Volatile
+    var pack: IconPack? = null
+        private set
+
+    /** Switches packs and drops every rendered icon. */
+    fun setPack(newPack: IconPack?) {
+        pack = newPack
+        cache.evictAll()
+    }
+
+    /** Calendar icons from the pack change with the date. */
+    fun invalidateCalendars() {
+        val p = pack ?: return
+        cache.snapshot().keys.filter { p.isCalendar(it.packageName, it.className) }.forEach { cache.remove(it) }
+    }
+
     fun get(info: LauncherActivityInfo, key: AppKey, pm: android.content.pm.PackageManager): Bitmap =
-        cache.get(key) ?: render(info, pm).also { cache.put(key, it) }
+        cache.get(key) ?: render(info, key, pm).also { cache.put(key, it) }
 
-    private var logged = 0
-
-    private fun render(info: LauncherActivityInfo, pm: android.content.pm.PackageManager): Bitmap {
-        val raw = info.getIcon(density)
-        if (logged < LOG_LIMIT) {
-            logged++
-            val layers = (raw as? AdaptiveIconDrawable)?.let {
-                "bg=${it.background?.javaClass?.simpleName} fg=${it.foreground?.javaClass?.simpleName}"
-            } ?: "-"
-            Log.i(TAG, "${info.componentName.packageName}: ${raw.javaClass.name} ${raw.intrinsicWidth}px adaptive=${raw is AdaptiveIconDrawable} $layers")
-        }
+    private fun render(info: LauncherActivityInfo, key: AppKey, pm: android.content.pm.PackageManager): Bitmap {
+        // Pack artwork comes straight from the pack's resources, so it carries none of the effects
+        // a device's theme engine bakes into the icons it hands to launchers.
+        val raw = pack?.drawableFor(key.packageName, key.className, density) ?: info.getIcon(density)
         val bmp = if (raw is AdaptiveIconDrawable) renderAdaptive(raw) else raw.toBitmap(iconSizePx, iconSizePx, Bitmap.Config.ARGB_8888)
         if (info.user == Process.myUserHandle()) return bmp
         val badged = pm.getUserBadgedIcon(bmp.toDrawable(resources), info.user)
@@ -106,13 +116,9 @@ class IconCache(context: Context) {
     }
 
     companion object {
-        /** Rendered once at the largest size used on screen; views scale down. */
         /** Largest on-screen size (IconSize.LARGE cap), so icons are only ever scaled down. */
         const val ICON_DP = 80
         private const val MAX_BYTES = 24 * 1024 * 1024
-        private const val TAG = "IconCache"
-        /** Diagnostic: logs what kind of drawable the system returns for the first few icons. */
-        private const val LOG_LIMIT = 12
     }
 }
 
@@ -147,13 +153,38 @@ class AppRepository(
 
     private fun changed(packageName: String) {
         icons.invalidatePackage(packageName)
+        // The selected pack was updated, removed or re-enabled: re-read it.
+        if (packageName == packPackage) setIconPack(packPackage) else reloads.trySend(Unit)
+    }
+
+    private var packPackage: String? = null
+    private val packReady = CompletableDeferred<Unit>()
+
+    /**
+     * Loads [packageName]'s icon pack (null = system icons) off the main thread and re-renders.
+     * The first call also releases the initial app load, so icons never flash from system to pack.
+     */
+    fun setIconPack(packageName: String?) {
+        packPackage = packageName
+        scope.launch {
+            val pack = withContext(Dispatchers.Default) { packageName?.let { IconPack.load(context, it) } }
+            if (packPackage != packageName) return@launch // A newer choice won.
+            icons.setPack(pack)
+            packReady.complete(Unit)
+            reloads.trySend(Unit)
+        }
+    }
+
+    /** Midnight or a clock change: pack calendar icons show the new day. */
+    fun dateChanged() {
+        icons.invalidateCalendars()
         reloads.trySend(Unit)
     }
 
     fun start() {
         launcherApps.registerCallback(callback, Handler(Looper.getMainLooper()))
-        reloads.trySend(Unit)
         scope.launch {
+            packReady.await()
             for (unused in reloads) {
                 _apps.value = withContext(Dispatchers.Default) { load() }
                 delay(RELOAD_COALESCE_MS)
