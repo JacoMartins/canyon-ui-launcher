@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.example.homelauncher.ui.design.LauncherTypography
 
 /** Material 3 theme with wallpaper-derived dynamic color on Android 12+. */
 @Composable
@@ -23,5 +24,5 @@ fun HomeTheme(
         darkTheme -> darkColorScheme()
         else -> lightColorScheme()
     }
-    MaterialTheme(colorScheme = colors, content = content)
+    MaterialTheme(colorScheme = colors, typography = LauncherTypography, content = content)
 }

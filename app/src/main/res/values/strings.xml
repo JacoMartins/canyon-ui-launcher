@@ -47,6 +47,7 @@
     <string name="home_grid">Home screen grid</string>
     <string name="grid_columns">Columns</string>
     <string name="grid_rows">Rows</string>
+    <string name="licenses">Open-source licenses</string>
     <string name="icon_pack">Icon pack</string>
     <string name="icon_pack_default">Default (system icons)</string>
     <string name="icon_pack_none_installed">No icon packs installed. Packs made for Nova, ADW, Apex or Go launchers appear here.</string>

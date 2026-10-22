@@ -20,7 +20,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -48,6 +47,8 @@ import com.example.homelauncher.data.LayoutMode
 import com.example.homelauncher.data.SettingsStore
 import com.example.homelauncher.ui.drawer.DrawerModel
 import com.example.homelauncher.ui.drawer.HiddenAppsDialog
+import com.example.homelauncher.ui.design.ChoiceButton
+import com.example.homelauncher.ui.design.PrimaryButton
 import com.example.homelauncher.ui.settings.IconPackPicker
 import com.example.homelauncher.ui.theme.HomeTheme
 import kotlinx.coroutines.launch
@@ -77,6 +78,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
     val scope = rememberCoroutineScope()
     var showHidden by remember { mutableStateOf(false) }
     var showPacks by remember { mutableStateOf(false) }
+    var showLicenses by remember { mutableStateOf(false) }
     val context = LocalContext.current
     Column(
         Modifier
@@ -130,21 +132,13 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (c in SettingsStore.MIN_COLUMNS..SettingsStore.MAX_COLUMNS) {
-                    FilterChip(
-                        selected = s.columns == c,
-                        onClick = { scope.launch { store.setGrid(s.layoutMode, c, s.rows) } },
-                        label = { Text("$c") },
-                    )
+                    ChoiceButton("$c", s.columns == c, { scope.launch { store.setGrid(s.layoutMode, c, s.rows) } }, Modifier.weight(1f))
                 }
             }
             Text(stringResource(R.string.grid_rows), style = MaterialTheme.typography.labelLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (r in SettingsStore.MIN_ROWS..SettingsStore.MAX_ROWS) {
-                    FilterChip(
-                        selected = s.rows == r,
-                        onClick = { scope.launch { store.setGrid(s.layoutMode, s.columns, r) } },
-                        label = { Text("$r") },
-                    )
+                    ChoiceButton("$r", s.rows == r, { scope.launch { store.setGrid(s.layoutMode, s.columns, r) } }, Modifier.weight(1f))
                 }
             }
         }
@@ -170,11 +164,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                         IconSize.MEDIUM -> R.string.icon_size_medium
                         IconSize.LARGE -> R.string.icon_size_large
                     }
-                    FilterChip(
-                        selected = s.grid.iconSize == size,
-                        onClick = { scope.launch { store.setIconSize(s.layoutMode, size) } },
-                        label = { Text(stringResource(label)) },
-                    )
+                    ChoiceButton(stringResource(label), s.grid.iconSize == size, { scope.launch { store.setIconSize(s.layoutMode, size) } }, Modifier.weight(1f))
                 }
             }
         }
@@ -202,6 +192,25 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        Card(onClick = { showLicenses = true }) {
+            Text(stringResource(R.string.licenses), style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+    if (showLicenses) {
+        val text = remember { context.assets.open("licenses/phosphor-icons.txt").bufferedReader().use { it.readText() } }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showLicenses = false },
+            confirmButton = { PrimaryButton(stringResource(R.string.done), { showLicenses = false }) },
+            title = { Text(stringResource(R.string.licenses)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Phosphor Icons", style = MaterialTheme.typography.titleSmall)
+                    Text(text, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            shape = RoundedCornerShape(28.dp),
+        )
     }
     if (showHidden) HiddenAppsDialog(hiddenModel, onDismiss = { showHidden = false })
     if (showPacks) {

@@ -81,7 +81,13 @@ import androidx.compose.ui.unit.sp
 import com.example.homelauncher.ui.home.AppIconView
 import com.example.homelauncher.R
 import com.example.homelauncher.data.AppInfo
-import com.example.homelauncher.ui.common.Glyphs
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import com.example.homelauncher.ui.design.PrimaryButton
+import com.example.homelauncher.ui.design.SecondaryButton
+import com.example.homelauncher.ui.design.Spacing
+import com.example.homelauncher.ui.design.surfaceRing
 import com.example.homelauncher.ui.home.DragLayer
 import kotlin.math.roundToInt
 
@@ -154,7 +160,7 @@ private fun TopBar(onShowHidden: () -> Unit, onSettings: () -> Unit) {
     ) {
         Box {
             IconButton(onClick = { menu = true }) {
-                Icon(Glyphs.More, contentDescription = stringResource(R.string.drawer_options), tint = MaterialTheme.colorScheme.onSurface)
+                Icon(painterResource(R.drawable.ph_more), contentDescription = stringResource(R.string.drawer_options), tint = MaterialTheme.colorScheme.onSurface)
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(20.dp)) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.hidden_apps)) }, onClick = { menu = false; onShowHidden() })
@@ -187,14 +193,16 @@ private fun SearchPill(
         modifier = modifier
             .padding(horizontal = 16.dp)
             .fillMaxWidth(widthFraction)
-            .height(SearchPillHeight),
+            .height(SearchPillHeight)
+            .shadow(Spacing.sm, CircleShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
+            .surfaceRing(),
         shape = CircleShape,
-        color = colors.surfaceContainerHighest,
-        shadowElevation = 6.dp,
+        // Translucent so the grid shows through faintly; real glass comes with the Stage 5 glass setting.
+        color = colors.surfaceContainerHighest.copy(alpha = 0.92f),
         onClick = { focus.requestFocus() },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Glyphs.Search, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 12.dp).size(22.dp))
+            Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 12.dp).size(20.dp))
             BasicTextField(
                 value = model.query,
                 onValueChange = { model.query = it },
@@ -219,10 +227,10 @@ private fun SearchPill(
             )
             when {
                 model.query.isNotEmpty() -> IconButton(onClick = { model.query = "" }) {
-                    Icon(Glyphs.Close, contentDescription = stringResource(R.string.clear_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
                 voiceSearch != null -> IconButton(onClick = voiceSearch, modifier = Modifier.padding(end = 4.dp)) {
-                    Icon(Glyphs.Mic, contentDescription = stringResource(R.string.voice_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                    Icon(painterResource(R.drawable.ph_mic), contentDescription = stringResource(R.string.voice_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
                 else -> Spacer(Modifier.width(20.dp))
             }
@@ -327,7 +335,7 @@ fun HiddenAppsDialog(model: DrawerModel, onDismiss: () -> Unit) {
     val hidden by model.hidden.collectAsState()
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
+        confirmButton = { PrimaryButton(stringResource(R.string.done), onDismiss) },
         title = { Text(stringResource(R.string.hidden_apps)) },
         text = {
             if (hidden.isEmpty()) {
@@ -339,7 +347,7 @@ fun HiddenAppsDialog(model: DrawerModel, onDismiss: () -> Unit) {
                             Image(app.image, contentDescription = null, modifier = Modifier.size(36.dp))
                             Spacer(Modifier.width(12.dp))
                             Text(app.label, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            TextButton(onClick = { model.setHidden(app, false) }) { Text(stringResource(R.string.show)) }
+                            SecondaryButton(stringResource(R.string.show), onClick = { model.setHidden(app, false) }, icon = R.drawable.ph_eye)
                         }
                     }
                 }

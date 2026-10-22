@@ -335,8 +335,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             style.shadowColor = if (dark) 0 else LABEL_SHADOW
         }
         iconViews.values.forEach { it.applyStyle() }
-        if (isNight) optionsBar.setColors(0xF0202124.toInt(), 0xFFFFFFFF.toInt())
-        else optionsBar.setColors(0xF5FFFFFF.toInt(), 0xFF1C1B1F.toInt())
         if (dark) {
             home.setSurfaceColors(0x1F000000, 0xE6FFFFFF.toInt(), 0xFF1C1B1F.toInt(), DARK_LABEL)
         } else {

@@ -37,6 +37,7 @@ import com.example.homelauncher.R
 import com.example.homelauncher.data.AppInfo
 import com.example.homelauncher.data.IconPack
 import com.example.homelauncher.data.IconPackInfo
+import com.example.homelauncher.ui.design.PrimaryButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -60,7 +61,7 @@ fun IconPackPicker(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
+        confirmButton = { PrimaryButton(stringResource(R.string.done), onDismiss) },
         title = { Text(stringResource(R.string.icon_pack)) },
         shape = RoundedCornerShape(28.dp),
         text = {
