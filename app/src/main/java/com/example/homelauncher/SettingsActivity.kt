@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
@@ -161,16 +162,17 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         Card {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.show_labels), style = MaterialTheme.typography.bodyLarge)
-                    Text(stringResource(R.string.show_labels_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(
-                    checked = s.grid.showLabels,
-                    onCheckedChange = { scope.launch { store.setShowLabels(s.layoutMode, it) } },
-                )
-            }
+            SwitchRow(
+                title = stringResource(R.string.show_home_labels),
+                checked = s.grid.showHomeLabels,
+                onChange = { scope.launch { store.setShowHomeLabels(s.layoutMode, it) } },
+            )
+            SwitchRow(
+                title = stringResource(R.string.show_dock_labels),
+                checked = s.grid.showDockLabels,
+                onChange = { scope.launch { store.setShowDockLabels(s.layoutMode, it) } },
+            )
+            Text(stringResource(R.string.labels_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         Card(onClick = { showHidden = true }) {
@@ -189,6 +191,20 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
 @Composable
 private fun pluralHidden(n: Int): String =
     androidx.compose.ui.res.pluralStringResource(R.plurals.hidden_count, n, n)
+
+@Composable
+private fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
 
 @Composable
 private fun SectionTitle(text: String) {

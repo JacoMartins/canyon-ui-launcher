@@ -37,8 +37,10 @@ data class GridSpec(
     val rows: Int = 6,
     val dockSlots: Int = 4,
     val iconSize: IconSize = IconSize.MEDIUM,
-    /** Labels under home and dock icons. The Apps screen always shows them. */
-    val showLabels: Boolean = false,
+    /** Labels under home screen icons. The Apps screen always shows them. */
+    val showHomeLabels: Boolean = false,
+    /** Labels under dock icons, set separately from the home screen. */
+    val showDockLabels: Boolean = false,
 )
 
 data class LauncherSettings(
@@ -76,7 +78,8 @@ class SettingsStore(private val context: Context) {
         fun rows(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_rows")
         fun dock(m: LayoutMode) = intPreferencesKey("${m.storageKey}.dock_slots")
         fun iconSize(m: LayoutMode) = stringPreferencesKey("${m.storageKey}.icon_size")
-        fun showLabels(m: LayoutMode) = booleanPreferencesKey("${m.storageKey}.show_labels")
+        fun showHomeLabels(m: LayoutMode) = booleanPreferencesKey("${m.storageKey}.show_labels")
+        fun showDockLabels(m: LayoutMode) = booleanPreferencesKey("${m.storageKey}.show_dock_labels")
         fun hidden(m: LayoutMode) = stringSetPreferencesKey("${m.storageKey}.hidden_apps")
     }
 
@@ -87,7 +90,8 @@ class SettingsStore(private val context: Context) {
             rows = (p[Keys.rows(m)] ?: d.rows).coerceIn(MIN_ROWS, MAX_ROWS),
             dockSlots = (p[Keys.dock(m)] ?: d.dockSlots).coerceIn(4, 5),
             iconSize = p[Keys.iconSize(m)]?.let { v -> IconSize.entries.firstOrNull { it.name == v } } ?: d.iconSize,
-            showLabels = p[Keys.showLabels(m)] ?: d.showLabels,
+            showHomeLabels = p[Keys.showHomeLabels(m)] ?: d.showHomeLabels,
+            showDockLabels = p[Keys.showDockLabels(m)] ?: d.showDockLabels,
         )
     }
 
@@ -119,8 +123,12 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { it[Keys.iconSize(mode)] = size.name }
     }
 
-    suspend fun setShowLabels(mode: LayoutMode, show: Boolean) {
-        context.dataStore.edit { it[Keys.showLabels(mode)] = show }
+    suspend fun setShowHomeLabels(mode: LayoutMode, show: Boolean) {
+        context.dataStore.edit { it[Keys.showHomeLabels(mode)] = show }
+    }
+
+    suspend fun setShowDockLabels(mode: LayoutMode, show: Boolean) {
+        context.dataStore.edit { it[Keys.showDockLabels(mode)] = show }
     }
 
     /** Hides or shows an app in the active layout mode only. */

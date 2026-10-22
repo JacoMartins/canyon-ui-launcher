@@ -67,7 +67,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private lateinit var drawer: DrawerController
     private lateinit var drawerModel: DrawerModel
 
-    private val labelStyle = AppIconView.LabelStyle(LIGHT_LABEL, LABEL_SHADOW)
+    private val homeStyle = AppIconView.LabelStyle(LIGHT_LABEL, LABEL_SHADOW)
+    private val dockStyle = AppIconView.LabelStyle(LIGHT_LABEL, LABEL_SHADOW)
     private val iconViews = HashMap<Long, AppIconView>()
     private var boundOnce = false
     /** The wallpaper's own hint that it is light enough for dark text. */
@@ -194,15 +195,17 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     // --- Binding -----------------------------------------------------------------------------
 
     private fun bind(state: HomeState) {
-        val size = state.iconSize
-        if (labelStyle.iconCellFraction != size.cellFraction || labelStyle.maxIconDp != size.maxDp ||
-            labelStyle.showLabel != state.showLabels
-        ) {
-            labelStyle.iconCellFraction = size.cellFraction
-            labelStyle.maxIconDp = size.maxDp
-            labelStyle.showLabel = state.showLabels
-            iconViews.values.forEach { it.invalidate() }
+        var restyled = false
+        for ((style, show) in listOf(homeStyle to state.showHomeLabels, dockStyle to state.showDockLabels)) {
+            val size = state.iconSize
+            if (style.iconCellFraction != size.cellFraction || style.maxIconDp != size.maxDp || style.showLabel != show) {
+                style.iconCellFraction = size.cellFraction
+                style.maxIconDp = size.maxDp
+                style.showLabel = show
+                restyled = true
+            }
         }
+        if (restyled) iconViews.values.forEach { it.invalidate() }
         if (drawerEnabled != state.drawerEnabled) {
             drawerEnabled = state.drawerEnabled
             dragLayer.drawerEnabled = drawerEnabled
@@ -219,6 +222,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             val view = iconViews.getOrPut(item.id) { newIconView() }
             view.bind(item.app)
             val parent: CellLayout = if (p.container == Container.DOCK) home.hotseat else home.workspace.pageAt(p.pageIndex) ?: continue
+            view.useStyle(if (p.container == Container.DOCK) dockStyle else homeStyle)
             val lp = view.layoutParams as? CellLayout.LayoutParams
             if (view.parent !== parent) {
                 (view.parent as? CellLayout)?.removeView(view)
@@ -245,7 +249,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
     }
 
-    private fun newIconView() = AppIconView(this, labelStyle).apply {
+    private fun newIconView() = AppIconView(this, homeStyle).apply {
         setOnClickListener { v -> (v as AppIconView).app?.let { launchFromView(v, it) } }
         setOnLongClickListener { v ->
             val app = (v as AppIconView).app ?: return@setOnLongClickListener false
@@ -292,8 +296,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     private fun applyLabelColors() {
         val dark = darkLabels
-        labelStyle.color = if (dark) DARK_LABEL else LIGHT_LABEL
-        labelStyle.shadowColor = if (dark) 0 else LABEL_SHADOW
+        for (style in listOf(homeStyle, dockStyle)) {
+            style.color = if (dark) DARK_LABEL else LIGHT_LABEL
+            style.shadowColor = if (dark) 0 else LABEL_SHADOW
+        }
         iconViews.values.forEach { it.applyStyle() }
         if (dark) {
             home.setSurfaceColors(0x1F000000, 0xE6FFFFFF.toInt(), 0xFF1C1B1F.toInt(), DARK_LABEL)

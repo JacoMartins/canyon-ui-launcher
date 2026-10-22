@@ -19,7 +19,7 @@ import com.example.homelauncher.util.Motion
  * views, no per-frame allocation). The label is ellipsized once per size or text change.
  */
 @SuppressLint("ViewConstructor")
-class AppIconView(context: Context, private val style: LabelStyle) : View(context) {
+class AppIconView(context: Context, private var style: LabelStyle) : View(context) {
 
     /** Colours for labels drawn over the wallpaper. */
     class LabelStyle(
@@ -64,6 +64,13 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
         invalidate()
     }
 
+    /** Home and dock have separate styles; an icon takes the style of where it is placed. */
+    fun useStyle(newStyle: LabelStyle) {
+        if (newStyle === style) return
+        style = newStyle
+        applyStyle()
+    }
+
     /** Re-reads [style] (label colour changes with the wallpaper). */
     fun applyStyle() {
         textPaint.color = style.color
@@ -98,7 +105,7 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
     }
 
     companion object {
-        const val LABEL_SP = 8f
+        const val LABEL_SP = 10f
         const val LABEL_GAP_DP = 2f
     }
 
