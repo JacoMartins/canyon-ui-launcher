@@ -7,6 +7,7 @@ import com.example.homelauncher.data.DefaultApps
 import com.example.homelauncher.data.HomeRepository
 import com.example.homelauncher.data.IconCache
 import com.example.homelauncher.data.LauncherDatabase
+import com.example.homelauncher.data.LayoutMode
 import com.example.homelauncher.data.SettingsStore
 import kotlinx.coroutines.MainScope
 
@@ -24,10 +25,10 @@ class LauncherApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        val db = LauncherDatabase.create(this)
+        val daos = LayoutMode.entries.associateWith { LauncherDatabase.create(this, it).dao() }
         settings = SettingsStore(this)
         apps = AppRepository(this, scope, IconCache(this))
-        home = HomeRepository(db.dao(), settings, apps, DefaultApps(this), scope)
+        home = HomeRepository(daos, settings, apps, DefaultApps(this), scope)
         apps.start()
         home.start()
     }

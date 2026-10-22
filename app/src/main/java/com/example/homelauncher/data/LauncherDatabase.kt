@@ -62,6 +62,9 @@ interface LauncherDao {
     @Query("SELECT COUNT(*) FROM items")
     suspend fun itemCount(): Int
 
+    @Query("SELECT * FROM items")
+    suspend fun itemsNow(): List<ItemEntity>
+
     @Insert
     suspend fun insertPage(page: PageEntity): Long
 
@@ -96,7 +99,13 @@ abstract class LauncherDatabase : RoomDatabase() {
     abstract fun dao(): LauncherDao
 
     companion object {
-        fun create(context: Context): LauncherDatabase =
-            Room.databaseBuilder(context, LauncherDatabase::class.java, "launcher.db").build()
+        /** One database per layout mode, so each mode keeps its own pages and icons. */
+        fun create(context: Context, mode: LayoutMode): LauncherDatabase {
+            val name = when (mode) {
+                LayoutMode.HOME_AND_DRAWER -> "launcher.db" // Name kept from Stage 1 so layouts survive.
+                LayoutMode.HOME_ONLY -> "launcher_home_only.db"
+            }
+            return Room.databaseBuilder(context, LauncherDatabase::class.java, name).build()
+        }
     }
 }

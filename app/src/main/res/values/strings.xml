@@ -10,6 +10,7 @@
     <string name="app_unavailable">%1$s isn\'t available</string>
     <string name="app_cannot_open">%1$s can\'t be opened</string>
     <string name="app_info_unavailable">App info isn\'t available</string>
+    <string name="voice_search_unavailable">Voice search isn\'t available</string>
     <string name="cannot_uninstall">Can\'t uninstall %1$s</string>
 
     <!-- App actions -->
@@ -20,15 +21,29 @@
     <string name="action_options">Options</string>
 
     <!-- Drawer -->
-    <string name="search_apps">Search apps</string>
+    <string name="search">Search</string>
+    <string name="voice_search">Voice search</string>
+    <string name="home_settings">Home screen settings</string>
     <string name="clear_search">Clear search</string>
     <string name="drawer_options">Drawer options</string>
-    <string name="list_view">List view</string>
-    <string name="grid_view">Grid view</string>
     <string name="hidden_apps">Hidden apps</string>
     <string name="hidden_apps_empty">No hidden apps. Long-press an app and choose Hide to remove it from this list.</string>
     <string name="show">Show</string>
     <string name="done">Done</string>
     <string name="no_search_results">No apps match “%1$s”</string>
-    <string name="alphabet_index">Alphabet index</string>
+
+    <!-- Settings -->
+    <string name="layout_mode">Home screen layout</string>
+    <string name="layout_home_and_apps">Home and Apps screens</string>
+    <string name="layout_home_and_apps_summary">Swipe up on the Home screen to see all apps</string>
+    <string name="layout_home_only">Home screen only</string>
+    <string name="layout_home_only_summary">Every app is on the Home screen; no Apps screen</string>
+    <string name="layout_separate_note">Each layout keeps its own pages, icons and grid.</string>
+    <string name="home_grid">Home screen grid</string>
+    <string name="grid_columns">Columns</string>
+    <string name="grid_rows">Rows</string>
+    <plurals name="hidden_count">
+        <item quantity="one">%1$d app hidden</item>
+        <item quantity="other">%1$d apps hidden</item>
+    </plurals>
 </resources>

@@ -193,4 +193,43 @@ object LayoutResolver {
         }
         return pages.size to Cell(0, 0)
     }
+
+    data class NewPlacement(val key: AppKey, val pageIndex: Int, val cell: Cell)
+
+    /**
+     * Home-screen-only mode: places [missing] apps (in the given order) into free 1x1 cells,
+     * starting from the last page that has anything on it and appending pages as needed.
+     * Earlier pages are left alone so the user's arrangement is not filled in from the top.
+     */
+    fun placeMissingApps(
+        visible: List<PlacedItem>,
+        pageCount: Int,
+        columns: Int,
+        rows: Int,
+        missing: List<AppKey>,
+    ): List<NewPlacement> {
+        if (missing.isEmpty()) return emptyList()
+        val pages = ArrayList<GridOccupancy>()
+        repeat(maxOf(pageCount, 1)) { pages += GridOccupancy(columns, rows) }
+        var lastUsed = 0
+        for (v in visible) {
+            if (v.container != Container.DESKTOP) continue
+            while (pages.size <= v.pageIndex) pages += GridOccupancy(columns, rows)
+            pages[v.pageIndex].mark(v.x, v.y, v.spanX, v.spanY)
+            lastUsed = maxOf(lastUsed, v.pageIndex)
+        }
+        val out = ArrayList<NewPlacement>(missing.size)
+        var page = lastUsed
+        for (key in missing) {
+            var cell: Cell? = null
+            while (cell == null) {
+                while (pages.size <= page) pages += GridOccupancy(columns, rows)
+                cell = pages[page].findFirstFree()
+                if (cell == null) page++
+            }
+            pages[page].mark(cell.x, cell.y)
+            out += NewPlacement(key, page, cell)
+        }
+        return out
+    }
 }

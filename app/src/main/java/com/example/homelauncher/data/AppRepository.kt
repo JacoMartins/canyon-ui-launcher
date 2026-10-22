@@ -40,7 +40,6 @@ class AppInfo(
 ) {
     /** Compose wrapper around [icon]; created once, no copy. */
     val image: ImageBitmap = icon.asImageBitmap()
-    val section: String = AppSearch.sectionOf(label)
     val isMainProfile: Boolean get() = user == Process.myUserHandle()
 }
 
@@ -71,7 +70,7 @@ class IconCache(context: Context) {
 
     companion object {
         /** Rendered once at the largest size used on screen; views scale down. */
-        const val ICON_DP = 60
+        const val ICON_DP = 64
         private const val MAX_BYTES = 24 * 1024 * 1024
     }
 }

@@ -33,6 +33,22 @@ object Glyphs {
         }
     }
 
+    val Mic: ImageVector = icon("mic") {
+        stroke {
+            // Capsule
+            moveTo(9f, 6f)
+            arcTo(3f, 3f, 0f, false, true, 15f, 6f)
+            lineTo(15f, 11f)
+            arcTo(3f, 3f, 0f, false, true, 9f, 11f)
+            close()
+            // Holder and stem
+            moveTo(5.5f, 11f)
+            arcTo(6.5f, 6.5f, 0f, false, false, 18.5f, 11f)
+            moveTo(12f, 17.5f)
+            lineTo(12f, 21f)
+        }
+    }
+
     val More: ImageVector = icon("more") {
         path(fill = SolidColor(Color.Black)) {
             for (y in listOf(5f, 12f, 19f)) {

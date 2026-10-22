@@ -26,6 +26,9 @@ class DragLayer(context: Context) : FrameLayout(context) {
     }
 
     lateinit var drawer: DrawerController
+
+    /** False in "Home screen only" mode: there is no drawer to drag. */
+    var drawerEnabled = true
     val drawerTouch = DrawerTouchState()
 
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
@@ -37,6 +40,7 @@ class DragLayer(context: Context) : FrameLayout(context) {
     private var dragging = false
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (!drawerEnabled && drawer.isClosed) return false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x; downY = ev.y; lastY = ev.y

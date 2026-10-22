@@ -47,6 +47,23 @@ class PageIndicatorView(context: Context) : View(context) {
         )
     }
 
+    private val housePath = android.graphics.Path()
+
+    /** The first page is marked with a small house, as on One UI. */
+    private fun drawHome(canvas: Canvas, cx: Float, cy: Float) {
+        val s = 4.5f * d
+        housePath.rewind()
+        housePath.moveTo(cx, cy - s)
+        housePath.lineTo(cx + s, cy - s * 0.1f)
+        housePath.lineTo(cx + s * 0.75f, cy - s * 0.1f)
+        housePath.lineTo(cx + s * 0.75f, cy + s)
+        housePath.lineTo(cx - s * 0.75f, cy + s)
+        housePath.lineTo(cx - s * 0.75f, cy - s * 0.1f)
+        housePath.lineTo(cx - s, cy - s * 0.1f)
+        housePath.close()
+        canvas.drawPath(housePath, paint)
+    }
+
     override fun onDraw(canvas: Canvas) {
         if (pageCount <= 1) return
         val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
@@ -61,9 +78,13 @@ class PageIndicatorView(context: Context) : View(context) {
             // 1 when this dot is the current page, falling to 0 one page away.
             val t = (1f - abs(position - page)).coerceIn(0f, 1f)
             val w = dot + (activeWidth - dot) * t
-            rect.set(x, cy - dot / 2, x + w, cy + dot / 2)
             paint.alpha = (90 + 165 * t).toInt()
-            canvas.drawRoundRect(rect, dot / 2, dot / 2, paint)
+            if (page == 0) {
+                drawHome(canvas, x + w / 2, cy)
+            } else {
+                rect.set(x, cy - dot / 2, x + w, cy + dot / 2)
+                canvas.drawRoundRect(rect, dot / 2, dot / 2, paint)
+            }
             x += w + gap
         }
     }

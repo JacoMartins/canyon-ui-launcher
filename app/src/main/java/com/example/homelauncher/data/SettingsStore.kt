@@ -1,6 +1,7 @@
 package com.example.homelauncher.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -14,38 +15,61 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
-enum class DrawerStyle { GRID, LIST }
+/** "Home and Apps screens" (with a drawer) or "Home screen only" (every app on home). */
+enum class LayoutMode(val storageKey: String) {
+    HOME_AND_DRAWER("home_drawer"),
+    HOME_ONLY("home_only"),
+}
+
+/** Grid and dock of one layout mode. Each mode keeps its own. */
+data class GridSpec(val columns: Int = 4, val rows: Int = 6, val dockSlots: Int = 4)
 
 data class LauncherSettings(
-    val columns: Int = 5,
-    val rows: Int = 6,
-    val dockSlots: Int = 4,
-    val drawerStyle: DrawerStyle = DrawerStyle.GRID,
+    val layoutMode: LayoutMode = LayoutMode.HOME_AND_DRAWER,
+    val grids: Map<LayoutMode, GridSpec> = LayoutMode.entries.associateWith { GridSpec() },
     val hiddenApps: Set<String> = emptySet(),
     val firstRunDone: Boolean = false,
     val drawerHintSeen: Boolean = false,
-)
+) {
+    /** Grid of the active mode. */
+    val grid: GridSpec get() = grids.getValue(layoutMode)
+    val columns get() = grid.columns
+    val rows get() = grid.rows
+    val dockSlots get() = grid.dockSlots
+    val drawerEnabled get() = layoutMode == LayoutMode.HOME_AND_DRAWER
+}
 
-/** User settings in DataStore. Stage 1 exposes drawer style and hidden apps in the UI. */
+/**
+ * User settings in DataStore. Layout-specific values (grid, dock) are stored per [LayoutMode]
+ * under the mode's prefix, so switching modes keeps each mode's own setup.
+ */
 class SettingsStore(private val context: Context) {
 
     private object Keys {
-        val COLUMNS = intPreferencesKey("grid_columns")
-        val ROWS = intPreferencesKey("grid_rows")
-        val DOCK_SLOTS = intPreferencesKey("dock_slots")
-        val DRAWER_STYLE = stringPreferencesKey("drawer_style")
+        val LAYOUT_MODE = stringPreferencesKey("layout_mode")
         val HIDDEN = stringSetPreferencesKey("hidden_apps")
         val FIRST_RUN_DONE = booleanPreferencesKey("first_run_done")
         val DRAWER_HINT_SEEN = booleanPreferencesKey("drawer_hint_seen")
+
+        fun columns(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_columns")
+        fun rows(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_rows")
+        fun dock(m: LayoutMode) = intPreferencesKey("${m.storageKey}.dock_slots")
+    }
+
+    private fun grid(p: Preferences, m: LayoutMode): GridSpec {
+        val d = GridSpec()
+        return GridSpec(
+            columns = (p[Keys.columns(m)] ?: d.columns).coerceIn(MIN_COLUMNS, MAX_COLUMNS),
+            rows = (p[Keys.rows(m)] ?: d.rows).coerceIn(MIN_ROWS, MAX_ROWS),
+            dockSlots = (p[Keys.dock(m)] ?: d.dockSlots).coerceIn(4, 5),
+        )
     }
 
     val settings: Flow<LauncherSettings> = context.dataStore.data.map { p ->
         val d = LauncherSettings()
         LauncherSettings(
-            columns = (p[Keys.COLUMNS] ?: d.columns).coerceIn(4, 6),
-            rows = (p[Keys.ROWS] ?: d.rows).coerceIn(5, 7),
-            dockSlots = (p[Keys.DOCK_SLOTS] ?: d.dockSlots).coerceIn(4, 5),
-            drawerStyle = p[Keys.DRAWER_STYLE]?.let { runCatching { DrawerStyle.valueOf(it) }.getOrNull() } ?: d.drawerStyle,
+            layoutMode = p[Keys.LAYOUT_MODE]?.let { v -> LayoutMode.entries.firstOrNull { it.name == v } } ?: d.layoutMode,
+            grids = LayoutMode.entries.associateWith { grid(p, it) },
             hiddenApps = p[Keys.HIDDEN] ?: d.hiddenApps,
             firstRunDone = p[Keys.FIRST_RUN_DONE] ?: false,
             drawerHintSeen = p[Keys.DRAWER_HINT_SEEN] ?: false,
@@ -54,8 +78,15 @@ class SettingsStore(private val context: Context) {
 
     suspend fun current(): LauncherSettings = settings.first()
 
-    suspend fun setDrawerStyle(style: DrawerStyle) {
-        context.dataStore.edit { it[Keys.DRAWER_STYLE] = style.name }
+    suspend fun setLayoutMode(mode: LayoutMode) {
+        context.dataStore.edit { it[Keys.LAYOUT_MODE] = mode.name }
+    }
+
+    suspend fun setGrid(mode: LayoutMode, columns: Int, rows: Int) {
+        context.dataStore.edit {
+            it[Keys.columns(mode)] = columns.coerceIn(MIN_COLUMNS, MAX_COLUMNS)
+            it[Keys.rows(mode)] = rows.coerceIn(MIN_ROWS, MAX_ROWS)
+        }
     }
 
     suspend fun setHidden(key: String, hidden: Boolean) {
@@ -72,5 +103,12 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setDrawerHintSeen() {
         context.dataStore.edit { it[Keys.DRAWER_HINT_SEEN] = true }
+    }
+
+    companion object {
+        const val MIN_COLUMNS = 4
+        const val MAX_COLUMNS = 6
+        const val MIN_ROWS = 5
+        const val MAX_ROWS = 7
     }
 }

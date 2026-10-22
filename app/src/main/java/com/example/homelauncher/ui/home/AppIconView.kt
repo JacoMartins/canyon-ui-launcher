@@ -32,12 +32,12 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
     private var shownLabel: String = ""
 
     private val dm = resources.displayMetrics
-    private val maxIconPx = (52 * dm.density).toInt()
+    private val maxIconPx = (MAX_ICON_DP * dm.density).toInt()
     private val gapPx = 6 * dm.density
     private val iconRect = Rect()
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12f, dm)
+        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 13f, dm)
         textAlign = Paint.Align.CENTER
     }
     private val pressInterpolator = DecelerateInterpolator()
@@ -62,8 +62,8 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
     /** Re-reads [style] (label colour changes with the wallpaper). */
     fun applyStyle() {
         textPaint.color = style.color
-        val shadowRadius = if (style.shadowColor == 0) 0f else 2.5f * dm.density
-        textPaint.setShadowLayer(shadowRadius, 0f, 0.75f * dm.density, style.shadowColor)
+        val shadowRadius = if (style.shadowColor == 0) 0f else 3f * dm.density
+        textPaint.setShadowLayer(shadowRadius, 0f, 1f * dm.density, style.shadowColor)
         invalidate()
     }
 
@@ -79,16 +79,22 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
     override fun onDraw(canvas: Canvas) {
         val bmp = icon ?: return
         val textH = if (style.showLabel) textPaint.fontSpacing else 0f
-        val iconPx = minOf(maxIconPx, (width * 0.8f).toInt(), (height - textH - gapPx).toInt()).coerceAtLeast(0)
+        val iconPx = minOf(maxIconPx, (width * ICON_TO_CELL).toInt(), (height - textH - gapPx).toInt()).coerceAtLeast(0)
         val blockH = iconPx + if (style.showLabel) gapPx + textH else 0f
         val top = ((height - blockH) / 2f).toInt()
         val left = (width - iconPx) / 2
         iconRect.set(left, top, left + iconPx, top + iconPx)
         canvas.drawBitmap(bmp, null, iconRect, bitmapPaint)
         if (style.showLabel) {
-            val baseline = top + iconPx + gapPx - textPaint.fontMetrics.ascent
+            val baseline = top + iconPx + gapPx - textPaint.ascent() // ascent() does not allocate
             canvas.drawText(shownLabel, width / 2f, baseline, textPaint)
         }
+    }
+
+    companion object {
+        /** About 60dp on a 4-column grid of a 360dp-wide phone, like One UI's large icons. */
+        private const val ICON_TO_CELL = 0.68f
+        private const val MAX_ICON_DP = 64
     }
 
     override fun setPressed(pressed: Boolean) {

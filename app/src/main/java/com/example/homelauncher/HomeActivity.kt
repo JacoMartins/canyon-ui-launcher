@@ -7,12 +7,14 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.res.Configuration
+import android.graphics.Color
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.RecognizerIntent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
@@ -21,7 +23,9 @@ import android.widget.Toast
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.ViewCompat
@@ -69,6 +73,27 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     /** The wallpaper's own hint that it is light enough for dark text. */
     private var wallpaperIsLight = false
     private var hintVisible = false
+    private var hintSeen = true
+    private var drawerEnabled = true
+
+    private val speech = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { drawerModel.query = it }
+    }
+
+    override val voiceSearch: (() -> Unit)? by lazy {
+        if (packageManager.queryIntentActivities(speechIntent(), 0).isEmpty()) null else ::launchVoiceSearch
+    }
+
+    private fun launchVoiceSearch() {
+        try {
+            speech.launch(speechIntent())
+        } catch (e: ActivityNotFoundException) {
+            toast(getString(R.string.voice_search_unavailable))
+        }
+    }
+
+    private fun speechIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
 
     private val wallpaperManager by lazy { WallpaperManager.getInstance(this) }
     private val colorsListener = WallpaperManager.OnColorsChangedListener { _, which ->
@@ -82,8 +107,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        // Fully transparent bars: the default style adds a contrast scrim behind the gesture bar
+        // on some devices (a grey strip under the dock and drawer).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
+        window.isNavigationBarContrastEnforced = false
         launcherApps = getSystemService(LauncherApps::class.java)
 
         home = HomeScreenLayout(this, 5, 6, 4).apply { alpha = 1f }
@@ -92,6 +123,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.hotseat.alpha = 0f
         home.indicator.alpha = 0f
         home.workspace.onScroll = home.indicator::setPosition
+        home.onEmptyLongPress = ::openSettings
 
         drawerModel = DrawerModel(launcher.apps, launcher.settings, lifecycleScope)
 
@@ -109,7 +141,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.drawer = drawer
         setContentView(dragLayer)
         // TalkBack and switch access users get the drawer without the swipe.
-        ViewCompat.addAccessibilityAction(home, getString(R.string.action_open_all_apps)) { _, _ -> drawer.open(); true }
+        ViewCompat.addAccessibilityAction(home, getString(R.string.action_open_all_apps)) { _, _ -> drawerEnabled.also { if (it) drawer.open() } }
         // Start the drawer below the screen before the first frame.
         dragLayer.post { drawer.close(animate = false) }
 
@@ -126,7 +158,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launcher.settings.settings.collect { s -> setHintVisible(!s.drawerHintSeen) }
+                launcher.settings.settings.collect { s ->
+                    hintSeen = s.drawerHintSeen
+                    setHintVisible(!hintSeen && drawerEnabled)
+                }
             }
         }
     }
@@ -159,6 +194,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     // --- Binding -----------------------------------------------------------------------------
 
     private fun bind(state: HomeState) {
+        if (drawerEnabled != state.drawerEnabled) {
+            drawerEnabled = state.drawerEnabled
+            dragLayer.drawerEnabled = drawerEnabled
+            if (!drawerEnabled && !drawer.isClosed) drawer.close(animate = false)
+            setHintVisible(!hintSeen && drawerEnabled)
+        }
         home.setGrid(state.columns, state.rows, state.dockSlots)
         home.setPageCount(state.pageCount)
 
@@ -209,6 +250,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun showIconMenu(anchor: View, app: AppInfo) {
         PopupMenu(this, anchor).apply {
             menu.add(R.string.menu_app_info).setOnMenuItemClickListener { appInfo(app, anchor.screenBounds()); true }
+            if (!drawerEnabled) {
+                // Home-screen-only mode has no drawer, so hiding happens here; Settings lists hidden apps.
+                menu.add(R.string.menu_hide).setOnMenuItemClickListener { drawerModel.setHidden(app, true); true }
+            }
             if (!app.isSystem) menu.add(R.string.menu_uninstall).setOnMenuItemClickListener { uninstall(app); true }
             show()
         }
@@ -319,6 +364,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         } catch (e: SecurityException) {
             toast(getString(R.string.app_cannot_open, app.label))
         }
+    }
+
+    override fun openSettings() {
+        startActivity(Intent(this, SettingsActivity::class.java))
     }
 
     override fun appInfo(app: AppInfo, bounds: Rect?) {

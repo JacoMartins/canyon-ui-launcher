@@ -107,4 +107,21 @@ class LayoutResolverTest {
         assertEquals(k, AppKey.parse(k.toString()))
         assertEquals(null, AppKey.parse("garbage"))
     }
+
+    @Test fun homeOnlyPlacesMissingAppsAfterLastUsedPageAndAddsPages() {
+        val keep = PlacedItem(1, Container.DESKTOP, 1, 0, 0, 1, 1, key("kept"))
+        val dock = PlacedItem(2, Container.DOCK, 0, 0, 0, 1, 1, key("dock"))
+        val missing = (1..4).map { key("m$it") }
+        // 2x2 pages; page 1 has one item, so three fit there and the fourth opens page 2.
+        val out = LayoutResolver.placeMissingApps(listOf(keep, dock), pageCount = 2, columns = 2, rows = 2, missing = missing)
+        assertEquals(listOf(1, 1, 1, 2), out.map { it.pageIndex })
+        assertEquals(listOf(Cell(1, 0), Cell(0, 1), Cell(1, 1), Cell(0, 0)), out.map { it.cell })
+        assertEquals(missing, out.map { it.key })
+    }
+
+    @Test fun homeOnlyWithEmptyHomeStartsOnFirstPage() {
+        val out = LayoutResolver.placeMissingApps(emptyList(), 0, 4, 6, listOf(key("a")))
+        assertEquals(0, out.single().pageIndex)
+        assertEquals(Cell(0, 0), out.single().cell)
+    }
 }

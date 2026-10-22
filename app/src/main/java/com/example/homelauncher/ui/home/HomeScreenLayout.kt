@@ -30,11 +30,16 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     private var insetLeft = 0
     private var insetRight = 0
 
-    private val dockHeight = (88 * d).toInt()
+    private val dockHeight = (96 * d).toInt()
     private val dockMarginH = (12 * d).toInt()
     private val dockMarginBottom = (8 * d).toInt()
     private val indicatorHeight = (24 * d).toInt()
     private val pagePaddingH = (8 * d).toInt()
+
+    var showDockBackground = false
+
+    /** Long-press on an empty part of a page. */
+    var onEmptyLongPress: (() -> Unit)? = null
 
     var gridColumns = columns
         private set
@@ -43,6 +48,8 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
 
     init {
         clipChildren = false
+        // One UI shows the dock without a backing surface; the drawable stays for later styles.
+        dockBackground.setColor(0)
         hotseat.background = dockBackground
         hotseat.setPadding((4 * d).toInt(), 0, (4 * d).toInt(), 0)
         hint.apply {
@@ -73,6 +80,12 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         while (workspace.childCount < count) {
             workspace.addView(CellLayout(context, gridColumns, gridRows).apply {
                 setPadding(pagePaddingH, 0, pagePaddingH, 0)
+                // Icons consume their own long-press; this only fires on empty cells.
+                setOnLongClickListener { v ->
+                    v.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                    onEmptyLongPress?.invoke()
+                    onEmptyLongPress != null
+                }
             })
         }
         while (workspace.childCount > count) workspace.removeViewAt(workspace.childCount - 1)
@@ -88,7 +101,7 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
 
     /** Colours that depend on the wallpaper: light or dark labels, dock and hint surfaces. */
     fun setSurfaceColors(dockColor: Int, hintBackground: Int, hintText: Int, indicatorColor: Int) {
-        dockBackground.setColor(dockColor)
+        dockBackground.setColor(if (showDockBackground) dockColor else 0)
         (hint.background as GradientDrawable).setColor(hintBackground)
         hint.setTextColor(hintText)
         indicator.color = indicatorColor

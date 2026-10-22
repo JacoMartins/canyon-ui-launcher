@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.example.homelauncher.data.AppInfo
 import com.example.homelauncher.data.AppRepository
-import com.example.homelauncher.data.DrawerStyle
 import com.example.homelauncher.data.SettingsStore
 import com.example.homelauncher.model.AppSearch
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +19,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Drawer state: search query, filtered apps, hidden apps and the grid/list choice. */
+/** Drawer state: search query, filtered apps and hidden apps. */
 class DrawerModel(
     apps: AppRepository,
     private val settings: SettingsStore,
@@ -40,21 +39,9 @@ class DrawerModel(
         AppSearch.filter(list, q) { it.label }
     }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    /** Section letters with the index of their first app, for the unfiltered list. */
-    val sections: StateFlow<List<Pair<String, Int>>> = visible.map { list ->
-        AppSearch.sectionIndex(list.map { it.label })
-    }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.Eagerly, emptyList())
-
     val hidden: StateFlow<List<AppInfo>> = combine(all, hiddenKeys) { list, hidden ->
         list.filter { it.key.toString() in hidden }
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
-
-    val style: StateFlow<DrawerStyle> = settings.settings.map { it.drawerStyle }
-        .stateIn(scope, SharingStarted.Eagerly, DrawerStyle.GRID)
-
-    fun setStyle(style: DrawerStyle) {
-        scope.launch { settings.setDrawerStyle(style) }
-    }
 
     fun setHidden(app: AppInfo, hidden: Boolean) {
         scope.launch { settings.setHidden(app.key.toString(), hidden) }
