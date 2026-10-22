@@ -20,6 +20,9 @@ import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.FrameLayout
 import android.widget.PopupMenu
 import android.widget.Toast
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
+import java.lang.ref.WeakReference
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -44,6 +47,7 @@ import com.example.homelauncher.ui.home.AppIconView
 import com.example.homelauncher.ui.home.CellLayout
 import com.example.homelauncher.ui.home.DragLayer
 import com.example.homelauncher.ui.home.DrawerController
+import com.example.homelauncher.ui.home.HomeOptionsBar
 import com.example.homelauncher.ui.home.HomeScreenLayout
 import com.example.homelauncher.ui.theme.HomeTheme
 import com.example.homelauncher.util.Motion
@@ -66,6 +70,18 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private lateinit var drawerView: ComposeView
     private lateinit var drawer: DrawerController
     private lateinit var drawerModel: DrawerModel
+    private lateinit var optionsBar: HomeOptionsBar
+
+    // Return-to-home animation: the icon an app was opened from, and whether we left for it.
+    private var launchedFrom: WeakReference<View>? = null
+    private var launchPending = false
+    private var returningFromApp = false
+    private val overshoot = OvershootInterpolator(1.4f)
+    private val decelerate = DecelerateInterpolator()
+
+    private val optionsBack = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = optionsBar.dismiss()
+    }
 
     private val homeStyle = AppIconView.LabelStyle(LIGHT_LABEL, LABEL_SHADOW)
     private val dockStyle = AppIconView.LabelStyle(LIGHT_LABEL, LABEL_SHADOW)
@@ -124,7 +140,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.hotseat.alpha = 0f
         home.indicator.alpha = 0f
         home.workspace.onScroll = home.indicator::setPosition
-        home.onEmptyLongPress = ::openSettings
+        home.onEmptyLongPress = ::showHomeOptions
 
         drawerModel = DrawerModel(launcher.apps, launcher.settings, lifecycleScope)
 
@@ -138,6 +154,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
         dragLayer.addView(home, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         dragLayer.addView(drawerView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        optionsBar = HomeOptionsBar(this, ::chooseWallpaper, ::openSettings, ::onHomeOptionsDismissed)
+        dragLayer.addView(optionsBar, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         drawer = DrawerController(home, drawerView, this)
         dragLayer.drawer = drawer
         setContentView(dragLayer)
@@ -151,6 +169,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             override fun handleOnBackPressed() = Unit
         })
         onBackPressedDispatcher.addCallback(this, backCallback)
+        onBackPressedDispatcher.addCallback(this, optionsBack)
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -173,7 +192,18 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         refreshWallpaperColors()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (returningFromApp) {
+            returningFromApp = false
+            playReturnAnimation(launchedFrom?.get())
+            launchedFrom = null
+        }
+    }
+
     override fun onStop() {
+        if (launchPending) returningFromApp = true
+        launchPending = false
         wallpaperManager.removeOnColorsChangedListener(colorsListener)
         super.onStop()
     }
@@ -184,6 +214,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // drawer; if returning from another app, reset without animation.
         val visible = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
         if (Intent.ACTION_MAIN == intent.action && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            if (optionsBar.isShowing) {
+                optionsBar.dismiss()
+                return
+            }
             if (!drawer.isClosed) {
                 drawer.close(animate = visible)
             } else {
@@ -301,6 +335,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             style.shadowColor = if (dark) 0 else LABEL_SHADOW
         }
         iconViews.values.forEach { it.applyStyle() }
+        if (isNight) optionsBar.setColors(0xF0202124.toInt(), 0xFFFFFFFF.toInt())
+        else optionsBar.setColors(0xF5FFFFFF.toInt(), 0xFF1C1B1F.toInt())
         if (dark) {
             home.setSurfaceColors(0x1F000000, 0xE6FFFFFF.toInt(), 0xFF1C1B1F.toInt(), DARK_LABEL)
         } else {
@@ -359,12 +395,75 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     // --- Actions -----------------------------------------------------------------------------
 
+    // --- Home options (long-press on an empty spot) -----------------------------------------------
+
+    private fun showHomeOptions() {
+        if (!drawer.isClosed || optionsBar.isShowing) return
+        dragLayer.drawerEnabled = false
+        optionsBack.isEnabled = true
+        if (hintVisible) home.hint.animate().alpha(0f).setDuration(120).start()
+        zoomHome(OPTIONS_SCALE)
+        optionsBar.show()
+    }
+
+    private fun onHomeOptionsDismissed() {
+        dragLayer.drawerEnabled = drawerEnabled
+        optionsBack.isEnabled = false
+        if (hintVisible) home.hint.animate().alpha(1f).setDuration(150).start()
+        zoomHome(1f)
+    }
+
+    private fun zoomHome(scale: Float) {
+        for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
+            v.pivotY = home.height / 2f - v.top
+            if (Motion.enabled()) {
+                v.animate().scaleX(scale).scaleY(scale).setDuration(220).setInterpolator(decelerate).start()
+            } else {
+                v.scaleX = scale
+                v.scaleY = scale
+            }
+        }
+    }
+
+    private fun chooseWallpaper() {
+        try {
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), getString(R.string.choose_wallpaper)))
+        } catch (e: ActivityNotFoundException) {
+            toast(getString(R.string.wallpaper_unavailable))
+        }
+    }
+
+    // --- Return-to-home animation -----------------------------------------------------------
+
+    /**
+     * The system draws the closing app (a third-party launcher cannot take over that part), so
+     * the home screen meets it: pages settle in from a slight zoom and the icon the app was
+     * opened from grows back into place. Skipped if that icon is gone.
+     */
+    private fun playReturnAnimation(icon: View?) {
+        if (!Motion.enabled() || !drawer.isClosed || optionsBar.isShowing) return
+        for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
+            v.pivotY = home.height / 2f - v.top
+            v.scaleX = RETURN_SCALE
+            v.scaleY = RETURN_SCALE
+            v.alpha = 0.6f
+            v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(280).setInterpolator(decelerate).start()
+        }
+        if (icon != null && icon.isAttachedToWindow && icon.parent != null) {
+            icon.scaleX = 0.6f
+            icon.scaleY = 0.6f
+            icon.animate().scaleX(1f).scaleY(1f).setDuration(360).setInterpolator(overshoot).start()
+        }
+    }
+
     private fun launchFromView(v: View, app: AppInfo) {
+        launchedFrom = WeakReference(v)
         val opts = ActivityOptions.makeScaleUpAnimation(v, 0, 0, v.width, v.height).toBundle()
         start(app, v.screenBounds(), opts)
     }
 
     override fun launch(app: AppInfo, bounds: Rect?) {
+        launchedFrom = null
         val opts = bounds?.let {
             ActivityOptions.makeScaleUpAnimation(drawerView, it.left, it.top, it.width(), it.height()).toBundle()
         }
@@ -374,6 +473,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun start(app: AppInfo, bounds: Rect?, opts: Bundle?) {
         try {
             launcherApps.startMainActivity(app.component, app.user, bounds, opts)
+            launchPending = true
         } catch (e: ActivityNotFoundException) {
             toast(getString(R.string.app_unavailable, app.label))
         } catch (e: SecurityException) {
@@ -423,5 +523,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()
         private const val LABEL_SHADOW = 0x8A000000.toInt()
         private const val FADE_IN_MS = 180L
+        private const val OPTIONS_SCALE = 0.9f
+        private const val RETURN_SCALE = 1.06f
     }
 }
