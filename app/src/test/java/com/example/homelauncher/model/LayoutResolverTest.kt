@@ -124,4 +124,43 @@ class LayoutResolverTest {
         assertEquals(0, out.single().pageIndex)
         assertEquals(Cell(0, 0), out.single().cell)
     }
+
+    private fun folderItem(id: Long, page: Int, x: Int, y: Int, span: Int = 1, container: Int = Container.DESKTOP) =
+        StoredItem(id, container, page, x, y, span, span, null, null, ItemType.FOLDER)
+
+    private fun child(id: Long, folder: Long, rank: Int, k: AppKey, missing: Long? = null) =
+        StoredItem(id, Container.FOLDER, 0, rank, 0, 1, 1, k, missing, ItemType.APP, folder)
+
+    @Test fun folderChildrenAreResolvedInRankOrder() {
+        val a = key("a"); val b = key("b")
+        val r = resolve(listOf(folderItem(10, 0, 1, 1), child(11, 10, 1, b), child(12, 10, 0, a)), setOf(a, b))
+        assertEquals(listOf(10L), r.visible.map { it.id })
+        assertEquals(listOf(12L, 11L), r.children.getValue(10).map { it.id })
+        assertTrue(r.updates.isEmpty())
+    }
+
+    @Test fun folderWithOnlyMissingAppsIsHiddenNotDeleted() {
+        val a = key("a")
+        val r = resolve(listOf(folderItem(10, 0, 0, 0), child(11, 10, 0, a)), installed = emptySet())
+        assertTrue(r.visible.isEmpty())
+        assertEquals(listOf(ItemUpdate.MarkMissing(11, now)), r.updates)
+    }
+
+    @Test fun emptyFolderIsDeleted() {
+        val r = resolve(listOf(folderItem(10, 0, 0, 0)), emptySet())
+        assertEquals(listOf(ItemUpdate.Delete(10)), r.updates)
+    }
+
+    @Test fun orphanedAppMovesOntoThePage() {
+        val a = key("a")
+        val r = resolve(listOf(child(11, folder = 99, rank = 0, k = a)), setOf(a))
+        assertEquals(Container.DESKTOP, r.visible.single().container)
+        assertTrue(r.updates.single() is ItemUpdate.Move)
+    }
+
+    @Test fun largeFolderInDockMovesToDesktop() {
+        val a = key("a")
+        val r = resolve(listOf(folderItem(10, 0, 0, 0, span = 2, container = Container.DOCK), child(11, 10, 0, a)), setOf(a))
+        assertEquals(Container.DESKTOP, r.visible.single().container)
+    }
 }

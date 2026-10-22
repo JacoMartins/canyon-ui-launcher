@@ -8,12 +8,9 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -26,9 +23,10 @@ import kotlin.math.pow
  * a weaker bounce light at the bottom, and dark crescents at the left and right tips. Used on
  * interface surfaces only (buttons, search fields, bars, cards), never on app icons.
  *
- * Differences from the OneDepth original: brushes are built once per size in drawWithCache instead
- * of on every draw (no per-frame allocation on launcher surfaces), and rounded rectangles are
- * supported as well as pills.
+ * Differences from the OneDepth original: the ring is plain translucent white (light) and black
+ * (tips) drawn straight over the surface, with no blend modes and no offscreen mask layer, so it
+ * cannot glitch where layers meet; brushes are built once per size in drawWithCache (no per-frame
+ * allocation); rounded rectangles are supported as well as pills.
  */
 
 private const val STEPS = 32
@@ -76,19 +74,19 @@ fun Modifier.depthRing(
     cornerRadius: Dp? = null,
     width: Dp = 1.dp,
     alpha: Float = 0.333f,
-    blendMode: BlendMode = BlendMode.Hardlight,
     light: DepthLight = DepthLight.Surface,
     sideWidth: Dp = 1.dp,
     sideAlpha: Float = 0.20f,
     sideColor: Color = Color.Black,
 ): Modifier = this
-    // The blend modes mix the ring with this surface only, not with what is behind it.
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithCache {
         val w = width.toPx()
-        val s = sideWidth.toPx()
+        val sidePx = sideWidth.toPx()
         val h = size.height
         val r = (cornerRadius?.toPx() ?: (h / 2f)).coerceAtMost(minOf(h, size.width) / 2f)
+        // Tip crescents only make sense on shapes wider than tall; on a circle they would pinch
+        // the ring out of round, so circles get the lit ring alone.
+        val s = if (size.width - h < 1f) 0f else sidePx
 
         val ringBrush = light.brush(h)
         val ringTopLeft = Offset(s + w / 2f, w / 2f)
@@ -112,7 +110,7 @@ fun Modifier.depthRing(
         onDrawWithContent {
             drawContent()
             // 1) Lit ring, inset by the side stroke so a crescent opens at each tip.
-            drawRoundRect(ringBrush, ringTopLeft, ringSize, ringRadius, style = ringStroke, alpha = alpha, blendMode = blendMode)
+            drawRoundRect(ringBrush, ringTopLeft, ringSize, ringRadius, style = ringStroke, alpha = alpha)
             // 2) Dark tips easing to transparent along the straight edges.
             if (sideBrush != null) {
                 drawRoundRect(sideBrush, sideTopLeft, sideSize, sideRadius, style = sideStroke, alpha = sideAlpha)
@@ -131,10 +129,9 @@ fun Modifier.surfaceRing(cornerRadius: Dp? = null): Modifier {
     val dark = isDarkSurface()
     return depthRing(
         cornerRadius = cornerRadius,
-        alpha = if (dark) 0.25f else 1f,
-        blendMode = if (dark) BlendMode.Hardlight else BlendMode.Overlay,
+        alpha = if (dark) 0.30f else 0.75f,
         light = DepthLight.Surface,
-        sideAlpha = if (dark) 0.5f else 0.20f,
+        sideAlpha = if (dark) 0.45f else 0.15f,
     )
 }
 
@@ -144,8 +141,8 @@ fun Modifier.buttonRing(cornerRadius: Dp? = null): Modifier {
     val dark = isDarkSurface()
     return depthRing(
         cornerRadius = cornerRadius,
-        alpha = if (dark) 0.6f else 0.75f,
+        alpha = if (dark) 0.40f else 0.60f,
         light = DepthLight.Button,
-        sideAlpha = 0.4f,
+        sideAlpha = if (dark) 0.40f else 0.25f,
     )
 }

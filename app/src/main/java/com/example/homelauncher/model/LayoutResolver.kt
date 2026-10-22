@@ -4,9 +4,20 @@ package com.example.homelauncher.model
 object Container {
     const val DESKTOP = 0
     const val DOCK = 1
+
+    /** Inside a folder: the item's parent is the folder's id, its x is its rank. */
+    const val FOLDER = 2
 }
 
-/** A stored home item, independent of Room. [key] is the launch target ("pkg/cls#userSerial"). */
+object ItemType {
+    const val APP = 0
+    const val FOLDER = 1
+}
+
+/**
+ * A stored home item, independent of Room. For apps [key] is the launch target
+ * ("pkg/cls#userSerial"); folders have no key.
+ */
 data class StoredItem(
     val id: Long,
     val container: Int,
@@ -15,8 +26,10 @@ data class StoredItem(
     val y: Int,
     val spanX: Int,
     val spanY: Int,
-    val key: AppKey,
+    val key: AppKey?,
     val missingSince: Long?,
+    val type: Int = ItemType.APP,
+    val parentId: Long = 0,
 )
 
 /** A launchable activity: package, class and the profile (user serial) it belongs to. */
@@ -55,10 +68,21 @@ data class PlacedItem(
     val y: Int,
     val spanX: Int,
     val spanY: Int,
-    val key: AppKey,
-)
+    val key: AppKey?,
+    val type: Int = ItemType.APP,
+) {
+    fun covers(cx: Int, cy: Int) = cx in x until x + spanX && cy in y until y + spanY
+}
 
-class ResolvedLayout(val visible: List<PlacedItem>, val updates: List<ItemUpdate>)
+/**
+ * [visible] are top-level items (pages and dock). [children] maps a folder id to its visible
+ * apps in rank order.
+ */
+class ResolvedLayout(
+    val visible: List<PlacedItem>,
+    val updates: List<ItemUpdate>,
+    val children: Map<Long, List<PlacedItem>> = emptyMap(),
+)
 
 /**
  * Decides what the home screen shows given what is stored and what is installed.
@@ -70,6 +94,9 @@ class ResolvedLayout(val visible: List<PlacedItem>, val updates: List<ItemUpdate
  *   the icon returns to its old place. After that it is deleted.
  * - Items that no longer fit (grid made smaller, cell taken by something added meanwhile) move
  *   to the first free cell on their page, then the next pages, then a new page.
+ * - Folders: their apps follow the same rules. A folder whose apps are all temporarily missing
+ *   is hidden but kept; a folder with no apps left is deleted; apps whose folder no longer
+ *   exists move onto the pages. Only 1x1 items fit in the dock.
  */
 object LayoutResolver {
 
@@ -88,22 +115,53 @@ object LayoutResolver {
     ): ResolvedLayout {
         val updates = ArrayList<ItemUpdate>()
         val present = ArrayList<StoredItem>(items.size)
+        val folderIds = items.filter { it.type == ItemType.FOLDER }.mapTo(HashSet()) { it.id }
+        val children = HashMap<Long, MutableList<StoredItem>>()
+        val liveChildren = HashMap<Long, Int>() // Present or still-remembered apps per folder.
 
         for (item in items) {
-            val target = when {
-                item.key in installed -> item.key
-                else -> defaultActivityFor(item.key.packageName, item.key.userSerial)
-            }
-            if (target == null) {
-                when {
-                    item.missingSince == null -> updates += ItemUpdate.MarkMissing(item.id, now)
-                    now - item.missingSince > ghostRetentionMs -> updates += ItemUpdate.Delete(item.id)
-                }
+            if (item.type == ItemType.FOLDER) continue
+            val key = item.key
+            if (key == null) {
+                updates += ItemUpdate.Delete(item.id) // An app row without a target is unusable.
                 continue
             }
-            if (target != item.key) updates += ItemUpdate.Retarget(item.id, target)
+            val inFolder = item.container == Container.FOLDER
+            val orphan = inFolder && item.parentId !in folderIds
+            val target = when {
+                key in installed -> key
+                else -> defaultActivityFor(key.packageName, key.userSerial)
+            }
+            if (target == null) {
+                val expired = item.missingSince != null && now - item.missingSince > ghostRetentionMs
+                when {
+                    orphan || expired -> updates += ItemUpdate.Delete(item.id)
+                    item.missingSince == null -> updates += ItemUpdate.MarkMissing(item.id, now)
+                }
+                // A remembered app keeps its folder alive until it is deleted.
+                if (inFolder && !orphan && !expired) liveChildren.merge(item.parentId, 1, Int::plus)
+                continue
+            }
+            if (target != key) updates += ItemUpdate.Retarget(item.id, target)
             if (item.missingSince != null) updates += ItemUpdate.ClearMissing(item.id)
-            present += item.copy(key = target)
+            val resolved = item.copy(key = target)
+            when {
+                orphan -> present += resolved.copy(container = Container.DESKTOP, pageIndex = -1, spanX = 1, spanY = 1)
+                inFolder -> {
+                    children.getOrPut(item.parentId) { ArrayList() } += resolved
+                    liveChildren.merge(item.parentId, 1, Int::plus)
+                }
+                else -> present += resolved
+            }
+        }
+
+        for (folder in items) {
+            if (folder.type != ItemType.FOLDER) continue
+            when {
+                (liveChildren[folder.id] ?: 0) == 0 -> updates += ItemUpdate.Delete(folder.id)
+                children[folder.id].isNullOrEmpty() -> Unit // Every app is temporarily missing: hide, keep.
+                else -> present += folder
+            }
         }
 
         // Items that never went missing keep their cells; restored ghosts yield to them.
@@ -121,7 +179,7 @@ object LayoutResolver {
         val displaced = ArrayList<StoredItem>()
 
         for (item in ordered) {
-            val fitsDock = item.container == Container.DOCK && dock.isFree(item.x, 0)
+            val fitsDock = item.container == Container.DOCK && item.spanX == 1 && item.spanY == 1 && dock.isFree(item.x, 0)
             val fitsPage = item.container == Container.DESKTOP && item.pageIndex in 0 until pageCount &&
                 page(item.pageIndex).isFree(item.x, item.y, item.spanX, item.spanY)
             when {
@@ -164,11 +222,14 @@ object LayoutResolver {
             }
         }
 
-        return ResolvedLayout(visible, updates)
+        val visibleChildren = children.mapValues { (_, list) ->
+            list.sortedWith(compareBy({ it.x }, { it.id })).map { it.placed(Container.FOLDER, 0, it.x, 0) }
+        }
+        return ResolvedLayout(visible, updates, visibleChildren)
     }
 
     private fun StoredItem.placed(container: Int, page: Int, x: Int, y: Int) =
-        PlacedItem(id, container, page, x, y, spanX, spanY, key)
+        PlacedItem(id, container, page, x, y, spanX, spanY, key, type)
 
     /**
      * Where to put a new 1x1 app: the first free cell on [preferredPage], then on any page,

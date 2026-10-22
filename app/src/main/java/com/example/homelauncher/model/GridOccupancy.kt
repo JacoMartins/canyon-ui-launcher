@@ -56,4 +56,26 @@ class GridOccupancy(val columns: Int, val rows: Int) {
     }
 
     fun freeCellCount(): Int = taken.count { !it }
+
+    /**
+     * The free position for the span whose centre is closest to the centre of the span at
+     * ([x], [y]); null if nothing fits. Used to snap a drop next to where the finger is.
+     */
+    fun findNearestFree(x: Int, y: Int, spanX: Int = 1, spanY: Int = 1): Cell? {
+        var best: Cell? = null
+        var bestDist = Int.MAX_VALUE
+        for (cy in 0..rows - spanY) {
+            for (cx in 0..columns - spanX) {
+                if (!isFree(cx, cy, spanX, spanY)) continue
+                val dx = cx - x
+                val dy = cy - y
+                val d = dx * dx + dy * dy
+                if (d < bestDist) {
+                    bestDist = d
+                    best = Cell(cx, cy)
+                }
+            }
+        }
+        return best
+    }
 }
