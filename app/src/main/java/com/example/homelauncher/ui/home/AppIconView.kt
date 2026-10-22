@@ -1,0 +1,106 @@
+package com.example.homelauncher.ui.home
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
+import android.text.TextPaint
+import android.text.TextUtils
+import android.util.TypedValue
+import android.view.View
+import android.view.animation.DecelerateInterpolator
+import com.example.homelauncher.data.AppInfo
+import com.example.homelauncher.util.Motion
+
+/**
+ * One app on the home screen or dock: icon plus a one-line label, drawn directly (no child
+ * views, no per-frame allocation). The label is ellipsized once per size or text change.
+ */
+@SuppressLint("ViewConstructor")
+class AppIconView(context: Context, private val style: LabelStyle) : View(context) {
+
+    /** Colours for labels drawn over the wallpaper. */
+    class LabelStyle(var color: Int, var shadowColor: Int, var showLabel: Boolean = true)
+
+    var app: AppInfo? = null
+        private set
+
+    private var icon: Bitmap? = null
+    private var label: String = ""
+    private var shownLabel: String = ""
+
+    private val dm = resources.displayMetrics
+    private val maxIconPx = (52 * dm.density).toInt()
+    private val gapPx = 6 * dm.density
+    private val iconRect = Rect()
+    private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12f, dm)
+        textAlign = Paint.Align.CENTER
+    }
+    private val pressInterpolator = DecelerateInterpolator()
+
+    init {
+        isClickable = true
+        isLongClickable = true
+        isFocusable = true
+        applyStyle()
+    }
+
+    fun bind(info: AppInfo) {
+        if (app === info) return
+        app = info
+        icon = info.icon
+        label = info.label
+        contentDescription = info.label
+        updateShownLabel()
+        invalidate()
+    }
+
+    /** Re-reads [style] (label colour changes with the wallpaper). */
+    fun applyStyle() {
+        textPaint.color = style.color
+        val shadowRadius = if (style.shadowColor == 0) 0f else 2.5f * dm.density
+        textPaint.setShadowLayer(shadowRadius, 0f, 0.75f * dm.density, style.shadowColor)
+        invalidate()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        updateShownLabel()
+    }
+
+    private fun updateShownLabel() {
+        val avail = (width - 4 * dm.density).coerceAtLeast(0f)
+        shownLabel = if (avail <= 0f) label else TextUtils.ellipsize(label, textPaint, avail, TextUtils.TruncateAt.END).toString()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val bmp = icon ?: return
+        val textH = if (style.showLabel) textPaint.fontSpacing else 0f
+        val iconPx = minOf(maxIconPx, (width * 0.8f).toInt(), (height - textH - gapPx).toInt()).coerceAtLeast(0)
+        val blockH = iconPx + if (style.showLabel) gapPx + textH else 0f
+        val top = ((height - blockH) / 2f).toInt()
+        val left = (width - iconPx) / 2
+        iconRect.set(left, top, left + iconPx, top + iconPx)
+        canvas.drawBitmap(bmp, null, iconRect, bitmapPaint)
+        if (style.showLabel) {
+            val baseline = top + iconPx + gapPx - textPaint.fontMetrics.ascent
+            canvas.drawText(shownLabel, width / 2f, baseline, textPaint)
+        }
+    }
+
+    override fun setPressed(pressed: Boolean) {
+        if (pressed == isPressed) return
+        super.setPressed(pressed)
+        val target = if (pressed) Motion.PRESS_SCALE else 1f
+        if (Motion.enabled()) {
+            animate().scaleX(target).scaleY(target).setDuration(Motion.PRESS_DURATION_MS)
+                .setInterpolator(pressInterpolator).start()
+        } else {
+            scaleX = target
+            scaleY = target
+        }
+    }
+}

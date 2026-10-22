@@ -3,6 +3,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
 }
 
 android {
@@ -15,9 +17,9 @@ android {
     defaultConfig {
         applicationId = "com.example.homelauncher"
         minSdk = 29
-        targetSdk = 33
-        versionCode = 1
-        versionName = "0.0.1-stage0"
+        targetSdk = 37
+        versionCode = 2
+        versionName = "0.1.0-stage1"
     }
 
     signingConfigs {
@@ -52,10 +54,12 @@ android {
     }
 
     lint {
-        // targetSdk 33 is a deliberate project requirement (device runs Android 13).
-        disable += "OldTargetApi"
         abortOnError = true
     }
+}
+
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 kotlin {
@@ -75,6 +79,13 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
+
+    implementation(libs.lifecycle.runtime.ktx)
+    implementation(libs.coroutines.android)
+    implementation(libs.dynamicanimation)
+    implementation(libs.datastore.preferences)
+    implementation(libs.room.runtime)
+    ksp(libs.room.compiler)
 
     implementation(libs.haze)
     implementation(libs.haze.blur)

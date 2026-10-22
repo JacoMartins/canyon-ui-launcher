@@ -4,4 +4,6 @@ plugins {
     // Haze 2.0.1 is compiled against Kotlin 2.4.20.
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.room) apply false
 }

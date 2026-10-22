@@ -1,4 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Home</string>
+
+    <!-- Home -->
+    <string name="hint_swipe_up">Swipe up to see all apps</string>
+    <string name="action_open_all_apps">Open all apps</string>
+    <string name="home_page_description">Home screen, page %1$d of %2$d</string>
+    <string name="added_to_page">%1$s added to page %2$d</string>
+    <string name="app_unavailable">%1$s isn\'t available</string>
+    <string name="app_cannot_open">%1$s can\'t be opened</string>
+    <string name="app_info_unavailable">App info isn\'t available</string>
+    <string name="cannot_uninstall">Can\'t uninstall %1$s</string>
+
+    <!-- App actions -->
+    <string name="menu_add_to_home">Add to Home screen</string>
+    <string name="menu_app_info">App info</string>
+    <string name="menu_hide">Hide</string>
+    <string name="menu_uninstall">Uninstall</string>
+    <string name="action_options">Options</string>
+
+    <!-- Drawer -->
+    <string name="search_apps">Search apps</string>
+    <string name="clear_search">Clear search</string>
+    <string name="drawer_options">Drawer options</string>
+    <string name="list_view">List view</string>
+    <string name="grid_view">Grid view</string>
+    <string name="hidden_apps">Hidden apps</string>
+    <string name="hidden_apps_empty">No hidden apps. Long-press an app and choose Hide to remove it from this list.</string>
+    <string name="show">Show</string>
+    <string name="done">Done</string>
+    <string name="no_search_results">No apps match “%1$s”</string>
+    <string name="alphabet_index">Alphabet index</string>
 </resources>
