@@ -66,7 +66,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private val labelStyle = AppIconView.LabelStyle(LIGHT_LABEL, LABEL_SHADOW)
     private val iconViews = HashMap<Long, AppIconView>()
     private var boundOnce = false
-    private var darkTextOnWallpaper = false
+    /** The wallpaper's own hint that it is light enough for dark text. */
+    private var wallpaperIsLight = false
     private var hintVisible = false
 
     private val wallpaperManager by lazy { WallpaperManager.getInstance(this) }
@@ -218,18 +219,29 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun refreshWallpaperColors() {
         lifecycleScope.launch {
             val colors = withContext(Dispatchers.IO) { wallpaperManager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM) }
-            darkTextOnWallpaper = Build.VERSION.SDK_INT >= 31 && colors != null &&
+            wallpaperIsLight = Build.VERSION.SDK_INT >= 31 && colors != null &&
                 colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT != 0
             applyLabelColors()
             updateSystemBars(drawer.progress > 0.5f)
         }
     }
 
+    private val isNight: Boolean
+        get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
+    /**
+     * Dark labels only for a light wallpaper in light mode. Dark mode always gets light labels:
+     * One UI can dim the wallpaper in dark mode without changing the wallpaper's colour hints,
+     * so trusting the hint there gives black text on a darkened wallpaper.
+     */
+    private val darkLabels: Boolean get() = wallpaperIsLight && !isNight
+
     private fun applyLabelColors() {
-        labelStyle.color = if (darkTextOnWallpaper) DARK_LABEL else LIGHT_LABEL
-        labelStyle.shadowColor = if (darkTextOnWallpaper) 0 else LABEL_SHADOW
+        val dark = darkLabels
+        labelStyle.color = if (dark) DARK_LABEL else LIGHT_LABEL
+        labelStyle.shadowColor = if (dark) 0 else LABEL_SHADOW
         iconViews.values.forEach { it.applyStyle() }
-        if (darkTextOnWallpaper) {
+        if (dark) {
             home.setSurfaceColors(0x1F000000, 0xE6FFFFFF.toInt(), 0xFF1C1B1F.toInt(), DARK_LABEL)
         } else {
             home.setSurfaceColors(0x26FFFFFF, 0xE6202124.toInt(), 0xFFFFFFFF.toInt(), LIGHT_LABEL)
@@ -237,8 +249,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     private fun updateSystemBars(drawerMostlyOpen: Boolean) {
-        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-        val lightBars = if (drawerMostlyOpen) !night else darkTextOnWallpaper
+        // Light (dark-icon) bars over the light drawer, or over a light wallpaper in light mode.
+        val lightBars = if (drawerMostlyOpen) !isNight else darkLabels
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = lightBars
             isAppearanceLightNavigationBars = lightBars
@@ -247,6 +259,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        // uiMode is handled here (no restart), so dark/light switches must recolour by hand.
+        applyLabelColors()
         updateSystemBars(drawer.progress > 0.5f)
     }
 
