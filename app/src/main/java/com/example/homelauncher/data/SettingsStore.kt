@@ -21,11 +21,14 @@ enum class LayoutMode(val storageKey: String) {
     HOME_ONLY("home_only"),
 }
 
-/** Home icon size as a share of the cell width, with an upper bound in dp. */
+/**
+ * Icon size as a share of the column width, with an upper bound in dp. Medium matches One UI's
+ * 4x6 home screen, where an icon fills about 71% of its column.
+ */
 enum class IconSize(val cellFraction: Float, val maxDp: Int) {
-    SMALL(0.58f, 56),
-    MEDIUM(0.68f, 64),
-    LARGE(0.78f, 72),
+    SMALL(0.62f, 64),
+    MEDIUM(0.72f, 72),
+    LARGE(0.82f, 80),
 }
 
 /** Grid, dock and icon size of one layout mode. Each mode keeps its own. */
@@ -34,6 +37,8 @@ data class GridSpec(
     val rows: Int = 6,
     val dockSlots: Int = 4,
     val iconSize: IconSize = IconSize.MEDIUM,
+    /** Labels under home and dock icons. The Apps screen always shows them. */
+    val showLabels: Boolean = false,
 )
 
 data class LauncherSettings(
@@ -71,6 +76,7 @@ class SettingsStore(private val context: Context) {
         fun rows(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_rows")
         fun dock(m: LayoutMode) = intPreferencesKey("${m.storageKey}.dock_slots")
         fun iconSize(m: LayoutMode) = stringPreferencesKey("${m.storageKey}.icon_size")
+        fun showLabels(m: LayoutMode) = booleanPreferencesKey("${m.storageKey}.show_labels")
         fun hidden(m: LayoutMode) = stringSetPreferencesKey("${m.storageKey}.hidden_apps")
     }
 
@@ -81,6 +87,7 @@ class SettingsStore(private val context: Context) {
             rows = (p[Keys.rows(m)] ?: d.rows).coerceIn(MIN_ROWS, MAX_ROWS),
             dockSlots = (p[Keys.dock(m)] ?: d.dockSlots).coerceIn(4, 5),
             iconSize = p[Keys.iconSize(m)]?.let { v -> IconSize.entries.firstOrNull { it.name == v } } ?: d.iconSize,
+            showLabels = p[Keys.showLabels(m)] ?: d.showLabels,
         )
     }
 
@@ -110,6 +117,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setIconSize(mode: LayoutMode, size: IconSize) {
         context.dataStore.edit { it[Keys.iconSize(mode)] = size.name }
+    }
+
+    suspend fun setShowLabels(mode: LayoutMode, show: Boolean) {
+        context.dataStore.edit { it[Keys.showLabels(mode)] = show }
     }
 
     /** Hides or shows an app in the active layout mode only. */

@@ -70,7 +70,8 @@ class IconCache(context: Context) {
 
     companion object {
         /** Rendered once at the largest size used on screen; views scale down. */
-        const val ICON_DP = 64
+        /** Largest on-screen size (IconSize.LARGE cap), so icons are only ever scaled down. */
+        const val ICON_DP = 80
         private const val MAX_BYTES = 24 * 1024 * 1024
     }
 }

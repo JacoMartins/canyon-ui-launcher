@@ -38,11 +38,11 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
     private var shownLabel: String = ""
 
     private val dm = resources.displayMetrics
-    private val gapPx = 6 * dm.density
+    private val gapPx = LABEL_GAP_DP * dm.density
     private val iconRect = Rect()
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 13f, dm)
+        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, LABEL_SP, dm)
         textAlign = Paint.Align.CENTER
     }
     private val pressInterpolator = DecelerateInterpolator()
@@ -95,6 +95,11 @@ class AppIconView(context: Context, private val style: LabelStyle) : View(contex
             val baseline = top + iconPx + gapPx - textPaint.ascent() // ascent() does not allocate
             canvas.drawText(shownLabel, width / 2f, baseline, textPaint)
         }
+    }
+
+    companion object {
+        const val LABEL_SP = 8f
+        const val LABEL_GAP_DP = 2f
     }
 
     override fun setPressed(pressed: Boolean) {

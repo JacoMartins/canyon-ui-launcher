@@ -195,9 +195,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     private fun bind(state: HomeState) {
         val size = state.iconSize
-        if (labelStyle.iconCellFraction != size.cellFraction || labelStyle.maxIconDp != size.maxDp) {
+        if (labelStyle.iconCellFraction != size.cellFraction || labelStyle.maxIconDp != size.maxDp ||
+            labelStyle.showLabel != state.showLabels
+        ) {
             labelStyle.iconCellFraction = size.cellFraction
             labelStyle.maxIconDp = size.maxDp
+            labelStyle.showLabel = state.showLabels
             iconViews.values.forEach { it.invalidate() }
         }
         if (drawerEnabled != state.drawerEnabled) {

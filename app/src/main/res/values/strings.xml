@@ -46,6 +46,8 @@
     <string name="icon_size_small">Small</string>
     <string name="icon_size_medium">Medium</string>
     <string name="icon_size_large">Large</string>
+    <string name="show_labels">Show labels on Home screen</string>
+    <string name="show_labels_summary">App names under Home screen and dock icons. The Apps screen always shows them.</string>
     <string name="hidden_apps_per_layout">Applies to the current layout only</string>
     <plurals name="hidden_count">
         <item quantity="one">%1$d app hidden</item>

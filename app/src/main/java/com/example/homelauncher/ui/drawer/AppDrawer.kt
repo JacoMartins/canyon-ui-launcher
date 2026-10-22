@@ -74,7 +74,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.homelauncher.ui.home.AppIconView
 import com.example.homelauncher.R
 import com.example.homelauncher.data.AppInfo
 import com.example.homelauncher.ui.common.Glyphs
@@ -248,6 +252,11 @@ private fun AppGrid(
 ) {
     val optionsLabel = stringResource(R.string.action_options)
     val haptics = LocalHapticFeedback.current
+    // Same rule as the home screen: a share of the column width, capped.
+    val size by model.iconSize.collectAsState()
+    val windowWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp().value }
+    val iconDp = minOf((windowWidthDp - 16f) / COLUMNS * size.cellFraction, size.maxDp.toFloat()).dp
+    val labelStyle = MaterialTheme.typography.bodySmall.copy(fontSize = AppIconView.LABEL_SP.sp, lineHeight = (AppIconView.LABEL_SP + 2).sp)
     LazyVerticalGrid(
         columns = GridCells.Fixed(COLUMNS),
         state = state,
@@ -275,11 +284,11 @@ private fun AppGrid(
                         .padding(vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Image(app.image, contentDescription = null, modifier = Modifier.size(60.dp))
-                    Spacer(Modifier.height(4.dp))
+                    Image(app.image, contentDescription = null, modifier = Modifier.size(iconDp))
+                    Spacer(Modifier.height(AppIconView.LABEL_GAP_DP.dp))
                     Text(
                         app.label,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = labelStyle,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

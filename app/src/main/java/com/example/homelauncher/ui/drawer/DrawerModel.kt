@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import com.example.homelauncher.data.AppInfo
 import com.example.homelauncher.data.AppRepository
+import com.example.homelauncher.data.IconSize
 import com.example.homelauncher.data.SettingsStore
 import com.example.homelauncher.model.AppSearch
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +43,10 @@ class DrawerModel(
     val hidden: StateFlow<List<AppInfo>> = combine(all, hiddenKeys) { list, hidden ->
         list.filter { it.key.toString() in hidden }
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** The active layout's icon size; the Apps screen uses it too. */
+    val iconSize: StateFlow<IconSize> = settings.settings.map { it.grid.iconSize }
+        .stateIn(scope, SharingStarted.Eagerly, IconSize.MEDIUM)
 
     fun setHidden(app: AppInfo, hidden: Boolean) {
         scope.launch { settings.setHidden(app.key.toString(), hidden) }

@@ -23,6 +23,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -156,6 +157,19 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                         label = { Text(stringResource(label)) },
                     )
                 }
+            }
+        }
+
+        Card {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.show_labels), style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.show_labels_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(
+                    checked = s.grid.showLabels,
+                    onCheckedChange = { scope.launch { store.setShowLabels(s.layoutMode, it) } },
+                )
             }
         }
 

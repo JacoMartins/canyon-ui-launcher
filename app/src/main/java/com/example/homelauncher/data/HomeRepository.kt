@@ -38,6 +38,7 @@ data class HomeState(
     val rows: Int,
     val dockSlots: Int,
     val iconSize: IconSize,
+    val showLabels: Boolean,
     val items: List<HomeItem>,
 ) {
     val drawerEnabled get() = mode == LayoutMode.HOME_AND_DRAWER
@@ -167,7 +168,7 @@ class HomeRepository(
             (visible.maxOfOrNull { if (it.placed.container == Container.DESKTOP) it.placed.pageIndex else 0 } ?: 0) + 1,
             1,
         )
-        val state = HomeState(mode, pageCount, grid.columns, grid.rows, grid.dockSlots, grid.iconSize, visible)
+        val state = HomeState(mode, pageCount, grid.columns, grid.rows, grid.dockSlots, grid.iconSize, grid.showLabels, visible)
         return Computed(state, dao, resolved.updates, additions)
     }
 
