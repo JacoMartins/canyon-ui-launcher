@@ -22,10 +22,13 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3.2.2
-
+      # The runner image has the Android SDK; only the platform and build tools are added.
       - name: Install the Android platform and build tools
-        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
+        run: |
+          SDKMANAGER=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-37.0" "build-tools;37.0.0"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Read the version
         id: version
