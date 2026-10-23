@@ -465,8 +465,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun armDrag(app: AppInfo, bounds: Rect?) = drag.arm(newAppSource(DragItem.NewApp(app.key), app))
 
-    override fun armDragFromFolder(app: AppEntry, folder: FolderEntry, bounds: Rect) =
+    /** Long-press inside the folder popup: the icon's menu, and a drag if the finger moves. */
+    override fun armDragFromFolder(app: AppEntry, folder: FolderEntry, bounds: Rect) {
+        ui.menu = ItemMenu(bounds, menuFor(app))
+        updateBackCallbacks()
         drag.arm(newAppSource(DragItem.Existing(app.id), app.app))
+    }
 
     // --- DragController.Callbacks -------------------------------------------------------------
 
