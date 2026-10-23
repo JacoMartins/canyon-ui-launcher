@@ -152,9 +152,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private var resizeFrame: ResizeFrame? = null
     private var resizeAnyWidget = false
     private var swipeUpTarget: String? = null
+    private var lastNight: Boolean? = null
+    private var iconShape = io.github.jacomartins.canyonui.data.IconShape.SYSTEM
     private var wallpaperTarget: String? = null
-    /** Where the last item menu opened, for a follow-up menu in the same place. */
-    private var menuAnchor = Rect()
     /** Compose state: both ComposeViews recolour when the setting changes. */
     private var phonePalette by mutableStateOf(false)
     private var widgetBorder = true
@@ -249,6 +249,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         super.onCreate(savedInstanceState)
         clearBarScrims()
         launcherApps = getSystemService(LauncherApps::class.java)
+        lastNight = isNight
         widgets = HomeWidgets(
             this,
             onProvidersChanged = ::onWidgetProvidersChanged,
@@ -326,6 +327,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     hintSeen = s.drawerHintSeen
                     resizeAnyWidget = s.resizeAnyWidget
                     phonePalette = s.phonePalette
+                    if (iconShape != s.iconStyle.shape) {
+                        iconShape = s.iconStyle.shape
+                        views.values.forEach { (it as? FolderIconView)?.let(::styleFolder) }
+                    }
                     swipeUpTarget = s.swipeUpTarget
                     wallpaperTarget = s.wallpaperTarget
                     ui.categoryMode = s.autoCategories && s.layoutMode == LayoutMode.HOME_ONLY
@@ -558,11 +563,19 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     private fun newFolderView() = FolderIconView(this, homeStyle).apply {
         listener = this@HomeActivity
-        defaultColor = folderDefaultColor()
+        styleFolder(this)
         setOnLongClickListener { v -> onItemLongPress(v) }
     }
 
-    private fun folderDefaultColor() = if (isNight) 0xD91C1C1E.toInt() else 0xCCF4F4F6.toInt()
+    /** Translucent (60%) so the wallpaper shows through the folder. */
+    private fun folderDefaultColor() = if (isNight) 0x991C1C1E.toInt() else 0x99F4F4F6.toInt()
+
+    /** Folders take the icon shape and the mode's border values. */
+    private fun styleFolder(f: FolderIconView) {
+        f.shape = iconShape
+        f.darkSurface = isNight
+        f.defaultColor = folderDefaultColor()
+    }
 
     // --- Long-press: menu, and a drag if the finger moves ------------------------------------
 
@@ -574,8 +587,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val entry = entryOf(v) ?: return false
         v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         dismissResizeFrame()
-        menuAnchor = v.windowBounds()
-        ui.menu = ItemMenu(menuAnchor, menuFor(entry, v))
+        ui.menu = ItemMenu(v.visualBounds(), menuFor(entry, v))
         if (entry is WidgetEntry || entry is StackEntry) showResizeFrame(v, entry)
         updateBackCallbacks()
         drag.arm(sourceFor(v, entry))
@@ -623,7 +635,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 val app = entry.app
                 out += MenuEntry(R.drawable.ph_info, getString(R.string.menu_app_info)) { appInfo(app, null) }
                 out += MenuEntry(R.drawable.ph_edit, getString(R.string.menu_edit_app)) { editApp(app) }
-                if (ui.categoryMode) out += MenuEntry(R.drawable.ph_stack, getString(R.string.menu_category)) { showCategoryMenu(app) }
+                if (ui.categoryMode) {
+                    out += MenuEntry(R.drawable.ph_stack, getString(R.string.menu_send_to_category)) {
+                        lifecycleScope.launch { launcher.home.moveToCategory(app.key, app.category ?: AppCategories.Category.OTHERS) }
+                    }
+                }
                 if (drawerEnabled) {
                     out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove)) { removeWithUndo(entry.id) }
                 } else {
@@ -711,7 +727,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun armDragFromFolder(app: AppEntry, folder: FolderEntry, bounds: Rect) {
-        menuAnchor = bounds
         ui.menu = ItemMenu(bounds, menuFor(app))
         updateBackCallbacks()
         drag.arm(newAppSource(DragItem.Existing(app.id), app.app))
@@ -1131,25 +1146,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     // --- Category mode ------------------------------------------------------------------------
 
-    /** The categories, as a menu in the place of the app's menu; the choice moves the app. */
-    private fun showCategoryMenu(app: AppInfo) {
-        val entries = AppCategories.Category.entries.map { c ->
-            val current = app.category ?: AppCategories.Category.OTHERS
-            MenuEntry(if (c == current) R.drawable.ph_check else R.drawable.ph_stack, getString(c.titleRes())) { setAppCategory(app, c) }
-        }
-        ui.menu = ItemMenu(menuAnchor, entries)
-        updateBackCallbacks()
-    }
-
-    private fun setAppCategory(app: AppInfo, category: AppCategories.Category) {
-        lifecycleScope.launch {
-            val key = app.key.toString()
-            val old = launcher.settings.current().iconOverrides[key] ?: IconOverride()
-            launcher.settings.setIconOverride(key, old.copy(category = category.key))
-            launcher.home.moveToCategory(app.key, category)
-        }
-    }
-
     override fun categorizeApps() = edit(getString(R.string.snack_categorized)) { launcher.home.categorizeLooseApps() }
 
     /** Category mode just started: Google's search bar across the first free row of the home page. */
@@ -1265,7 +1261,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
         views.values.forEach {
             (it as? AppIconView)?.applyStyle()
-            (it as? FolderIconView)?.let { f -> f.defaultColor = folderDefaultColor(); f.applyStyle() }
+            (it as? FolderIconView)?.let { f -> styleFolder(f); f.applyStyle() }
         }
         if (dark) {
             home.setSurfaceColors(0x1F000000, 0xE6FFFFFF.toInt(), 0xFF1C1B1F.toInt(), DARK_LABEL)
@@ -1306,6 +1302,13 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // uiMode is handled here (no restart), so dark/light switches must recolour by hand.
         applyLabelColors()
         updateSystemBars(drawer.progress > 0.5f)
+        // Widgets inflate their layout once, with the resources of that moment: on a light/dark
+        // switch every widget view is made again so it draws in the new mode.
+        if (isNight != lastNight) {
+            lastNight = isNight
+            widgets.prune(emptySet())
+            state?.let(::bind)
+        }
     }
 
     // --- Drawer callbacks --------------------------------------------------------------------
@@ -1478,6 +1481,25 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
 
     /** Bounds in window coordinates (this activity's window is full screen). */
+    /**
+     * The part of an item people see (the icon or folder square, without the label or the
+     * empty cell around it) in window coordinates, so a menu opens right next to it.
+     */
+    private fun View.visualBounds(): Rect {
+        val local = when (this) {
+            is AppIconView -> RectF(iconBounds(tmpRect))
+            is FolderIconView -> backdropBounds(RectF())
+            else -> return windowBounds()
+        }
+        val origin = IntArray(2).also { dragLayer.getLocationInWindow(it) }
+        pt[0] = local.left; pt[1] = local.top
+        ViewMap.localToRoot(dragLayer, this, pt)
+        val l = pt[0]; val t = pt[1]
+        pt[0] = local.right; pt[1] = local.bottom
+        ViewMap.localToRoot(dragLayer, this, pt)
+        return Rect((l + origin[0]).toInt(), (t + origin[1]).toInt(), (pt[0] + origin[0]).toInt(), (pt[1] + origin[1]).toInt())
+    }
+
     private fun View.windowBounds(): Rect {
         val loc = IntArray(2)
         getLocationInWindow(loc)

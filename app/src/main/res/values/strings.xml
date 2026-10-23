@@ -117,7 +117,7 @@
     <string name="resize_any_widget">Resize any widget</string>
     <string name="resize_any_widget_summary">Lets widgets take any size, even ones their app does not offer. Some widgets may then look cropped or stretched.</string>
     <!-- Icons (Stage 4) -->
-    <string name="menu_edit_app">Edit icon and name</string>
+    <string name="menu_edit_app">Edit icon</string>
     <string name="edit_app_title">Edit app</string>
     <string name="edit_app_label">Name</string>
     <string name="edit_app_from_pack">Icon pack</string>
@@ -165,7 +165,7 @@
     <string name="menu_show_outline">Show outline</string>
     <string name="phone_palette">Use the phone\'s colour palette</string>
     <string name="phone_palette_summary">Off: Canyon UI\'s own light and dark colours. On: menus, buttons and panels take the colours of the phone\'s palette (Color palette in the phone\'s settings).</string>
-    <string name="menu_category">Category</string>
+    <string name="menu_send_to_category">Send to its category</string>
     <string name="categorize_apps">Categorize apps</string>
     <string name="snack_categorized">Apps put into their categories</string>
     <string name="swipe_up">Swipe up on home opens</string>

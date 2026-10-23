@@ -15,6 +15,8 @@ import android.graphics.drawable.Drawable
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
+import android.content.res.Configuration
+import io.github.jacomartins.canyonui.ui.design.DepthRingPainter
 import androidx.core.graphics.createBitmap
 import kotlin.math.min
 
@@ -48,7 +50,11 @@ object WidgetFrame {
             view.foreground?.invalidateSelf()
         }
         val fg = view.foreground
-        if (ring && fg !is Ring) view.foreground = Ring(frame, d)
+        if (ring && fg !is Ring) {
+            view.foreground = Ring(frame, d) {
+                view.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+            }
+        }
         if (!ring && fg is Ring) view.foreground = null
         refresh(view)
     }
@@ -200,33 +206,22 @@ object WidgetFrame {
     }
 
     /** A 1dp translucent white line inside the frame's edge. */
-    private class Ring(private val frame: Frame, density: Float) : Drawable() {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = density
-            color = RING_COLOR
-        }
+    /** The same depth ring as the interface's buttons, on the widget's visible card. */
+    private class Ring(private val frame: Frame, density: Float, private val dark: () -> Boolean) : Drawable() {
+        private val painter = DepthRingPainter(density)
         private val rect = RectF()
 
         override fun draw(canvas: Canvas) {
             val c = if (frame.content.isEmpty) bounds else frame.content
-            val half = paint.strokeWidth / 2f
-            rect.set(c.left + half, c.top + half, c.right - half, c.bottom - half)
-            val r = frame.radius() - half
-            canvas.drawRoundRect(rect, r, r, paint)
+            rect.set(c)
+            painter.draw(canvas, rect, frame.radius(), dark())
         }
 
-        override fun setAlpha(alpha: Int) {
-            paint.alpha = alpha
-        }
+        override fun setAlpha(alpha: Int) = Unit
 
-        override fun setColorFilter(colorFilter: ColorFilter?) {
-            paint.colorFilter = colorFilter
-        }
+        override fun setColorFilter(colorFilter: ColorFilter?) = Unit
 
         @Deprecated("Deprecated in Java")
         override fun getOpacity() = PixelFormat.TRANSLUCENT
     }
-
-    private const val RING_COLOR = 0x59FFFFFF
 }

@@ -14,6 +14,10 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import io.github.jacomartins.canyonui.data.AppEntry
 import io.github.jacomartins.canyonui.data.FolderEntry
+import io.github.jacomartins.canyonui.data.IconShape
+import io.github.jacomartins.canyonui.ui.design.DepthRingPainter
+import android.graphics.Path
+import androidx.core.graphics.drawable.toDrawable
 import io.github.jacomartins.canyonui.util.Motion
 
 /**
@@ -36,8 +40,22 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         private set
 
     /** Backdrop colour when the folder has no colour of its own (follows the theme). */
-    var defaultColor: Int = 0xD91C1C1E.toInt()
+    var defaultColor: Int = 0x991C1C1E.toInt()
         set(value) { field = value; invalidate() }
+
+    /** The icon shape from settings: a normal folder takes it; a large one its corner style. */
+    var shape: IconShape = IconShape.SYSTEM
+        set(value) { if (field != value) { field = value; pathSize = -1f; invalidate() } }
+
+    /** Dark mode: the border takes its dark-surface values. */
+    var darkSurface = true
+        set(value) { if (field != value) { field = value; invalidate() } }
+
+    private val ring = DepthRingPainter(resources.displayMetrics.density)
+    private val shapePath = Path()
+    private var pathSize = -1f
+    private var pathLeft = 0f
+    private var pathTop = 0f
 
     private val dm = resources.displayMetrics
     private val gapPx = AppIconView.LABEL_GAP_DP * dm.density
@@ -117,9 +135,17 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
     override fun onDraw(canvas: Canvas) {
         val f = folder ?: return
         backdropBounds(box)
-        bgPaint.color = if (f.color != 0) (f.color and 0x00FFFFFF) or (0xD9 shl 24) else defaultColor
-        val radius = box.width() * if (isLarge) 0.16f else 0.28f
-        canvas.drawRoundRect(box, radius, radius, bgPaint)
+        // Translucent, so the wallpaper shows through; a chosen colour is a little stronger.
+        bgPaint.color = if (f.color != 0) (f.color and 0x00FFFFFF) or (0xA6 shl 24) else defaultColor
+        if (isLarge) {
+            val radius = box.width() * largeCornerShare()
+            canvas.drawRoundRect(box, radius, radius, bgPaint)
+            ring.draw(canvas, box, radius, darkSurface)
+        } else {
+            val path = outline()
+            canvas.drawPath(path, bgPaint)
+            ring.drawPath(canvas, path, box, darkSurface)
+        }
 
         val apps = f.apps
         val slots = 9
@@ -143,6 +169,31 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         if (style.showLabel && shownLabel.isNotEmpty()) {
             canvas.drawText(shownLabel, width / 2f, box.bottom + gapPx - textPaint.ascent(), textPaint)
         }
+    }
+
+    /** A large folder's corner radius as a share of its side, by icon shape. */
+    private fun largeCornerShare() = when (shape) {
+        IconShape.SQUARE -> 0.06f
+        IconShape.ROUNDED -> 0.16f
+        IconShape.CIRCLE -> 0.24f
+        IconShape.SQUIRCLE, IconShape.SYSTEM -> 0.2f
+    }
+
+    /** A normal folder's outline: the icon shape (or the phone's icon mask) at [box]. */
+    private fun outline(): Path {
+        val size = box.width()
+        if (size == pathSize && box.left == pathLeft && box.top == pathTop) return shapePath
+        pathSize = size; pathLeft = box.left; pathTop = box.top
+        val p = shape.path(size, shapePath) ?: run {
+            val probe = android.graphics.drawable.AdaptiveIconDrawable(
+                android.graphics.Color.TRANSPARENT.toDrawable(), android.graphics.Color.TRANSPARENT.toDrawable(),
+            )
+            probe.setBounds(0, 0, size.toInt(), size.toInt())
+            shapePath.set(probe.iconMask)
+            shapePath
+        }
+        p.offset(box.left, box.top)
+        return p
     }
 
     /** Cell [i] of the 3x3 inner grid, inset so icons have air around them. */

@@ -140,8 +140,9 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
         }
 
         state.picker?.let { WidgetPicker(it, actions) }
-        state.editApp?.let { EditAppSheet(it, actions) }
         state.folder?.let { FolderPopup(it, actions) }
+        // Above an open folder: the app being edited may be inside it.
+        state.editApp?.let { EditAppSheet(it, actions) }
         state.menu?.let { ItemMenuLayer(it) { state.menu = null } }
         state.overview?.let { PageOverview(it, state, actions) }
         SnackHost(state, Modifier.align(Alignment.BottomCenter))

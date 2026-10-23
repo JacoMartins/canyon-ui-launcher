@@ -16,13 +16,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -65,7 +66,6 @@ import io.github.jacomartins.canyonui.data.IconPack
 import io.github.jacomartins.canyonui.data.IconPackInfo
 import io.github.jacomartins.canyonui.data.titleRes
 import io.github.jacomartins.canyonui.model.AppCategories
-import io.github.jacomartins.canyonui.ui.design.ChoiceButton
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.Spacing
@@ -197,18 +197,14 @@ private fun MainPage(
         if (state.showCategory) {
             Text(stringResource(R.string.edit_app_category), style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
             val auto = state.app.autoCategory ?: AppCategories.Category.OTHERS
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                item {
-                    ChoiceButton(
-                        stringResource(R.string.edit_app_category_auto, stringResource(auto.titleRes())),
-                        draft.category == null,
-                        { state.draft = draft.copy(category = null) },
-                    )
-                }
-                items(AppCategories.Category.entries.toList(), key = { it.key }) { c ->
-                    ChoiceButton(stringResource(c.titleRes()), draft.category == c.key, { state.draft = draft.copy(category = c.key) })
-                }
-            }
+            val autoLabel = stringResource(R.string.edit_app_category_auto, stringResource(auto.titleRes()))
+            val chosen = AppCategories.Category.fromKey(draft.category)
+            CategoryDropdown(
+                current = chosen?.let { stringResource(it.titleRes()) } ?: autoLabel,
+                autoLabel = autoLabel,
+                selected = chosen,
+                onPick = { state.draft = draft.copy(category = it?.key) },
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.padding(top = Spacing.sm)) {
             Spacer(Modifier.weight(1f))
@@ -217,6 +213,58 @@ private fun MainPage(
         }
     }
 }
+
+/**
+ * A pill showing the current category; tapping it opens the list right below, at most
+ * [DROPDOWN_MAX] tall and scrollable, in OneDepth's list style.
+ */
+@Composable
+private fun CategoryDropdown(current: String, autoLabel: String, selected: AppCategories.Category?, onPick: (AppCategories.Category?) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    var open by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        Surface(
+            onClick = { open = !open },
+            shape = CircleShape,
+            color = colors.surfaceContainerHighest,
+            modifier = Modifier.fillMaxWidth().height(44.dp).surfaceRing(),
+        ) {
+            Row(Modifier.padding(horizontal = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
+                Text(current, style = MaterialTheme.typography.bodyLarge, color = colors.onSurface, modifier = Modifier.weight(1f), maxLines = 1)
+                Icon(painterResource(R.drawable.ph_caret_down), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp).rotate(if (open) 180f else 0f))
+            }
+        }
+        if (open) {
+            Surface(shape = RoundedCornerShape(24.dp), color = colors.surfaceContainerHighest, modifier = Modifier.fillMaxWidth().surfaceRing(cornerRadius = 24.dp)) {
+                LazyColumn(Modifier.heightIn(max = DROPDOWN_MAX).padding(Spacing.xsSm), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                    item { DropdownRow(autoLabel, selected == null) { onPick(null); open = false } }
+                    items(AppCategories.Category.entries.toList(), key = { it.key }) { c ->
+                        DropdownRow(stringResource(c.titleRes()), selected == c) { onPick(c); open = false }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DropdownRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(CircleShape)
+            .background(if (selected) colors.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = if (selected) colors.onSecondaryContainer else colors.onSurface, modifier = Modifier.weight(1f))
+        if (selected) Icon(painterResource(R.drawable.ph_check), contentDescription = null, tint = colors.onSecondaryContainer, modifier = Modifier.size(18.dp))
+    }
+}
+
+private val DROPDOWN_MAX = 220.dp
 
 @Composable
 private fun Header(title: String, onBack: () -> Unit) {

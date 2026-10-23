@@ -44,7 +44,8 @@ class MenuEntry(@DrawableRes val icon: Int, val label: String, val action: () ->
 @Composable
 fun MenuLayer(anchor: Rect, entries: List<MenuEntry>, onDismiss: () -> Unit) {
     val density = LocalDensity.current
-    val margin = with(density) { 12.dp.roundToPx() }
+    // Close to the item it belongs to.
+    val margin = with(density) { 6.dp.roundToPx() }
     Box(
         Modifier
             .fillMaxSize()
@@ -59,7 +60,7 @@ fun MenuLayer(anchor: Rect, entries: List<MenuEntry>, onDismiss: () -> Unit) {
                         val x = (a.centerX() - p.width / 2).coerceIn(margin, constraints.maxWidth - p.width - margin)
                         // Above the icon when there is room, otherwise below it.
                         val above = a.top - p.height - margin
-                        val y = if (above > margin * 4) above else (a.bottom + margin).coerceAtMost(constraints.maxHeight - p.height - margin)
+                        val y = if (above > margin * 8) above else (a.bottom + margin).coerceAtMost(constraints.maxHeight - p.height - margin)
                         p.place(x, y)
                     }
                 }

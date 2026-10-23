@@ -123,17 +123,12 @@ fun Modifier.depthRing(
 @ReadOnlyComposable
 fun isDarkSurface(): Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
-/** Ring tuned for bars, search fields and translucent panels (OneDepth's nav pill values). */
+/**
+ * Ring for bars, search fields, panels and cards. Every border in the interface is the button
+ * border (so they all match, including the View-drawn ones in [DepthRingPainter]).
+ */
 @Composable
-fun Modifier.surfaceRing(cornerRadius: Dp? = null): Modifier {
-    val dark = isDarkSurface()
-    return depthRing(
-        cornerRadius = cornerRadius,
-        alpha = if (dark) 0.30f else 0.75f,
-        light = DepthLight.Surface,
-        sideAlpha = if (dark) 0.45f else 0.15f,
-    )
-}
+fun Modifier.surfaceRing(cornerRadius: Dp? = null): Modifier = buttonRing(cornerRadius)
 
 /** Ring tuned for buttons (OneDepth's button values). */
 @Composable
