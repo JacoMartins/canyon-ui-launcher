@@ -56,6 +56,10 @@ data class LauncherSettings(
     val resizeAnyWidget: Boolean = false,
     /** OneDepth's translucent ring along widget edges. */
     val widgetBorder: Boolean = true,
+    /** Interface colours from the phone's palette instead of Canyon UI's own. */
+    val phonePalette: Boolean = false,
+    /** Widget providers (flattened component names) drawn without the ring, chosen per widget. */
+    val noOutlineWidgets: Set<String> = emptySet(),
     /** Home screen only mode: apps start in category folders; new apps join theirs. */
     val autoCategories: Boolean = false,
     val iconStyle: IconStyle = IconStyle(),
@@ -88,6 +92,8 @@ class SettingsStore(private val context: Context) {
         val ICON_PACK = stringPreferencesKey("icon_pack")
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
         val WIDGET_BORDER = booleanPreferencesKey("widget_border")
+        val PHONE_PALETTE = booleanPreferencesKey("phone_palette")
+        val NO_OUTLINE_WIDGETS = stringSetPreferencesKey("no_outline_widgets")
         val AUTO_CATEGORIES = booleanPreferencesKey("auto_categories")
         val ICON_SHAPE = stringPreferencesKey("icon_shape")
         val THEMED_ICONS = booleanPreferencesKey("themed_icons")
@@ -126,6 +132,8 @@ class SettingsStore(private val context: Context) {
             iconPack = p[Keys.ICON_PACK],
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
+            phonePalette = p[Keys.PHONE_PALETTE] ?: false,
+            noOutlineWidgets = p[Keys.NO_OUTLINE_WIDGETS] ?: emptySet(),
             autoCategories = p[Keys.AUTO_CATEGORIES] ?: false,
             iconStyle = IconStyle(
                 shape = IconShape.fromKey(p[Keys.ICON_SHAPE]),
@@ -207,6 +215,18 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setAutoCategories(on: Boolean) {
         context.dataStore.edit { it[Keys.AUTO_CATEGORIES] = on }
+    }
+
+    /** Shows or hides the ring for one kind of widget ([provider] as a flattened component). */
+    suspend fun setWidgetOutline(provider: String, on: Boolean) {
+        context.dataStore.edit {
+            val set = it[Keys.NO_OUTLINE_WIDGETS].orEmpty()
+            it[Keys.NO_OUTLINE_WIDGETS] = if (on) set - provider else set + provider
+        }
+    }
+
+    suspend fun setPhonePalette(on: Boolean) {
+        context.dataStore.edit { it[Keys.PHONE_PALETTE] = on }
     }
 
     suspend fun setWidgetBorder(on: Boolean) {

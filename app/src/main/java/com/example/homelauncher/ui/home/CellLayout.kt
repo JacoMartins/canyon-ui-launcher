@@ -17,9 +17,25 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
     var rows = rows
         private set
 
-    /** [inset]: pixels kept free on every side inside the cells (widgets keep a gap between them). */
-    class LayoutParams(var cellX: Int, var cellY: Int, var spanX: Int = 1, var spanY: Int = 1, var inset: Int = 0) :
-        ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+    /**
+     * [inset]: pixels kept free on every side inside the cells (widgets keep a gap between them).
+     * [maxThickness]: when above 0, a child one cell wide or one row tall is at most this thick
+     * across that cell, centred in it (pill widgets).
+     */
+    class LayoutParams(
+        var cellX: Int,
+        var cellY: Int,
+        var spanX: Int = 1,
+        var spanY: Int = 1,
+        var inset: Int = 0,
+        var maxThickness: Int = 0,
+    ) : ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+
+    /** Size of a child's area along one axis, and its offset inside its cells. */
+    private fun extent(cells: Int, cell: Int, lp: LayoutParams): Int {
+        val full = (cell * cells - 2 * lp.inset).coerceAtLeast(0)
+        return if (cells == 1 && lp.maxThickness > 0) minOf(full, lp.maxThickness) else full
+    }
 
     private val d = resources.displayMetrics.density
     private val hintRect = android.graphics.RectF()
@@ -158,8 +174,8 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             if (child.isGone) continue
             val lp = child.layoutParams as LayoutParams
             child.measure(
-                MeasureSpec.makeMeasureSpec((cw * lp.spanX - 2 * lp.inset).coerceAtLeast(0), MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec((ch * lp.spanY - 2 * lp.inset).coerceAtLeast(0), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(extent(lp.spanX, cw, lp), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(extent(lp.spanY, ch, lp), MeasureSpec.EXACTLY),
             )
         }
     }
@@ -173,8 +189,9 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             if (child.isGone) continue
             val lp = child.layoutParams as LayoutParams
             val col = if (rtl) columns - lp.cellX - lp.spanX else lp.cellX
-            val left = paddingLeft + col * cw + lp.inset
-            val top = paddingTop + lp.cellY * ch + lp.inset
+            // Centred in its cells (a capped pill sits in the middle of its row or column).
+            val left = paddingLeft + col * cw + (cw * lp.spanX - child.measuredWidth) / 2
+            val top = paddingTop + lp.cellY * ch + (ch * lp.spanY - child.measuredHeight) / 2
             child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
         }
     }

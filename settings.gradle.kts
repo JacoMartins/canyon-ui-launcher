@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "HomeLauncher"
+rootProject.name = "CanyonUI"
 include(":app")

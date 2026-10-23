@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Home</string>
+    <string name="app_name">Canyon UI</string>
 
     <!-- Home -->
     <string name="hint_swipe_up">Swipe up to see all apps</string>
@@ -161,4 +161,8 @@
     <string name="category_others">Others</string>
     <string name="edit_app_category">Category</string>
     <string name="edit_app_category_auto">Automatic (%1$s)</string>
+    <string name="menu_hide_outline">Hide outline</string>
+    <string name="menu_show_outline">Show outline</string>
+    <string name="phone_palette">Use the phone\'s colour palette</string>
+    <string name="phone_palette_summary">Off: Canyon UI\'s own light and dark colours. On: menus, buttons and panels take the colours of the phone\'s palette (Color palette in the phone\'s settings).</string>
 </resources>

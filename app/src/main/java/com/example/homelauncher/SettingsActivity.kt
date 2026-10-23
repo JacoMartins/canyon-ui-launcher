@@ -70,8 +70,8 @@ class SettingsActivity : ComponentActivity() {
         val app = application as LauncherApp
         val hiddenModel = DrawerModel(app.apps, app.settings, lifecycleScope)
         setContent {
-            HomeTheme {
-                val settings by app.settings.settings.collectAsState(initial = null)
+            val settings by app.settings.settings.collectAsState(initial = null)
+            HomeTheme(phonePalette = settings?.phonePalette == true) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainer) {
                     val apps by app.apps.apps.collectAsState()
                     settings?.let { SettingsScreen(it, app.settings, hiddenModel, apps.orEmpty(), app.home) }
@@ -189,6 +189,15 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     ChoiceButton(stringResource(label), s.grid.iconSize == size, { scope.launch { store.setIconSize(s.layoutMode, size) } }, Modifier.weight(1f))
                 }
             }
+        }
+
+        Card {
+            SwitchRow(
+                title = stringResource(R.string.phone_palette),
+                checked = s.phonePalette,
+                onChange = { scope.launch { store.setPhonePalette(it) } },
+            )
+            Text(stringResource(R.string.phone_palette_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         Card {

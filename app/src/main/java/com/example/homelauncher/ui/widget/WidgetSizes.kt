@@ -29,9 +29,16 @@ class WidgetSizes(
     private val anySize: Boolean = false,
     /** Space kept free around a widget inside its cells, per side. */
     private val insetPx: Int = 0,
+    /** Widgets one cell wide or one row tall are at most this thick (pills); 0 = no cap. */
+    private val pillMaxPx: Int = 0,
 ) {
-    private fun widthDp(spanX: Int) = (spanX * cellWidth - 2 * insetPx) / density
-    private fun heightDp(spanY: Int) = (spanY * cellHeight - 2 * insetPx) / density
+    private fun extentPx(spans: Int, cell: Int): Int {
+        val full = spans * cell - 2 * insetPx
+        return if (spans == 1 && pillMaxPx > 0) minOf(full, pillMaxPx) else full
+    }
+
+    private fun widthDp(spanX: Int) = extentPx(spanX, cellWidth) / density
+    private fun heightDp(spanY: Int) = extentPx(spanY, cellHeight) / density
 
 
     private fun spansFor(px: Int, cell: Int, limit: Int) = ceil(px.toFloat() / cell.coerceAtLeast(1)).toInt().coerceIn(1, limit)

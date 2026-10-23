@@ -32,6 +32,9 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -145,8 +148,19 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private lateinit var widgets: HomeWidgets
     private var resizeFrame: ResizeFrame? = null
     private var resizeAnyWidget = false
+    /** Compose state: both ComposeViews recolour when the setting changes. */
+    private var phonePalette by mutableStateOf(false)
     private var widgetBorder = true
+    private var noOutline: Set<String> = emptySet()
+
+    /** The ring is on unless turned off in settings, or for this kind of widget. */
+    private fun outlineFor(entry: HomeEntry): Boolean = widgetBorder && when (entry) {
+        is WidgetEntry -> entry.provider.flattenToString() !in noOutline
+        is StackEntry -> entry.widgets.none { it.provider.flattenToString() in noOutline }
+        else -> true
+    }
     private val widgetInset by lazy { (WidgetFrame.INSET_DP * resources.displayMetrics.density).toInt() }
+    private val pillMax by lazy { (WidgetFrame.PILL_MAX_DP * resources.displayMetrics.density).toInt() }
     /** Where the picker adds: null for the current page, else onto a widget or stack. */
     private var pickerTarget: DropAction? = null
     private var pickerSpan: Pair<Int, Int>? = null
@@ -254,12 +268,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             visibility = View.INVISIBLE // Composed and laid out up front so the first open is smooth.
             setContent {
-                HomeTheme { AppDrawer(drawerModel, dragLayer.drawerTouch, this@HomeActivity) }
+                HomeTheme(phonePalette = phonePalette) { AppDrawer(drawerModel, dragLayer.drawerTouch, this@HomeActivity) }
             }
         }
         overlayView = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-            setContent { HomeTheme { HomeOverlay(ui, this@HomeActivity) } }
+            setContent { HomeTheme(phonePalette = phonePalette) { HomeOverlay(ui, this@HomeActivity) } }
         }
         dragLayer.addView(home, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         dragLayer.addView(drawerView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
@@ -301,8 +315,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 launcher.settings.settings.collect { s ->
                     hintSeen = s.drawerHintSeen
                     resizeAnyWidget = s.resizeAnyWidget
-                    if (widgetBorder != s.widgetBorder) {
+                    phonePalette = s.phonePalette
+                    if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets) {
                         widgetBorder = s.widgetBorder
+                        noOutline = s.noOutlineWidgets
                         state?.let(::bind)
                     }
                     setHintVisible(!hintSeen && drawerEnabled)
@@ -425,13 +441,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             }
             val isWidget = entry is WidgetEntry || entry is StackEntry
             val inset = if (isWidget) widgetInset else 0
-            if (isWidget) WidgetFrame.apply(view, widgetBorder, pill = p.spanX == 1 || p.spanY == 1)
+            val thickness = if (isWidget) pillMax else 0
+            if (isWidget) WidgetFrame.apply(view, outlineFor(entry), pill = p.spanX == 1 || p.spanY == 1)
             val lp = view.layoutParams as? CellLayout.LayoutParams
             if (view.parent !== parent) {
                 (view.parent as? android.view.ViewGroup)?.removeView(view) // A page, the dock or a stack.
-                parent.addView(view, CellLayout.LayoutParams(p.x, p.y, p.spanX, p.spanY, inset))
-            } else if (lp != null && (lp.cellX != p.x || lp.cellY != p.y || lp.spanX != p.spanX || lp.spanY != p.spanY || lp.inset != inset)) {
-                lp.cellX = p.x; lp.cellY = p.y; lp.spanX = p.spanX; lp.spanY = p.spanY; lp.inset = inset
+                parent.addView(view, CellLayout.LayoutParams(p.x, p.y, p.spanX, p.spanY, inset, thickness))
+            } else if (lp != null && (lp.cellX != p.x || lp.cellY != p.y || lp.spanX != p.spanX || lp.spanY != p.spanY || lp.inset != inset || lp.maxThickness != thickness)) {
+                lp.cellX = p.x; lp.cellY = p.y; lp.spanX = p.spanX; lp.spanY = p.spanY; lp.inset = inset; lp.maxThickness = thickness
                 view.requestLayout()
             }
             view.visibility = if (view === dragged) View.INVISIBLE else View.VISIBLE
@@ -514,7 +531,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun widgetSizes(): WidgetSizes? {
         val page = home.workspace.pageAt(home.workspace.currentPage) ?: home.workspace.pageAt(0) ?: return null
         if (page.cellWidth <= 0 || page.cellHeight <= 0) return null
-        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density, resizeAnyWidget, widgetInset)
+        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density, resizeAnyWidget, widgetInset, pillMax)
     }
 
     private fun newIconView() = AppIconView(this, homeStyle).apply {
@@ -560,6 +577,13 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 if (entry.placed.container == Container.DESKTOP) {
                     out += MenuEntry(R.drawable.ph_stack, getString(R.string.menu_create_stack)) {
                         openPicker(DropAction.CreateStack(entry.id), entry.placed.spanX to entry.placed.spanY)
+                    }
+                }
+                if (widgetBorder) {
+                    val provider = entry.provider.flattenToString()
+                    val shown = provider !in noOutline
+                    out += MenuEntry(R.drawable.ph_eye, getString(if (shown) R.string.menu_hide_outline else R.string.menu_show_outline)) {
+                        lifecycleScope.launch { launcher.settings.setWidgetOutline(provider, !shown) }
                     }
                 }
                 out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove)) { removeWithUndo(entry.id) }
@@ -1215,6 +1239,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onDrawerClosed() {
         drawerBack.isEnabled = false
+        // A menu opened from the drawer belongs to it.
+        if (ui.menu != null) {
+            ui.menu = null
+            updateBackCallbacks()
+        }
         drawerModel.query = ""
         drawerView.clearFocus()
         WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())

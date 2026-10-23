@@ -90,6 +90,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.sp
 import com.example.homelauncher.R
 import com.example.homelauncher.data.AppEntry
@@ -177,18 +180,22 @@ private fun EditTopBar(state: OverlayState, actions: OverlayActions) {
 private fun PageIconButton(@DrawableRes icon: Int, label: String, enabled: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val tint = colors.onSecondaryContainer.copy(alpha = if (enabled) 1f else 0.38f)
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = CircleShape,
-        color = colors.secondaryContainer.copy(alpha = if (enabled) 1f else 0.7f),
-        modifier = Modifier
-            .size(44.dp)
-            .buttonRing()
-            .semantics { contentDescription = label },
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+    // Material pads clickable surfaces out to a 48dp touch target, which sets the ring off the
+    // circle; the 44dp button is its own target here.
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+        Surface(
+            onClick = onClick,
+            enabled = enabled,
+            shape = CircleShape,
+            color = colors.secondaryContainer.copy(alpha = if (enabled) 1f else 0.7f),
+            modifier = Modifier
+                .size(44.dp)
+                .buttonRing()
+                .semantics { contentDescription = label },
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+            }
         }
     }
 }
