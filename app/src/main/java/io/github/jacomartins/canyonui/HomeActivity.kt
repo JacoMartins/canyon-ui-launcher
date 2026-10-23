@@ -174,6 +174,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private lateinit var widgets: HomeWidgets
     private var resizeFrame: ResizeFrame? = null
     private var resizeAnyWidget = false
+    private var fullCellWidgetSizes = false
     private var swipeUpTarget: String? = null
     private var lastNight: Boolean? = null
     private var iconShape = io.github.jacomartins.canyonui.data.IconShape.SYSTEM
@@ -365,6 +366,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 launcher.settings.settings.collect { s ->
                     hintSeen = s.drawerHintSeen
                     resizeAnyWidget = s.resizeAnyWidget
+                    if (fullCellWidgetSizes != s.fullCellWidgetSizes) {
+                        fullCellWidgetSizes = s.fullCellWidgetSizes
+                        state?.let(::applyWidgetSizes)
+                    }
                     phonePalette = s.phonePalette
                     if (iconShape != s.iconStyle.shape) {
                         iconShape = s.iconStyle.shape
@@ -642,7 +647,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val sizes = widgetSizes() ?: return
         fun apply(v: View?, sx: Int, sy: Int) {
             val hv = v as? LauncherWidgetHostView ?: return
-            val key = sx * 100 + sy
+            val key = sx * 100 + sy + if (fullCellWidgetSizes) 10_000 else 0
             if (hv.getTag(R.id.tag_widget_size) == key) return
             hv.setTag(R.id.tag_widget_size, key)
             sizes.applySize(hv, sx, sy)
@@ -658,7 +663,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun widgetSizes(): WidgetSizes? {
         val page = home.workspace.pageAt(home.workspace.currentPage) ?: home.workspace.pageAt(0) ?: return null
         if (page.cellWidth <= 0 || page.cellHeight <= 0) return null
-        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density, resizeAnyWidget, widgetInset, pillMax)
+        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density, resizeAnyWidget, widgetInset, pillMax, fullCellWidgetSizes)
     }
 
     private fun newIconView() = AppIconView(this, homeStyle).apply {

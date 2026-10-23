@@ -64,6 +64,11 @@ data class LauncherSettings(
     val iconPack: String? = null,
     /** Lets any widget be resized to any size, ignoring the sizes its app declares. */
     val resizeAnyWidget: Boolean = false,
+    /**
+     * Tell one-row (and one-column) widgets the whole cell's size instead of the pill's
+     * thickness, for widgets that pick small text from the pill's size.
+     */
+    val fullCellWidgetSizes: Boolean = false,
     /** OneDepth's translucent ring along widget edges. */
     val widgetBorder: Boolean = true,
     /** Interface colours from the phone's palette instead of Canyon UI's own. */
@@ -113,6 +118,7 @@ class SettingsStore(private val context: Context) {
         val ICON_PACK = stringPreferencesKey("icon_pack")
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
         val WIDGET_BORDER = booleanPreferencesKey("widget_border")
+        val FULL_CELL_WIDGET_SIZES = booleanPreferencesKey("full_cell_widget_sizes")
         val PHONE_PALETTE = booleanPreferencesKey("phone_palette")
         val RENDER_MODE = stringPreferencesKey("render_mode")
         val PENDING_SEARCH_WIDGET = booleanPreferencesKey("pending_search_widget")
@@ -157,6 +163,7 @@ class SettingsStore(private val context: Context) {
             iconPack = p[Keys.ICON_PACK],
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
+            fullCellWidgetSizes = p[Keys.FULL_CELL_WIDGET_SIZES] ?: false,
             phonePalette = p[Keys.PHONE_PALETTE] ?: false,
             renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.GLASS,
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
@@ -276,6 +283,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setRenderMode(mode: RenderMode) {
         context.dataStore.edit { it[Keys.RENDER_MODE] = mode.storageKey }
+    }
+
+    suspend fun setFullCellWidgetSizes(on: Boolean) {
+        context.dataStore.edit { it[Keys.FULL_CELL_WIDGET_SIZES] = on }
     }
 
     suspend fun setWidgetBorder(on: Boolean) {

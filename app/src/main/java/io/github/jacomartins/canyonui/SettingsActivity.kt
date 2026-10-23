@@ -293,6 +293,12 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                 checked = s.widgetBorder,
                 onChange = { scope.launch { store.setWidgetBorder(it) } },
             )
+            SwitchRow(
+                title = stringResource(R.string.full_cell_widget_sizes),
+                checked = s.fullCellWidgetSizes,
+                onChange = { scope.launch { store.setFullCellWidgetSizes(it) } },
+            )
+            Text(stringResource(R.string.full_cell_widget_sizes_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         SettingsSection(onClick = { showHidden = true }) {

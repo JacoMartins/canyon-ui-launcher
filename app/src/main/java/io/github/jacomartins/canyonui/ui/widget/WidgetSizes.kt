@@ -31,10 +31,12 @@ class WidgetSizes(
     private val insetPx: Int = 0,
     /** Widgets one cell wide or one row tall are at most this thick (pills); 0 = no cap. */
     private val pillMaxPx: Int = 0,
+    /** Report the whole cell to pill widgets instead of the pill's thickness (see settings). */
+    private val reportFullCell: Boolean = false,
 ) {
     private fun extentPx(spans: Int, cell: Int): Int {
         val full = spans * cell - 2 * insetPx
-        return if (spans == 1 && pillMaxPx > 0) minOf(full, pillMaxPx) else full
+        return if (spans == 1 && pillMaxPx > 0 && !reportFullCell) minOf(full, pillMaxPx) else full
     }
 
     private fun widthDp(spanX: Int) = extentPx(spanX, cellWidth) / density
