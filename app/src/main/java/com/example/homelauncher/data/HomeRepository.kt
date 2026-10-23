@@ -11,6 +11,7 @@ import com.example.homelauncher.model.ItemUpdate
 import com.example.homelauncher.model.LayoutResolver
 import com.example.homelauncher.model.PlacedItem
 import com.example.homelauncher.model.StoredItem
+import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -85,7 +86,7 @@ sealed interface DragItem {
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeRepository(
-    private val daos: Map<LayoutMode, LauncherDao>,
+    private val dbs: Map<LayoutMode, LauncherDatabase>,
     private val settings: SettingsStore,
     private val apps: AppRepository,
     private val defaults: DefaultApps,
@@ -94,6 +95,7 @@ class HomeRepository(
     private val _state = MutableStateFlow<HomeState?>(null)
     val state: StateFlow<HomeState?> = _state.asStateFlow()
 
+    private val daos: Map<LayoutMode, LauncherDao> = dbs.mapValues { it.value.dao() }
     private val writes = Mutex()
 
     private class Snapshot(val mode: LayoutMode, val pages: List<PageEntity>, val items: List<ItemEntity>)
@@ -102,7 +104,10 @@ class HomeRepository(
 
     private class Computed(
         val state: HomeState,
-        val dao: LauncherDao,
+        val mode: LayoutMode,
+        /** The rows the corrections were computed from. */
+        val items: List<ItemEntity>,
+        val pages: List<PageEntity>,
         val updates: List<ItemUpdate>,
         val additions: List<LayoutResolver.NewPlacement>,
     )
@@ -124,7 +129,7 @@ class HomeRepository(
                 }
             }.flowOn(Dispatchers.Default).collect { c ->
                 _state.value = c.state
-                if (c.updates.isNotEmpty() || c.additions.isNotEmpty()) applyUpdates(c.dao, c.updates, c.additions)
+                if (c.updates.isNotEmpty() || c.additions.isNotEmpty()) applyUpdates(c)
             }
         }
     }
@@ -235,42 +240,59 @@ class HomeRepository(
             1,
         )
         val state = HomeState(mode, pageCount, grid.columns, grid.rows, grid.dockSlots, grid.iconSize, grid.showHomeLabels, grid.showDockLabels, visible)
-        return Computed(state, dao, resolved.updates, additions)
+        return Computed(state, mode, items, pages, resolved.updates, additions)
     }
 
-    private fun applyUpdates(dao: LauncherDao, updates: List<ItemUpdate>, additions: List<LayoutResolver.NewPlacement>) {
+    private fun applyUpdates(c: Computed) {
+        val updates = c.updates
+        val additions = c.additions
+        val dao = daos.getValue(c.mode)
         scope.launch {
             writes.withLock {
-                val maxPage = maxOf(
-                    updates.filterIsInstance<ItemUpdate.Move>().maxOfOrNull { it.pageIndex } ?: 0,
-                    additions.maxOfOrNull { it.pageIndex } ?: 0,
-                )
-                val pageIds = dao.ensurePages(maxPage + 1)
-                if (updates.isNotEmpty()) {
-                    val deletes = updates.filterIsInstance<ItemUpdate.Delete>().map { it.id }
-                    val byId = dao.itemsById(updates.map { it.id }.distinct()).associateBy { it.id }.toMutableMap()
-                    for (u in updates) {
-                        val e = byId[u.id] ?: continue
-                        byId[u.id] = when (u) {
-                            is ItemUpdate.MarkMissing -> e.copy(missingSince = u.since)
-                            is ItemUpdate.ClearMissing -> e.copy(missingSince = null)
-                            is ItemUpdate.Retarget -> e.copy(className = u.key.className)
-                            is ItemUpdate.Move -> e.placedAt(u.container, if (u.container == Container.DOCK) 0 else pageIds[u.pageIndex], u.x, u.y)
-                            is ItemUpdate.Delete -> e
-                        }
-                    }
-                    dao.updateItems(byId.values.filter { it.id !in deletes })
-                    if (deletes.isNotEmpty()) dao.deleteItems(deletes)
-                }
-                if (additions.isNotEmpty()) {
-                    // Skip apps that another write placed while this one waited for the lock.
-                    val present = dao.itemsNow().mapNotNullTo(HashSet()) { keyOf(it) }
-                    dao.insertItems(
-                        additions.filter { it.key !in present }
-                            .map { entity(it.key, Container.DESKTOP, pageIds[it.pageIndex], it.cell.x, it.cell.y) },
-                    )
+                dbs.getValue(c.mode).withTransaction { applyIfCurrent(dao, c, updates, additions) }
+            }
+        }
+    }
+
+    /**
+     * Corrections are only valid for the rows they were computed from. If an edit landed in the
+     * meantime they are dropped: the edit's own emission computes fresh ones.
+     */
+    private suspend fun applyIfCurrent(
+        dao: LauncherDao,
+        c: Computed,
+        updates: List<ItemUpdate>,
+        additions: List<LayoutResolver.NewPlacement>,
+    ) {
+        if (dao.itemsNow().sortedBy { it.id } != c.items.sortedBy { it.id } || dao.pagesNow() != c.pages) return
+        val maxPage = maxOf(
+            updates.filterIsInstance<ItemUpdate.Move>().maxOfOrNull { it.pageIndex } ?: 0,
+            additions.maxOfOrNull { it.pageIndex } ?: 0,
+        )
+        val pageIds = dao.ensurePages(maxPage + 1)
+        if (updates.isNotEmpty()) {
+            val deletes = updates.filterIsInstance<ItemUpdate.Delete>().map { it.id }
+            val byId = dao.itemsById(updates.map { it.id }.distinct()).associateBy { it.id }.toMutableMap()
+            for (u in updates) {
+                val e = byId[u.id] ?: continue
+                byId[u.id] = when (u) {
+                    is ItemUpdate.MarkMissing -> e.copy(missingSince = u.since)
+                    is ItemUpdate.ClearMissing -> e.copy(missingSince = null)
+                    is ItemUpdate.Retarget -> e.copy(className = u.key.className)
+                    is ItemUpdate.Move -> e.placedAt(u.container, if (u.container == Container.DOCK) 0 else pageIds[u.pageIndex], u.x, u.y)
+                    is ItemUpdate.Delete -> e
                 }
             }
+            dao.updateItems(byId.values.filter { it.id !in deletes })
+            if (deletes.isNotEmpty()) dao.deleteItems(deletes)
+        }
+        if (additions.isNotEmpty()) {
+            // Skip apps that another write placed while this one waited for the lock.
+            val present = dao.itemsNow().mapNotNullTo(HashSet()) { keyOf(it) }
+            dao.insertItems(
+                additions.filter { it.key !in present }
+                    .map { entity(it.key, Container.DESKTOP, pageIds[it.pageIndex], it.cell.x, it.cell.y) },
+            )
         }
     }
 
@@ -314,15 +336,18 @@ class HomeRepository(
     private suspend fun <T> edit(block: suspend (LauncherDao, HomeState) -> T): T? = writes.withLock {
         val st = state.value ?: return@withLock null
         val dao = daos.getValue(st.mode)
-        undoSnapshot = Snapshot(st.mode, dao.pagesNow(), dao.itemsNow())
-        block(dao, st)
+        // One transaction, so observers never see a half-done edit (a folder without its apps).
+        dbs.getValue(st.mode).withTransaction {
+            undoSnapshot = Snapshot(st.mode, dao.pagesNow(), dao.itemsNow())
+            block(dao, st)
+        }
     }
 
     /** Restores the layout from before the last edit. Returns false if there is nothing to undo. */
     suspend fun undo(): Boolean = writes.withLock {
         val snap = undoSnapshot ?: return@withLock false
         undoSnapshot = null
-        daos.getValue(snap.mode).replaceAll(snap.pages, snap.items)
+        dbs.getValue(snap.mode).withTransaction { daos.getValue(snap.mode).replaceAll(snap.pages, snap.items) }
         true
     }
 
@@ -458,10 +483,10 @@ class HomeRepository(
         n
     } ?: 0
 
-    /** Deletes a page and what is on it (in home-only mode its apps come back on the last page). */
+    /** Deletes a page other than the home page, with what is on it (in home-only mode its apps come back on the last page). */
     suspend fun deletePage(pageIndex: Int) = edit { dao, _ ->
         val pages = dao.pagesNow()
-        if (pages.size <= 1 || pageIndex !in pages.indices) return@edit
+        if (pages.size <= 1 || pageIndex !in 1 until pages.size) return@edit // Page 0 is the home page.
         val page = pages[pageIndex]
         val onPage = dao.itemsNow().filter { it.container == Container.DESKTOP && it.pageId == page.id }
         val kids = onPage.filter { it.type == ItemEntity.TYPE_FOLDER }.flatMap { dao.children(it.id) }

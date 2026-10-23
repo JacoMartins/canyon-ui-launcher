@@ -33,10 +33,10 @@ class LauncherApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        val daos = LayoutMode.entries.associateWith { LauncherDatabase.create(this, it).dao() }
+        val dbs = LayoutMode.entries.associateWith { LauncherDatabase.create(this, it) }
         settings = SettingsStore(this)
         apps = AppRepository(this, scope, IconCache(this))
-        home = HomeRepository(daos, settings, apps, DefaultApps(this), scope)
+        home = HomeRepository(dbs, settings, apps, DefaultApps(this), scope)
         apps.start()
         home.start()
         scope.launch {

@@ -43,23 +43,46 @@ class DragLayer(context: Context) : FrameLayout(context) {
     private var dragging = false
 
     /** Where the current gesture went down, in this view's coordinates. */
-    val lastDownX get() = downX
-    val lastDownY get() = downY
+    val lastDownX get() = armDownX
+    val lastDownY get() = armDownY
+
+    private var armDownX = 0f
+    private var armDownY = 0f
+
+    /**
+     * Item drags are handled here rather than in [onInterceptTouchEvent]: scrolling lists in the
+     * drawer and folder popup disallow intercepting once they start moving, which would otherwise
+     * swallow a drag armed by a long-press on one of their icons.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        val d = drag ?: return super.dispatchTouchEvent(ev)
+        if (d.isDragging) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_MOVE -> d.move(ev.x, ev.y)
+                MotionEvent.ACTION_UP -> d.drop(ev.x, ev.y)
+                MotionEvent.ACTION_CANCEL -> d.cancel()
+            }
+            return true
+        }
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { armDownX = ev.x; armDownY = ev.y }
+            MotionEvent.ACTION_MOVE -> if (d.armed != null && (abs(ev.x - armDownX) > slop || abs(ev.y - armDownY) > slop)) {
+                d.begin(ev.x, ev.y)
+                // The views under the finger let go of the gesture.
+                val cancel = MotionEvent.obtain(ev)
+                cancel.action = MotionEvent.ACTION_CANCEL
+                super.dispatchTouchEvent(cancel)
+                cancel.recycle()
+                return true
+            }
+        }
+        val handled = super.dispatchTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) d.disarm()
+        return handled
+    }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        val d = drag
-        if (d != null) {
-            if (d.isDragging) return true
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { downX = ev.x; downY = ev.y }
-                MotionEvent.ACTION_MOVE -> if (d.armed != null && (abs(ev.x - downX) > slop || abs(ev.y - downY) > slop)) {
-                    d.begin(ev.x, ev.y)
-                    return true
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> d.disarm()
-            }
-            if (d.armed != null) return false
-        }
+        if (drag?.armed != null) return false
         if (!drawerEnabled && drawer.isClosed) return false
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -94,14 +117,6 @@ class DragLayer(context: Context) : FrameLayout(context) {
 
     @SuppressLint("ClickableViewAccessibility") // The drawer also opens from a button and accessibility actions.
     override fun onTouchEvent(ev: MotionEvent): Boolean {
-        drag?.takeIf { it.isDragging }?.let { d ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_MOVE -> d.move(ev.x, ev.y)
-                MotionEvent.ACTION_UP -> d.drop(ev.x, ev.y)
-                MotionEvent.ACTION_CANCEL -> d.cancel()
-            }
-            return true
-        }
         if (!dragging) return super.onTouchEvent(ev)
         track(ev)
         when (ev.actionMasked) {

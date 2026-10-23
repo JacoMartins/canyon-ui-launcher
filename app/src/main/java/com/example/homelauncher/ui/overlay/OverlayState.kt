@@ -1,7 +1,6 @@
 package com.example.homelauncher.ui.overlay
 
 import android.graphics.Rect
-import android.graphics.RectF
 import androidx.annotation.DrawableRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -10,7 +9,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import com.example.homelauncher.data.AppEntry
 import com.example.homelauncher.data.FolderEntry
-import com.example.homelauncher.ui.home.DropTarget
 
 class MenuEntry(@DrawableRes val icon: Int, val label: String, val action: () -> Unit)
 
@@ -42,25 +40,16 @@ interface OverlayActions {
 
 /**
  * Everything the overlay shows, as Compose state written from the activity on the main thread.
- * Drop target bounds are recorded in window coordinates for the drag hit test.
  */
 class OverlayState {
     var menu by mutableStateOf<ItemMenu?>(null)
     var folder by mutableStateOf<FolderEntry?>(null)
     var snack by mutableStateOf<Snack?>(null)
-    var dropTargets by mutableStateOf<List<DropTarget>>(emptyList())
-    var hoveredTarget by mutableStateOf<DropTarget?>(null)
+    var dragging by mutableStateOf(false)
     var editMode by mutableStateOf(false)
     var overview by mutableStateOf<List<PageThumb>?>(null)
     var currentPage by mutableIntStateOf(0)
     var pageCount by mutableIntStateOf(1)
-
-    val targetBounds = HashMap<DropTarget, RectF>()
-
-    fun targetAt(x: Float, y: Float): DropTarget? {
-        for (t in dropTargets) if (targetBounds[t]?.contains(x, y) == true) return t
-        return null
-    }
 
     /** True while something modal (menu, folder, overview) covers the home screen. */
     val isModal get() = menu != null || folder != null || overview != null

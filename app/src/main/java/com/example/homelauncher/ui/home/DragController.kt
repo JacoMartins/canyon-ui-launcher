@@ -20,9 +20,6 @@ import com.example.homelauncher.model.DropLogic
 import com.example.homelauncher.util.Motion
 import kotlin.math.abs
 
-/** Targets shown at the top of the screen while dragging. */
-enum class DropTarget { REMOVE, HIDE, APP_INFO, UNINSTALL }
-
 /** What is being dragged and how to draw it. */
 class DragSource(
     val item: DragItem,
@@ -38,13 +35,11 @@ class DragSource(
     /** Hidden while dragging; null for items coming from the drawer or a folder popup. */
     val view: View?,
     val app: AppInfo?,
-    val canUninstall: Boolean,
 )
 
 /** Where a drag ended. */
 sealed interface DropResult {
     data class OnGrid(val action: DropAction) : DropResult
-    data class OnTarget(val target: DropTarget) : DropResult
     data object Cancelled : DropResult
 }
 
@@ -65,8 +60,7 @@ class DragView(context: Context, private val bitmap: Bitmap) : View(context) {
 }
 
 /**
- * Drives a drag from a long-press to the drop. Hit-tests drop targets, the dock and the current
- * page; asks [DropLogic] what a release would do; shows the drop hint; ticks a haptic when the
+ * Drives a drag from a long-press to the drop. Hit-tests the dock and the current page; asks [DropLogic] what a release would do; shows the drop hint; ticks a haptic when the
  * target changes; flips pages when the finger rests at a screen edge.
  */
 class DragController(
@@ -76,8 +70,6 @@ class DragController(
 ) {
     interface Callbacks {
         fun state(): HomeState?
-        fun targetAt(x: Float, y: Float): DropTarget?
-        fun onHoverTarget(target: DropTarget?)
         fun onDragStarted(source: DragSource)
         fun onDropped(source: DragSource, result: DropResult)
     }
@@ -93,7 +85,6 @@ class DragController(
     private val cellOut = IntArray(2)
     private var lastAction: DropAction? = null
     private var lastHintCell: CellLayout? = null
-    private var lastTarget: DropTarget? = null
     private var lastX = 0f
     private var lastY = 0f
     // What the last drop decision was based on; it is only recomputed when one of these changes.
@@ -153,9 +144,7 @@ class DragController(
     fun drop(x: Float, y: Float) {
         val s = source ?: return
         update(x, y)
-        val target = lastTarget
         val result = when {
-            target != null -> DropResult.OnTarget(target)
             lastAction != null && lastAction != DropAction.Reject -> DropResult.OnGrid(lastAction!!)
             else -> DropResult.Cancelled
         }
@@ -172,12 +161,10 @@ class DragController(
         pageFlipPending = false
         lastHintCell?.clearDropHint()
         lastHintCell = null
-        callbacks.onHoverTarget(null)
         val dv = dragView
         dragView = null
         source = null
         lastAction = null
-        lastTarget = null
         lastKey = Long.MIN_VALUE
         if (dv != null) {
             if (Motion.enabled()) {
@@ -198,19 +185,6 @@ class DragController(
         dragView?.let {
             it.translationX = x - s.touchX
             it.translationY = y - s.touchY
-        }
-
-        val target = callbacks.targetAt(x, y)
-        if (target != lastTarget) {
-            lastTarget = target
-            callbacks.onHoverTarget(target)
-            if (target != null) root.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-        }
-        if (target != null) {
-            lastHintCell?.clearDropHint()
-            lastHintCell = null
-            lastAction = null
-            return
         }
 
         val st = callbacks.state() ?: return
@@ -285,7 +259,7 @@ class DragController(
 
     private fun scheduleFlipIfAtEdge() {
         val atEdge = lastX < edge || lastX > root.width - edge
-        if (atEdge && !pageFlipPending && lastTarget == null) {
+        if (atEdge && !pageFlipPending) {
             pageFlipPending = true
             root.postDelayed(pageFlip, PAGE_FLIP_DELAY_MS)
         } else if (!atEdge && pageFlipPending) {

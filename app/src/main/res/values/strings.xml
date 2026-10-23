@@ -88,8 +88,4 @@
     <string name="snack_moved_page">Moved to page %1$d</string>
     <string name="snack_page_moved">Page moved</string>
     <string name="no_room">No room here</string>
-    <string name="target_remove">Remove</string>
-    <string name="target_hide">Hide</string>
-    <string name="target_app_info">App info</string>
-    <string name="target_uninstall">Uninstall</string>
 </resources>

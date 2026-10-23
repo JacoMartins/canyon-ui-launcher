@@ -98,7 +98,6 @@ import com.example.homelauncher.ui.design.SecondaryButton
 import com.example.homelauncher.ui.design.Spacing
 import com.example.homelauncher.ui.design.surfaceRing
 import com.example.homelauncher.ui.home.AppIconView
-import com.example.homelauncher.ui.home.DropTarget
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -110,7 +109,7 @@ private val PanelShape = RoundedCornerShape(32.dp)
 @Composable
 fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
     Box(Modifier.fillMaxSize()) {
-        val chrome = state.editMode && state.overview == null && state.folder == null && state.dropTargets.isEmpty()
+        val chrome = state.editMode && state.overview == null && state.folder == null && !state.dragging
         AnimatedVisibility(
             visible = chrome,
             enter = fadeIn() + slideInVertically { -it / 2 },
@@ -123,13 +122,6 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             exit = fadeOut() + slideOutVertically { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter),
         ) { EditBottomBar(actions) }
-
-        AnimatedVisibility(
-            visible = state.dropTargets.isNotEmpty(),
-            enter = fadeIn() + slideInVertically { -it },
-            exit = fadeOut() + slideOutVertically { -it },
-            modifier = Modifier.align(Alignment.TopCenter),
-        ) { DropTargetBar(state) }
 
         state.folder?.let { FolderPopup(it, actions) }
         state.menu?.let { ItemMenuLayer(it) { state.menu = null } }
@@ -148,7 +140,7 @@ private fun EditTopBar(state: OverlayState, actions: OverlayActions) {
             .padding(top = Spacing.md),
         horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        SecondaryButton(stringResource(R.string.delete_page), { actions.deletePage(state.currentPage) }, icon = R.drawable.ph_trash, enabled = state.pageCount > 1)
+        SecondaryButton(stringResource(R.string.delete_page), { actions.deletePage(state.currentPage) }, icon = R.drawable.ph_trash, enabled = state.pageCount > 1 && state.currentPage != HOME_PAGE)
         SecondaryButton(stringResource(R.string.pages), actions::openOverview, icon = R.drawable.ph_pages)
         SecondaryButton(stringResource(R.string.add_page), actions::addPage, icon = R.drawable.ph_plus)
     }
@@ -189,51 +181,6 @@ private fun ToolButton(@DrawableRes icon: Int, label: String, onClick: () -> Uni
             }
         }
         Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
-    }
-}
-
-// ------------------------------------------------------------------------------- drop targets
-
-@Composable
-private fun DropTargetBar(state: OverlayState) {
-    Surface(
-        modifier = Modifier
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(top = Spacing.md)
-            .surfaceRing(cornerRadius = 32.dp),
-        shape = PanelShape,
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
-    ) {
-        Row(Modifier.padding(Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            for (t in state.dropTargets) {
-                val (icon, label) = when (t) {
-                    DropTarget.REMOVE -> R.drawable.ph_remove to R.string.target_remove
-                    DropTarget.HIDE -> R.drawable.ph_hide to R.string.target_hide
-                    DropTarget.APP_INFO -> R.drawable.ph_info to R.string.target_app_info
-                    DropTarget.UNINSTALL -> R.drawable.ph_trash to R.string.target_uninstall
-                }
-                val hovered = state.hoveredTarget == t
-                val scale by animateFloatAsState(if (hovered) 1.08f else 1f, label = "target")
-                val colors = MaterialTheme.colorScheme
-                Row(
-                    Modifier
-                        .onGloballyPositioned { c ->
-                            val b = c.boundsInWindow()
-                            state.targetBounds.getOrPut(t) { android.graphics.RectF() }.set(b.left, b.top, b.right, b.bottom)
-                        }
-                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                        .clip(CircleShape)
-                        .background(if (hovered) (if (t == DropTarget.UNINSTALL) colors.errorContainer else colors.primaryContainer) else Color.Transparent)
-                        .padding(horizontal = Spacing.md, vertical = Spacing.smMd),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xsSm),
-                ) {
-                    val tint = if (hovered && t == DropTarget.UNINSTALL) colors.onErrorContainer else if (hovered) colors.onPrimaryContainer else colors.onSurface
-                    Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-                    Text(stringResource(label), style = MaterialTheme.typography.labelLarge, color = tint)
-                }
-            }
-        }
     }
 }
 
@@ -502,7 +449,7 @@ private fun PageOverview(thumbs: List<PageThumb>, state: OverlayState, actions: 
                                 )
                             },
                     ) {
-                        PageCard(thumb, current = state.currentPage == thumb.index, canDelete = thumbs.size > 1, actions)
+                        PageCard(thumb, current = state.currentPage == thumb.index, canDelete = thumbs.size > 1 && thumb.index != HOME_PAGE, actions)
                     }
                 }
                 item(key = "add") {
@@ -589,3 +536,6 @@ private fun SnackHost(state: OverlayState, modifier: Modifier) {
 }
 
 private const val SNACK_MS = 5000L
+
+/** The first page is the home page (the house in the page indicator); it cannot be deleted. */
+private const val HOME_PAGE = 0

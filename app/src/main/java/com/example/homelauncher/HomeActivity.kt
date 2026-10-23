@@ -62,7 +62,6 @@ import com.example.homelauncher.ui.home.DragLayer
 import com.example.homelauncher.ui.home.DragSource
 import com.example.homelauncher.ui.home.DrawerController
 import com.example.homelauncher.ui.home.DropResult
-import com.example.homelauncher.ui.home.DropTarget
 import com.example.homelauncher.ui.home.FolderIconView
 import com.example.homelauncher.ui.home.HomeScreenLayout
 import com.example.homelauncher.ui.home.ViewMap
@@ -448,7 +447,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             type = if (entry is FolderEntry) ItemType.FOLDER else ItemType.APP,
             spanX = entry.placed.spanX, spanY = entry.placed.spanY,
             image = image, width = w, height = h, touchX = touchX, touchY = touchY,
-            view = v, app = app, canUninstall = app != null && !app.isSystem,
+            view = v, app = app,
         )
     }
 
@@ -460,7 +459,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         return DragSource(
             item = item, type = ItemType.APP, spanX = 1, spanY = 1,
             image = app.icon, width = size, height = size, touchX = size / 2f, touchY = size / 2f,
-            view = null, app = app, canUninstall = !app.isSystem,
+            view = null, app = app,
         )
     }
 
@@ -473,23 +472,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun state(): HomeState? = state
 
-    override fun targetAt(x: Float, y: Float): DropTarget? = ui.targetAt(x, y)
-
-    override fun onHoverTarget(target: DropTarget?) {
-        ui.hoveredTarget = target
-    }
-
     override fun onDragStarted(source: DragSource) {
         ui.menu = null
         ui.folder = null
         drawerModel.dragEpoch++
         if (!drawer.isClosed) drawer.close(animate = false)
-        ui.dropTargets = buildList {
-            if (source.item is DragItem.Existing && (source.app == null || drawerEnabled)) add(DropTarget.REMOVE)
-            if (source.app != null && !drawerEnabled) add(DropTarget.HIDE)
-            if (source.app != null) add(DropTarget.APP_INFO)
-            if (source.canUninstall) add(DropTarget.UNINSTALL)
-        }
+        ui.dragging = true
         // An empty page at the end, unless the last page already is empty.
         val st = state
         if (st != null && st.entries.any { it.placed.container == Container.DESKTOP && it.placed.pageIndex == st.pageCount - 1 }) {
@@ -500,19 +488,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun onDropped(source: DragSource, result: DropResult) {
-        ui.dropTargets = emptyList()
-        ui.hoveredTarget = null
+        ui.dragging = false
         extraPage = false
         val st = state
-        val app = source.app
         val existingId = (source.item as? DragItem.Existing)?.id
         when (result) {
-            is DropResult.OnTarget -> when (result.target) {
-                DropTarget.REMOVE -> existingId?.let { removeWithUndo(it) }
-                DropTarget.HIDE -> app?.let { hideWithUndo(it) }
-                DropTarget.APP_INFO -> app?.let { appInfo(it, null) }
-                DropTarget.UNINSTALL -> app?.let { uninstall(it) }
-            }
             is DropResult.OnGrid -> when (val a = result.action) {
                 is DropAction.Move -> {
                     val from = existingId?.let { st?.entry(it)?.placed }
@@ -535,7 +515,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // folder or was removed, the rebind takes it away instead of flashing it at its old spot.
         val view = source.view
         val stays = result is DropResult.Cancelled ||
-            (result is DropResult.OnTarget && result.target in listOf(DropTarget.APP_INFO, DropTarget.UNINSTALL)) ||
             (result is DropResult.OnGrid && (result.action is DropAction.Move || result.action == DropAction.Reject))
         if (view != null) {
             if (stays) view.visibility = View.VISIBLE
