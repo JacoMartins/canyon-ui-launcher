@@ -56,7 +56,7 @@ data class LauncherSettings(
     val resizeAnyWidget: Boolean = false,
     /** OneDepth's translucent ring along widget edges. */
     val widgetBorder: Boolean = true,
-    /** Home screen only mode: apps live in locked category folders; new apps join theirs. */
+    /** Home screen only mode: apps start in category folders; new apps join theirs. */
     val autoCategories: Boolean = false,
     val iconStyle: IconStyle = IconStyle(),
     /** Per-app label and icon choices, by [com.example.homelauncher.model.AppKey] string. */
@@ -185,6 +185,7 @@ class SettingsStore(private val context: Context) {
                     packPackage = e.optString("pack").ifEmpty { null },
                     drawable = e.optString("drawable").ifEmpty { null },
                     file = e.optString("file").ifEmpty { null },
+                    category = e.optString("category").ifEmpty { null },
                 )
             }
         } catch (e: org.json.JSONException) {
@@ -199,6 +200,7 @@ class SettingsStore(private val context: Context) {
                 v.packPackage?.let { put("pack", it) }
                 v.drawable?.let { put("drawable", it) }
                 v.file?.let { put("file", it) }
+                v.category?.let { put("category", it) }
             })
         }
     }.toString()

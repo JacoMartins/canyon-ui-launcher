@@ -66,13 +66,17 @@ data class IconStyle(
     val packStyle: Boolean = true,
 )
 
-/** A user's own choice for one app: a label and/or an icon (from a pack, or an image file). */
+/**
+ * A user's own choices for one app: a label, an icon (from a pack, or an image file), and the
+ * category it is organized under (an [com.example.homelauncher.model.AppCategories.Category] key).
+ */
 data class IconOverride(
     val label: String? = null,
     val packPackage: String? = null,
     val drawable: String? = null,
     val file: String? = null,
+    val category: String? = null,
 ) {
     val hasIcon get() = file != null || (packPackage != null && drawable != null)
-    val isEmpty get() = label.isNullOrBlank() && !hasIcon
+    val isEmpty get() = label.isNullOrBlank() && !hasIcon && category == null
 }

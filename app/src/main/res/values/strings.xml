@@ -157,5 +157,8 @@
     <string name="category_news">News &amp; Reading</string>
     <string name="category_tools">Tools</string>
     <string name="auto_categories">Organize apps by category</string>
-    <string name="auto_categories_summary">Apps go into locked category folders, and new apps join theirs. Apps without a category go to a page of their own. Turning this off keeps the folders as ordinary folders.</string>
+    <string name="auto_categories_summary">Apps go into category folders and new apps join theirs. Arrange them freely; the folders stay while this is on. Apps without a category go to Others; change an app\'s category from Edit icon and name. Turning this off keeps the folders as ordinary folders.</string>
+    <string name="category_others">Others</string>
+    <string name="edit_app_category">Category</string>
+    <string name="edit_app_category_auto">Automatic (%1$s)</string>
 </resources>

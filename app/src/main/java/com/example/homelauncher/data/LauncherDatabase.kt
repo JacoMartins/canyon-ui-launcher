@@ -55,8 +55,8 @@ data class ItemEntity(
     /** The id the widget host gave this widget (widgets only), else -1. */
     val appWidgetId: Int = -1,
     /**
-     * Folders made by "Organize apps by category": the category's key. Such a folder is locked
-     * (its apps are chosen automatically); null for every other item.
+     * Folders made by "Organize apps by category": the category's key. New apps of the category
+     * join it, and it is kept while the mode is on; null for every other item.
      */
     val category: String? = null,
 ) {

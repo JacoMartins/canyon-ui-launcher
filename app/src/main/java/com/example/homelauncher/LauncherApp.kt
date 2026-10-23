@@ -10,6 +10,7 @@ import com.example.homelauncher.data.IconCache
 import com.example.homelauncher.data.LauncherDatabase
 import com.example.homelauncher.data.LayoutMode
 import com.example.homelauncher.data.SettingsStore
+import com.example.homelauncher.data.titleRes
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -72,22 +73,7 @@ class LauncherApp : Application() {
         )
     }
 
-    private fun categoryTitle(c: AppCategories.Category): String = getString(
-        when (c) {
-            AppCategories.Category.COMMUNICATION -> R.string.category_communication
-            AppCategories.Category.ENTERTAINMENT -> R.string.category_entertainment
-            AppCategories.Category.GAMES -> R.string.category_games
-            AppCategories.Category.CREATION -> R.string.category_creation
-            AppCategories.Category.PRODUCTIVITY -> R.string.category_productivity
-            AppCategories.Category.EDUCATION_AI -> R.string.category_education_ai
-            AppCategories.Category.TRIP -> R.string.category_trip
-            AppCategories.Category.WELLNESS -> R.string.category_wellness
-            AppCategories.Category.FINANCE -> R.string.category_finance
-            AppCategories.Category.SHOPPING -> R.string.category_shopping
-            AppCategories.Category.NEWS -> R.string.category_news
-            AppCategories.Category.TOOLS -> R.string.category_tools
-        },
-    )
+    private fun categoryTitle(c: AppCategories.Category): String = getString(c.titleRes())
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)

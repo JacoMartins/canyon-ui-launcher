@@ -26,6 +26,9 @@ object AppCategories {
         SHOPPING("shopping"),
         NEWS("news"),
         TOOLS("tools"),
+
+        /** Where apps without a category go when organizing; never returned by [categorize]. */
+        OTHERS("others"),
         ;
 
         companion object {
@@ -100,7 +103,7 @@ object AppCategories {
             Category.ENTERTAINMENT,
             "com.spotify.music", "com.google.android.youtube", "com.google.android.apps.youtube.music",
             "com.netflix.mediaclient", "com.amazon.avod.thirdpartyclient", "com.disney.disneyplus",
-            "com.hbo.hbonow", "com.twitch.android.app", "deezer.android.app", "com.shazam.android",
+            "com.hbo.hbonow", "tv.twitch.android.app", "deezer.android.app", "com.shazam.android",
             "com.soundcloud.android", "tv.pluto.android", "com.globo.globotv",
         )
         put(
@@ -108,14 +111,14 @@ object AppCategories {
             "com.canva.editor", "com.lemon.lvoverseas", "com.picsart.studio", "com.niksoftware.snapseed",
             "com.imageline.FLM", "com.github.android", "com.sec.android.app.camera", "com.google.android.GoogleCamera",
             "com.sec.android.gallery3d", "com.google.android.apps.photos", "com.vsco.cam", "com.instagram.layout",
-            "com.adobe.lrmobile", "com.adobe.spark.post", "com.samsung.android.app.notes",
+            "com.adobe.lrmobile", "com.adobe.spark.post",
         )
         put(
             Category.PRODUCTIVITY,
             "com.google.android.calendar", "com.samsung.android.calendar", "com.google.android.apps.docs",
             "notion.id", "com.todoist", "com.ticktick.task", "com.microsoft.todos", "com.evernote",
             "com.google.android.keep", "com.samsung.android.app.reminder", "com.dropbox.android",
-            "com.microsoft.skydrive", "com.trello", "com.slack", "com.google.android.googlequicksearchbox",
+            "com.microsoft.skydrive", "com.trello", "com.Slack", "com.google.android.googlequicksearchbox",
             "com.sec.android.app.sbrowser", "com.android.chrome", "org.mozilla.firefox", "com.brave.browser",
         )
         put(
@@ -128,7 +131,7 @@ object AppCategories {
         put(
             Category.TRIP,
             "com.ubercab", "com.taxis99", "com.waze", "com.google.android.apps.maps", "com.moovit.android",
-            "com.citymapper.app.release", "br.com.brainweb.ifood", "com.airbnb.android", "com.booking",
+            "com.citymapper.app.release", "com.airbnb.android", "com.booking",
             "com.google.android.apps.travel.onthego",
         )
         put(
@@ -145,8 +148,73 @@ object AppCategories {
         put(
             Category.SHOPPING,
             "com.amazon.mShop.android.shopping", "com.alibaba.aliexpresshd", "com.shopee.br", "com.mercadolibre",
-            "com.zzkko", "com.einnovation.temu", "com.samsung.shop", "com.android.vending",
-            "com.sec.android.app.samsungapps",
+            "com.zzkko", "com.einnovation.temu", "com.samsung.shop",
+        )
+        // Widely used apps, added so most phones need few manual choices.
+        put(
+            Category.COMMUNICATION,
+            "com.google.android.apps.meetings", "com.google.android.apps.dynamite", "com.viber.voip", "jp.naver.line.android",
+            "com.kakao.talk", "com.tencent.mm", "com.microsoft.office.outlook", "com.samsung.android.email.provider",
+            "com.tumblr", "com.quora.android", "com.facebook.lite", "com.instagram.lite", "com.facebook.mlite", "com.truecaller",
+            "com.vkontakte.android",
+        )
+        put(
+            Category.ENTERTAINMENT,
+            "com.amazon.mp3", "com.apple.android.music", "com.google.android.videos", "com.crunchyroll.crunchyroid",
+            "com.hulu.plus", "com.wbd.stream", "com.google.android.apps.youtube.kids", "com.audible.application",
+            "com.pandora.android", "com.aspiro.tidal", "com.samsung.android.tvplus", "com.mxtech.videoplayer.ad",
+            "org.videolan.vlc",
+        )
+        put(
+            Category.GAMES,
+            "com.supercell.clashofclans", "com.supercell.clashroyale", "com.supercell.brawlstars", "com.king.candycrushsaga",
+            "com.mojang.minecraftpe", "com.roblox.client", "com.dts.freefireth", "com.dts.freefiremax", "com.tencent.ig",
+            "com.activision.callofduty.shooter", "com.kiloo.subwaysurf", "com.miniclip.eightballpool",
+            "com.innersloth.spacemafia", "com.chess", "org.lichess.mobileapp", "com.nianticlabs.pokemongo",
+        )
+        put(
+            Category.CREATION,
+            "com.camerasideas.instashot", "com.nexstreaming.app.kinemasterfree", "com.alightcreative.motion", "com.figma.mirror",
+        )
+        put(
+            Category.PRODUCTIVITY,
+            "com.samsung.android.app.notes", "com.adobe.reader", "md.obsidian", "com.anydo", "com.asana.app",
+        )
+        put(
+            Category.EDUCATION_AI,
+            "com.microsoft.bing", "ai.x.grok", "com.microblink.photomath", "co.brainly", "org.coursera.android",
+            "com.udemy.android", "com.babbel.mobile.android.en", "com.memrise.android.memrisecompanion",
+        )
+        put(
+            Category.TRIP,
+            "me.lyft.android", "ee.mtakso.client", "com.expedia.bookings", "com.tripadvisor.tripadvisor", "com.google.earth",
+        )
+        put(
+            Category.WELLNESS,
+            "com.fitbit.FitbitMobile", "com.google.android.apps.healthdata", "com.nike.plusgps", "com.runtastic.android",
+            "org.iggymedia.periodtracker", "com.google.android.apps.wellbeing",
+        )
+        put(
+            Category.FINANCE,
+            "com.binance.dev", "com.coinbase.android", "com.revolut.revolut", "com.transferwise.android", "com.venmo",
+            "com.squareup.cash", "com.google.android.apps.nbu.paisa.user",
+        )
+        put(
+            Category.SHOPPING,
+            "com.ebay.mobile", "com.walmart.android", "com.etsy.android", "com.luizalabs.mlapp", "com.contextlogic.wish",
+            "com.ubercab.eats", "br.com.brainweb.ifood", "com.grability.rappi", "com.dd.doordash", "com.instacart.client",
+        )
+        put(
+            Category.NEWS,
+            "com.nytimes.android", "bbc.mobile.news.ww", "com.cnn.mobile.android.phone", "com.microsoft.amp.apps.bingnews",
+            "wp.wattpad", "com.google.android.apps.books",
+        )
+        put(
+            Category.TOOLS,
+            "com.android.vending", "com.sec.android.app.samsungapps", "com.google.android.apps.authenticator2",
+            "com.x8bit.bitwarden", "com.google.android.apps.translate", "com.google.android.apps.chromecast.app",
+            "com.samsung.android.app.watchmanager", "com.google.android.apps.recorder", "org.zwanoo.android.speedtest",
+            "com.google.android.apps.subscriptions.red",
         )
         put(Category.NEWS, "com.google.android.apps.magazines", "flipboard.app", "com.medium.reader", "com.amazon.kindle")
         put(

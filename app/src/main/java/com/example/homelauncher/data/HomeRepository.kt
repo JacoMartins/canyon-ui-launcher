@@ -46,11 +46,14 @@ class FolderEntry(
     val title: String,
     val color: Int,
     val apps: List<AppEntry>,
-    /** Set for category folders: their apps are chosen automatically and cannot be moved by hand. */
+    /**
+     * Set for category folders ("Organize apps by category"): new apps of the category join it,
+     * and it cannot be ungrouped or removed by hand. Apps can still be moved in and out.
+     */
     val category: String? = null,
 ) : HomeEntry(placed) {
     val isLarge get() = placed.spanX > 1 || placed.spanY > 1
-    val locked get() = category != null
+    val isCategory get() = category != null
 }
 
 /** A widget: the host's [appWidgetId] and the provider it was added from. */
@@ -76,8 +79,6 @@ data class HomeState(
     val drawerEnabled get() = mode == LayoutMode.HOME_AND_DRAWER
     private val byId: Map<Long, HomeEntry> = entries.associateBy { it.id }
 
-    /** Category folders: drops into them are refused. */
-    val lockedFolders: Set<Long> = entries.mapNotNullTo(HashSet()) { e -> (e as? FolderEntry)?.takeIf { it.locked }?.id }
 
     fun entry(id: Long): HomeEntry? = byId[id]
 
@@ -103,6 +104,9 @@ sealed interface DragItem {
 
     /** A widget from the picker; bound by the host only once it is dropped. */
     data class NewWidget(val provider: ComponentName, val userSerial: Long) : DragItem
+
+    /** A whole page, moved in edit mode. */
+    data class Page(val index: Int) : DragItem
 }
 
 /**
@@ -283,9 +287,9 @@ class HomeRepository(
                 // New apps join their category's folder; a category without one gets a new folder.
                 val folderOf = HashMap<String, Long>()
                 for (p in resolved.visible) if (p.type == ItemType.FOLDER) entities[p.id]?.category?.let { folderOf.putIfAbsent(it, p.id) }
-                val byCategory = missing.groupBy { byKey[it]?.category }
+                // Apps without a category go to the Others folder.
+                val byCategory = missing.groupBy { byKey[it]?.category ?: AppCategories.Category.OTHERS }
                 for ((cat, keys) in byCategory) {
-                    cat ?: continue
                     val folderId = folderOf[cat.key]
                     if (folderId != null) {
                         keys.forEach { folderAdds += it to folderId }
@@ -296,8 +300,7 @@ class HomeRepository(
                         occupied += PlacedItem(-1L - newFolders.size, Container.DESKTOP, page, cell.x, cell.y, 2, 2, null, ItemType.FOLDER)
                     }
                 }
-                // Apps without a category stay loose, after everything else.
-                missing = byCategory[null].orEmpty()
+                missing = emptyList()
             }
             val pageSpan = maxOf(pages.size, (occupied.maxOfOrNull { it.pageIndex } ?: 0) + 1)
             additions = LayoutResolver.placeMissingApps(occupied, pageSpan, grid.columns, grid.rows, missing)
@@ -463,6 +466,7 @@ class HomeRepository(
             e.copy(id = dao.insertItem(e))
         }
         is DragItem.NewWidget -> null // Added through addWidget after binding.
+        is DragItem.Page -> null
     }
 
     /** Moves an existing item or places a new app at a cell of a page or the dock. */
@@ -507,7 +511,8 @@ class HomeRepository(
         val stack = folder.type == ItemEntity.TYPE_STACK
         when (kids.size) {
             0 -> dao.deleteItems(listOf(folderId))
-            1 -> {
+            // A category folder stays a folder with one app (new apps of its category will join).
+            1 if folder.category == null -> {
                 val last = kids[0].placedAt(folder.container, folder.pageId, folder.cellX, folder.cellY)
                 dao.updateItem(if (stack) last.copy(spanX = folder.spanX, spanY = folder.spanY) else last.copy(spanX = 1, spanY = 1))
                 dao.deleteItems(listOf(folderId))
@@ -655,7 +660,7 @@ class HomeRepository(
     /**
      * Home screen only mode, "Organize apps by category" turned on: every app that is not in the
      * dock goes into a 2x2 category folder (largest categories first, filling pages from the
-     * first), and apps without a category go loose onto a fresh page after the folders.
+     * first); apps without a category go into an Others folder, last.
      * Widgets stay where they are. Undoable like any edit.
      */
     suspend fun organizeByCategory() = edit { dao, st ->
@@ -688,9 +693,11 @@ class HomeRepository(
         for (w in items) if (w.container == Container.DESKTOP && w.type in keepTypes) pageIndex[w.pageId]?.let { grid(it).mark(w.cellX, w.cellY, w.spanX, w.spanY) }
 
         val candidates = appList.filter { it.key !in inDock && it.key.toString() !in hidden }
-        val byCategory = candidates.groupBy { it.category }
-        val categories = byCategory.keys.filterNotNull().sortedByDescending { byCategory.getValue(it).size }
-        var lastPage = 0
+        val others = AppCategories.Category.OTHERS
+        val byCategory = candidates.groupBy { it.category ?: others }
+        // Largest categories first; Others always last.
+        val categories = byCategory.keys.filter { it != others }.sortedByDescending { byCategory.getValue(it).size } +
+            listOfNotNull(others.takeIf { it in byCategory })
         val placedFolders = ArrayList<Triple<AppCategories.Category, Int, Cell>>()
         for (cat in categories) {
             var p = 0
@@ -701,26 +708,33 @@ class HomeRepository(
             }
             grid(p).mark(cell.x, cell.y, 2, 2)
             placedFolders += Triple(cat, p, cell)
-            lastPage = maxOf(lastPage, p)
-        }
-        // Loose apps start on a page of their own.
-        val loose = byCategory[null].orEmpty()
-        val loosePlaces = ArrayList<Pair<Int, Cell>>()
-        var p = if (placedFolders.isEmpty()) 0 else lastPage + 1
-        for (unused in loose) {
-            var cell: Cell? = null
-            while (cell == null) {
-                cell = grid(p).findFirstFree()
-                if (cell == null) p++
-            }
-            grid(p).mark(cell.x, cell.y)
-            loosePlaces += p to cell
         }
         val ids = dao.ensurePages(grids.size)
         for ((cat, page, cell) in placedFolders) {
             insertCategoryFolder(dao, cat, ids[page], cell, byCategory.getValue(cat).map { it.key })
         }
-        dao.insertItems(loose.mapIndexed { i, a -> entity(a.key, Container.DESKTOP, ids[loosePlaces[i].first], loosePlaces[i].second.x, loosePlaces[i].second.y) })
+    }
+
+    /**
+     * The user set an app's category: move it into that category's folder (making one in the
+     * first free 2x2 spot if the category has none). Apps in the dock stay there.
+     */
+    suspend fun moveToCategory(key: AppKey, category: AppCategories.Category) = edit { dao, st ->
+        val items = dao.itemsNow()
+        val app = items.firstOrNull { keyOf(it) == key && it.container != Container.DOCK } ?: return@edit
+        val folder = items.firstOrNull { it.type == ItemEntity.TYPE_FOLDER && it.category == category.key && it.container == Container.DESKTOP }
+        if (folder != null && folder.id == app.parentId) return@edit
+        val oldParent = app.parentId
+        if (folder != null) {
+            val rank = (dao.children(folder.id).maxOfOrNull { it.cellX } ?: -1) + 1
+            dao.updateItem(app.inFolder(folder.id, rank))
+        } else {
+            val others = st.entries.map { it.placed }.filter { it.id != app.id }
+            val (page, cell) = LayoutResolver.findSlotForNewItem(others, st.pageCount, st.columns, st.rows, 0, 2, 2)
+            dao.deleteItems(listOf(app.id))
+            insertCategoryFolder(dao, category, pageId(dao, Container.DESKTOP, page), cell, listOf(key))
+        }
+        if (oldParent != 0L) tidyFolder(dao, oldParent)
     }
 
     /** "Organize apps by category" turned off: the category folders become ordinary folders. */

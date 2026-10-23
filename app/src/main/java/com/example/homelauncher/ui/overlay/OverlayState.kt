@@ -2,6 +2,7 @@ package com.example.homelauncher.ui.overlay
 
 import android.graphics.Rect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -57,6 +58,9 @@ class OverlayState {
     var snack by mutableStateOf<Snack?>(null)
     var dragging by mutableStateOf(false)
     var editMode by mutableStateOf(false)
+    /** Edit mode: the zoomed page's top edge (window px) and its zoom, for the bar above it. */
+    var editPageTop by mutableIntStateOf(0)
+    var editScale by mutableFloatStateOf(1f)
     var overview by mutableStateOf<List<PageThumb>?>(null)
     var picker by mutableStateOf<WidgetPickerState?>(null)
     var editApp by mutableStateOf<EditAppState?>(null)

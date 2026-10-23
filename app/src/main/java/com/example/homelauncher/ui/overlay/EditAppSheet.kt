@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -62,6 +63,9 @@ import com.example.homelauncher.data.IconFiles
 import com.example.homelauncher.data.IconOverride
 import com.example.homelauncher.data.IconPack
 import com.example.homelauncher.data.IconPackInfo
+import com.example.homelauncher.data.titleRes
+import com.example.homelauncher.model.AppCategories
+import com.example.homelauncher.ui.design.ChoiceButton
 import com.example.homelauncher.ui.design.PrimaryButton
 import com.example.homelauncher.ui.design.SecondaryButton
 import com.example.homelauncher.ui.design.Spacing
@@ -74,7 +78,8 @@ import java.io.File
  * Editing one app's label and icon. [draft] is what will be saved; the activity updates it when
  * an image comes back from the photo picker.
  */
-class EditAppState(val app: AppInfo, val original: IconOverride?, val packs: List<IconPackInfo>) {
+/** [showCategory]: "Organize apps by category" is on, so the app's category can be chosen. */
+class EditAppState(val app: AppInfo, val original: IconOverride?, val packs: List<IconPackInfo>, val showCategory: Boolean = false) {
     var draft by mutableStateOf(original ?: IconOverride())
 }
 
@@ -188,6 +193,22 @@ private fun MainPage(
         }
         if (draft.hasIcon) {
             SecondaryButton(stringResource(R.string.edit_app_default_icon), { state.draft = draft.copy(packPackage = null, drawable = null, file = null) }, icon = R.drawable.ph_close)
+        }
+        if (state.showCategory) {
+            Text(stringResource(R.string.edit_app_category), style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
+            val auto = state.app.autoCategory ?: AppCategories.Category.OTHERS
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                item {
+                    ChoiceButton(
+                        stringResource(R.string.edit_app_category_auto, stringResource(auto.titleRes())),
+                        draft.category == null,
+                        { state.draft = draft.copy(category = null) },
+                    )
+                }
+                items(AppCategories.Category.entries.toList(), key = { it.key }) { c ->
+                    ChoiceButton(stringResource(c.titleRes()), draft.category == c.key, { state.draft = draft.copy(category = c.key) })
+                }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm), modifier = Modifier.padding(top = Spacing.sm)) {
             Spacer(Modifier.weight(1f))

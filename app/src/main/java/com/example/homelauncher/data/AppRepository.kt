@@ -45,8 +45,10 @@ class AppInfo(
     val isSystem: Boolean,
     /** A dynamic clock: [icon] is redrawn in place every minute (see [AppRepository.clockTicks]). */
     val isClock: Boolean = false,
-    /** Where "Organize apps by category" files it; null = no category. */
+    /** Where "Organize apps by category" files it (the user's choice first); null = no category. */
     val category: AppCategories.Category? = null,
+    /** The category found automatically, ignoring the user's choice. */
+    val autoCategory: AppCategories.Category? = null,
 ) {
     /** Compose wrapper around [icon]; created once, no copy. */
     val image: ImageBitmap = icon.asImageBitmap()
@@ -180,7 +182,8 @@ class AppRepository(
                     label = icons.labelOverride(key) ?: info.label.toString().trim().ifEmpty { cn.packageName },
                     icon = icons.get(info, key, pm),
                     isClock = icons.isClock(key),
-                    category = AppCategories.categorize(cn.packageName, info.applicationInfo.category),
+                    autoCategory = AppCategories.categorize(cn.packageName, info.applicationInfo.category),
+                    category = icons.categoryOverride(key) ?: AppCategories.categorize(cn.packageName, info.applicationInfo.category),
                     isSystem = flags and ApplicationInfo.FLAG_SYSTEM != 0 &&
                         flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP == 0,
                 )

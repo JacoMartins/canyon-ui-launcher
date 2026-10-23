@@ -40,6 +40,9 @@ class DragSource(
 /** Where a drag ended. */
 sealed interface DropResult {
     data class OnGrid(val action: DropAction) : DropResult
+
+    /** A whole page (edit mode) dropped while page [index] is in view. */
+    data class OnPage(val index: Int) : DropResult
     data object Cancelled : DropResult
 }
 
@@ -145,6 +148,7 @@ class DragController(
         val s = source ?: return
         update(x, y)
         val result = when {
+            s.item is DragItem.Page -> DropResult.OnPage(home.workspace.currentPage)
             lastAction != null && lastAction != DropAction.Reject -> DropResult.OnGrid(lastAction!!)
             else -> DropResult.Cancelled
         }
@@ -187,6 +191,8 @@ class DragController(
             it.translationY = y - s.touchY
         }
 
+        // A page being moved only flips pages at the screen edges; there is no cell to aim at.
+        if (s.item is DragItem.Page) return
         val st = callbacks.state() ?: return
         // Dock first, then the page in view.
         val overDock = isOver(home.hotseat, x, y)
@@ -231,7 +237,7 @@ class DragController(
         val draggedId = (s.item as? DragItem.Existing)?.id
         val action = DropLogic.decide(
             container, pageIndex, columns, rows, st.placedIn(container, pageIndex),
-            desired, finger, centerHit, draggedId, s.type, s.spanX, s.spanY, st.lockedFolders,
+            desired, finger, centerHit, draggedId, s.type, s.spanX, s.spanY,
         )
         if (action != lastAction) {
             lastAction = action

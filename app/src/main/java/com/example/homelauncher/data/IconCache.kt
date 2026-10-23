@@ -28,6 +28,7 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.graphics.drawable.toDrawable
+import com.example.homelauncher.model.AppCategories
 import com.example.homelauncher.model.AppKey
 import java.io.File
 import java.util.Calendar
@@ -98,6 +99,8 @@ class IconCache(private val context: Context) {
     }
 
     fun labelOverride(key: AppKey): String? = overrides[key.toString()]?.label?.takeIf { it.isNotBlank() }
+
+    fun categoryOverride(key: AppKey): AppCategories.Category? = AppCategories.Category.fromKey(overrides[key.toString()]?.category)
 
     /** Themed icons follow light/dark mode and the wallpaper palette. */
     fun onConfigurationChanged() {

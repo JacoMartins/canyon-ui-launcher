@@ -55,10 +55,12 @@ import com.example.homelauncher.data.HomeState
 import com.example.homelauncher.data.IconFiles
 import com.example.homelauncher.data.IconOverride
 import com.example.homelauncher.data.IconPack
+import com.example.homelauncher.data.LayoutMode
 import com.example.homelauncher.data.StackEntry
 import com.example.homelauncher.data.WidgetEntry
 import com.example.homelauncher.model.GridOccupancy
 import com.example.homelauncher.model.LayoutResolver
+import com.example.homelauncher.model.AppCategories
 import com.example.homelauncher.model.Container
 import com.example.homelauncher.model.DropAction
 import com.example.homelauncher.model.ItemType
@@ -241,7 +243,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.indicator.alpha = 0f
         home.workspace.onScroll = home.indicator::setPosition
         home.workspace.onPageSettled = { ui.currentPage = it }
-        home.onEmptyLongPress = ::enterEditMode
+        home.onEmptyLongPress = { if (ui.editMode) armPageDrag() else enterEditMode() }
         home.onEmptyTap = { if (ui.editMode) exitEditMode() }
         home.onAddPage = ::addPage
 
@@ -597,8 +599,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         MenuEntry(R.drawable.ph_enlarge, getString(R.string.menu_make_large)) { setLarge(entry, true) }
                     }
                 }
-                // A category folder keeps its apps: no ungrouping or removing it by hand.
-                if (!entry.locked) {
+                // A category folder stays while its category is organized: no ungroup or remove.
+                if (!entry.isCategory) {
                     out += MenuEntry(R.drawable.ph_ungroup, getString(R.string.menu_ungroup)) {
                         edit(getString(R.string.snack_ungrouped)) { launcher.home.ungroup(entry.id) }
                     }
@@ -671,8 +673,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun armDragFromFolder(app: AppEntry, folder: FolderEntry, bounds: Rect) {
         ui.menu = ItemMenu(bounds, menuFor(app))
         updateBackCallbacks()
-        // Apps stay in their category folder.
-        if (!folder.locked) drag.arm(newAppSource(DragItem.Existing(app.id), app.app))
+        drag.arm(newAppSource(DragItem.Existing(app.id), app.app))
     }
 
     // --- DragController.Callbacks -------------------------------------------------------------
@@ -689,7 +690,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         ui.dragging = true
         // An empty page at the end, unless the last page already is empty.
         val st = state
-        if (st != null && st.entries.any { it.placed.container == Container.DESKTOP && it.placed.pageIndex == st.pageCount - 1 }) {
+        if (st != null && source.item !is DragItem.Page && st.entries.any { it.placed.container == Container.DESKTOP && it.placed.pageIndex == st.pageCount - 1 }) {
             extraPage = true
         }
         syncPages()
@@ -702,7 +703,15 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val st = state
         val existingId = (source.item as? DragItem.Existing)?.id
         val newWidget = source.item as? DragItem.NewWidget
+        val movedPage = source.item as? DragItem.Page
         when (result) {
+            is DropResult.OnPage -> if (movedPage != null && st != null) {
+                val to = result.index.coerceAtMost(st.pageCount - 1)
+                if (to != movedPage.index) {
+                    movePage(movedPage.index, to)
+                    dragLayer.postDelayed({ home.workspace.snapToPage(to) }, 250)
+                }
+            }
             // A widget from the picker is bound (and maybe set up) before it is saved.
             is DropResult.OnGrid if newWidget != null -> {
                 val w = pickerWidgets[newWidget.provider to newWidget.userSerial]
@@ -732,7 +741,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // The icon reappears now only where it stays put or was moved above; when it went into a
         // folder or was removed, the rebind takes it away instead of flashing it at its old spot.
         val view = source.view
-        val stays = result is DropResult.Cancelled ||
+        val stays = result is DropResult.Cancelled || result is DropResult.OnPage ||
             (result is DropResult.OnGrid && (result.action is DropAction.Move || result.action == DropAction.Reject))
         if (view != null) {
             if (stays) view.visibility = View.VISIBLE
@@ -990,6 +999,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     private fun zoomHome(scale: Float) {
+        // Where the zoomed page's top edge lands, for the home/delete buttons above it.
+        val ws = home.workspace
+        val pivot = home.height / 2f
+        ui.editScale = scale
+        ui.editPageTop = (pivot - (pivot - ws.top) * scale).toInt()
         for (v in listOf(home.workspace, home.indicator)) {
             v.pivotY = home.height / 2f - v.top
             v.pivotX = v.width / 2f
@@ -1047,6 +1061,33 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.setAddPage(ui.editMode && !drag.isDragging)
     }
 
+    /** Edit mode: a long-press on a page picks it up; flip to where it should go and let go. */
+    private fun armPageDrag() {
+        val st = state ?: return
+        val index = home.workspace.currentPage
+        if (index >= st.pageCount) return // The plus page.
+        val page = home.workspace.pageAt(index) ?: return
+        val scale = ViewMap.scaleOf(dragLayer, page)
+        val w = (page.width * scale).toInt().coerceAtLeast(1)
+        val h = (page.height * scale).toInt().coerceAtLeast(1)
+        val image = createBitmap(w, h).also { b ->
+            val c = Canvas(b)
+            c.scale(scale, scale)
+            page.draw(c)
+        }
+        pt[0] = 0f; pt[1] = 0f
+        ViewMap.localToRoot(dragLayer, page, pt)
+        drag.arm(
+            DragSource(
+                item = DragItem.Page(index), type = ItemType.APP, spanX = 1, spanY = 1,
+                image = image, width = w, height = h,
+                touchX = (dragLayer.lastDownX - pt[0]).coerceIn(0f, w.toFloat()),
+                touchY = (dragLayer.lastDownY - pt[1]).coerceIn(0f, h.toFloat()),
+                view = page, app = null,
+            ),
+        )
+    }
+
     override fun makeHomePage(index: Int) {
         if (index <= 0) return
         edit(getString(R.string.snack_home_page)) { launcher.home.movePage(index, 0) }
@@ -1081,11 +1122,25 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun refreshWallpaperColors() {
         lifecycleScope.launch {
             val colors = withContext(Dispatchers.IO) { wallpaperManager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM) }
-            wallpaperIsLight = Build.VERSION.SDK_INT >= 31 && colors != null &&
-                colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT != 0
+            wallpaperIsLight = colors != null && (
+                (Build.VERSION.SDK_INT >= 31 && colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT != 0) ||
+                    wallpaperLuminance(colors) > LIGHT_WALLPAPER
+                )
             applyLabelColors()
             updateSystemBars(drawer.progress > 0.5f)
         }
+    }
+
+    /**
+     * How light the wallpaper looks overall (0 black, 1 white), from its main colours weighted by
+     * how much of it they cover. Some wallpapers (and some phones' wallpaper pickers) never set
+     * the "supports dark text" hint, so a very light wallpaper is also recognised this way. A
+     * normal app cannot read the wallpaper image itself on Android 13, but its colours are public.
+     */
+    private fun wallpaperLuminance(c: WallpaperColors): Float {
+        val parts = listOfNotNull(c.primaryColor to 0.6f, c.secondaryColor?.let { it to 0.25f }, c.tertiaryColor?.let { it to 0.15f })
+        val total = parts.sumOf { it.second.toDouble() }.toFloat()
+        return parts.sumOf { (color, w) -> (color.luminance() * w).toDouble() }.toFloat() / total
     }
 
     private val isNight: Boolean
@@ -1259,9 +1314,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun editApp(app: AppInfo) {
         lifecycleScope.launch {
             val packs = withContext(Dispatchers.Default) { IconPack.installed(this@HomeActivity) }
-            val original = launcher.settings.current().iconOverrides[app.key.toString()]
+            val s = launcher.settings.current()
+            val original = s.iconOverrides[app.key.toString()]
             ui.menu = null
-            ui.editApp = EditAppState(app, original, packs)
+            ui.editApp = EditAppState(app, original, packs, showCategory = s.autoCategories && s.layoutMode == LayoutMode.HOME_ONLY)
             updateBackCallbacks()
         }
     }
@@ -1282,6 +1338,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         lifecycleScope.launch {
             launcher.settings.setIconOverride(app.key.toString(), override)
             if (old != null && old != override.file) IconFiles.delete(this@HomeActivity, old)
+            // A new category moves the app into that category's folder.
+            if (edit?.showCategory == true && override.category != edit.original?.category) {
+                val cat = AppCategories.Category.fromKey(override.category)
+                    ?: app.autoCategory ?: AppCategories.Category.OTHERS
+                launcher.home.moveToCategory(app.key, cat)
+            }
         }
     }
 
@@ -1319,7 +1381,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()
         private const val LABEL_SHADOW = 0x8A000000.toInt()
         private const val FADE_IN_MS = 180L
-        private const val EDIT_SCALE = 0.82f
+        private const val EDIT_SCALE = 0.74f
+        /** Above this overall lightness a wallpaper gets dark labels (light mode). */
+        private const val LIGHT_WALLPAPER = 0.62f
         private const val RETURN_SCALE = 1.06f
         private const val THUMB_SCALE = 0.4f
     }

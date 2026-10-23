@@ -98,6 +98,7 @@ import com.example.homelauncher.ui.design.PrimaryButton
 import com.example.homelauncher.ui.design.SecondaryButton
 import com.example.homelauncher.ui.design.MenuLayer
 import com.example.homelauncher.ui.design.Spacing
+import com.example.homelauncher.ui.design.buttonRing
 import com.example.homelauncher.ui.design.surfaceRing
 import com.example.homelauncher.ui.home.AppIconView
 import kotlinx.coroutines.delay
@@ -137,53 +138,61 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
 // ------------------------------------------------------------------------------- edit mode
 
 /**
- * Over the focused page in edit mode: make it the home page (left; filled house when it already
- * is) and delete it (right). Hidden on the plus page at the end.
+ * Just above the focused page in edit mode: make it the home page (left; a filled house when it
+ * already is) and delete it (right). Only the two buttons are drawn and take touches; the row
+ * between them is empty space. Hidden on the plus page at the end.
  */
 @Composable
 private fun EditTopBar(state: OverlayState, actions: OverlayActions) {
     val page = state.currentPage
     if (page >= state.pageCount) return
     val isHome = page == HOME_PAGE
-    Surface(
-        modifier = Modifier
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(top = Spacing.sm)
-            .fillMaxWidth(EDIT_PAGE_FRACTION)
-            .surfaceRing(),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
+    val density = LocalDensity.current
+    val minTop = WindowInsets.statusBars.getTop(density)
+    val gap = with(density) { Spacing.sm.roundToPx() }
+    Row(
+        Modifier
+            .fillMaxWidth(state.editScale)
+            .layout { measurable, constraints ->
+                val p = measurable.measure(constraints)
+                // Bottom edge a little above the page; never under the status bar.
+                val y = (state.editPageTop - p.height - gap).coerceAtLeast(minTop + gap)
+                layout(p.width, y + p.height) { p.place(0, y) }
+            },
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Row(Modifier.padding(Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
-            PageIconButton(
-                icon = if (isHome) R.drawable.ph_house_fill else R.drawable.ph_house,
-                label = stringResource(if (isHome) R.string.home_page else R.string.make_home_page),
-                enabled = !isHome,
-            ) { actions.makeHomePage(page) }
-            PageIconButton(R.drawable.ph_trash, stringResource(R.string.delete_page), enabled = !isHome && state.pageCount > 1) {
-                actions.deletePage(page)
-            }
+        PageIconButton(
+            icon = if (isHome) R.drawable.ph_house_fill else R.drawable.ph_house,
+            label = stringResource(if (isHome) R.string.home_page else R.string.make_home_page),
+            enabled = !isHome,
+        ) { actions.makeHomePage(page) }
+        PageIconButton(R.drawable.ph_trash, stringResource(R.string.delete_page), enabled = !isHome && state.pageCount > 1) {
+            actions.deletePage(page)
         }
     }
 }
 
+/** A round button with its own surface and ring (OneDepth secondary style), icon only. */
 @Composable
 private fun PageIconButton(@DrawableRes icon: Int, label: String, enabled: Boolean, onClick: () -> Unit) {
-    val tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f)
-    Box(
-        Modifier
+    val colors = MaterialTheme.colorScheme
+    val tint = colors.onSecondaryContainer.copy(alpha = if (enabled) 1f else 0.38f)
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        color = colors.secondaryContainer.copy(alpha = if (enabled) 1f else 0.7f),
+        modifier = Modifier
             .size(44.dp)
-            .clip(CircleShape)
-            .clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick)
+            .buttonRing()
             .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
     ) {
-        Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Box(contentAlignment = Alignment.Center) {
+            Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        }
     }
 }
 
-/** About the width of a page at the edit mode zoom. */
-private const val EDIT_PAGE_FRACTION = 0.78f
 
 @Composable
 private fun EditBottomBar(actions: OverlayActions) {
@@ -277,8 +286,6 @@ private fun FolderPopup(folder: FolderEntry, actions: OverlayActions) {
                     BasicTextField(
                         value = title,
                         onValueChange = { title = it.take(40) },
-                        // A category folder is named after its category.
-                        readOnly = folder.locked,
                         singleLine = true,
                         textStyle = MaterialTheme.typography.headlineSmall.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
