@@ -122,6 +122,9 @@ private const val COLUMNS = 4
 private const val DRAWER_ALPHA = 0.9f
 private val SearchPillHeight = 56.dp
 
+/** The header row (options button) at the top of the Apps screen. */
+private val TopBarHeight = 56.dp
+
 @Composable
 fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: DrawerActions) {
     val results by model.results.collectAsState()
@@ -151,20 +154,23 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
                 .backdrop(RoundedCornerShape(0.dp))
                 .background(backdropColor(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = DRAWER_ALPHA))),
         )
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
-            TopBar(onShowHidden = { showHidden = true }, onSettings = actions::openSettings, showMenu = actions::showMenu)
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                val bottom = bottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
-                if (results.isEmpty() && model.query.isNotBlank()) {
-                    EmptySearch(model.query)
-                } else {
-                    AppGrid(results, gridState, bottom, actions, model)
-                    // The letter dots, for the full list (not search results).
-                    if (model.query.isBlank()) {
-                        AlphabetScrubber(results, gridState, touch, Modifier.align(Alignment.CenterEnd).padding(bottom = bottom))
-                    }
+        // The apps scroll under the header (it floats over them) instead of being cut off at it;
+        // the letter dots stay between the header and the search field.
+        val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + TopBarHeight
+        Box(Modifier.fillMaxSize()) {
+            val bottom = bottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
+            if (results.isEmpty() && model.query.isNotBlank()) {
+                EmptySearch(model.query, Modifier.padding(top = top))
+            } else {
+                AppGrid(results, gridState, top, bottom, actions, model)
+                // The letter dots, for the full list (not search results).
+                if (model.query.isBlank()) {
+                    AlphabetScrubber(results, gridState, touch, Modifier.align(Alignment.CenterEnd).padding(top = top, bottom = bottom))
                 }
             }
+        }
+        Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)) {
+            TopBar(onShowHidden = { showHidden = true }, onSettings = actions::openSettings, showMenu = actions::showMenu)
         }
         SearchPill(
             model = model,
@@ -190,8 +196,9 @@ private fun TopBar(onShowHidden: () -> Unit, onSettings: () -> Unit, showMenu: (
     val hidden = stringResource(R.string.hidden_apps)
     val settings = stringResource(R.string.home_settings)
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        Modifier.fillMaxWidth().height(TopBarHeight).padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(
             onClick = {
@@ -290,6 +297,7 @@ private class Coords {
 private fun AppGrid(
     apps: List<AppInfo>,
     state: LazyGridState,
+    top: androidx.compose.ui.unit.Dp,
     bottom: androidx.compose.ui.unit.Dp,
     actions: DrawerActions,
     model: DrawerModel,
@@ -319,7 +327,7 @@ private fun AppGrid(
         columns = GridCells.Fixed(COLUMNS),
         state = state,
         // Room at the end for the letter dots.
-        contentPadding = PaddingValues(start = 8.dp, end = 24.dp, top = 8.dp, bottom = bottom),
+        contentPadding = PaddingValues(start = 8.dp, end = 24.dp, top = top + 8.dp, bottom = bottom),
         modifier = Modifier.fillMaxSize(),
     ) {
         items(apps, key = { it.key.toString() }, contentType = { 0 }) { app ->
@@ -369,8 +377,8 @@ private fun AppGrid(
 }
 
 @Composable
-private fun EmptySearch(query: String) {
-    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.TopCenter) {
+private fun EmptySearch(query: String, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.TopCenter) {
         Text(
             stringResource(R.string.no_search_results, query.trim()),
             style = MaterialTheme.typography.bodyLarge,

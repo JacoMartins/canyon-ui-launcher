@@ -136,7 +136,7 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             backdropPath.addRoundRect(hintRect, r, r, android.graphics.Path.Direction.CW)
             val blurred = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, backdropPath, r)
             val alpha = backdropPaint.alpha
-            if (blurred) backdropPaint.alpha = (alpha * io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.fillShare()).toInt()
+            if (blurred) backdropPaint.alpha = (alpha * io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.fillShareFor(backdropPaint.color)).toInt()
             canvas.drawRoundRect(hintRect, r, r, backdropPaint)
             backdropPaint.alpha = alpha
             // OneDepth's border, the same as the interface's buttons.

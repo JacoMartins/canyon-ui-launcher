@@ -27,6 +27,7 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.addOutline
@@ -123,5 +124,5 @@ private val FrostedStyle = HazeBlurStyle {
 @Composable
 fun backdropColor(color: Color): Color {
     val blur by WallpaperBackdrop.active.collectAsState()
-    return if (blur == null) color else color.copy(alpha = color.alpha * WallpaperBackdrop.fillShare())
+    return if (blur == null) color else color.copy(alpha = color.alpha * WallpaperBackdrop.fillShare(dark = color.luminance() < 0.5f))
 }

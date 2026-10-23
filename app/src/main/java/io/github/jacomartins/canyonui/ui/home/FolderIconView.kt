@@ -160,7 +160,7 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         }
         val glassRadius = if (isLarge) box.width() * largeCornerShare() else box.width() * 0.3f
         if (WallpaperBackdrop.draw(canvas, this, outlinePath, glassRadius)) {
-            bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShare()).toInt()
+            bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShareFor(bgPaint.color)).toInt()
         }
         if (isLarge) {
             val radius = box.width() * largeCornerShare()

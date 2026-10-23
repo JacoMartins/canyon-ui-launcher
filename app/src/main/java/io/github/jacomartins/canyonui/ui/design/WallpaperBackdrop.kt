@@ -293,12 +293,18 @@ object WallpaperBackdrop {
         return true
     }
 
-    /** How much of a surface's own colour to keep over the blur. */
-    fun fillShare(): Float = when (_active.value?.mode) {
-        RenderMode.FROSTED -> 0.55f
-        RenderMode.GLASS -> 0.3f
+    /**
+     * How much of a surface's own colour to keep over the blur. A [dark] colour (dark mode)
+     * keeps more, so folders and panels still read dark over a light wallpaper.
+     */
+    fun fillShare(dark: Boolean): Float = when (_active.value?.mode) {
+        RenderMode.FROSTED -> if (dark) 0.85f else 0.55f
+        RenderMode.GLASS -> if (dark) 0.65f else 0.3f
         else -> 1f
     }
+
+    /** [fillShare] for an ARGB colour, judged by its brightness. */
+    fun fillShareFor(color: Int): Float = fillShare(dark = androidx.core.graphics.ColorUtils.calculateLuminance(color or (0xFF shl 24)) < 0.5)
 
     /**
      * Redraws [view] whenever it moves on screen (page scroll, edit-mode zoom) while a blur is
