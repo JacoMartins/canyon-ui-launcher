@@ -17,6 +17,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -110,14 +111,24 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
             verticalArrangement = Arrangement.spacedBy(5.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // The dots brighten towards the letter in use: the one under the finger, else the
+            // letter at the top of the list as it scrolls; a soft gradient a few dots each way.
+            val shown by remember(sections) {
+                derivedStateOf {
+                    val first = grid.firstVisibleItemIndex
+                    sections.indexOfLast { it.index <= first }.coerceAtLeast(0)
+                }
+            }
             sections.forEachIndexed { i, _ ->
                 val on = i == active
+                val focus = if (active >= 0) active else shown
+                val near = (1f - kotlin.math.abs(i - focus) / GRADIENT_DOTS).coerceIn(0f, 1f)
                 Box(
                     Modifier
                         .padding(horizontal = 10.dp)
                         .size(if (on) dot * 1.6f else dot)
                         .drawBehind {
-                            drawCircle(colors.onSurface.copy(alpha = if (on) 1f else 0.35f), radius = size.minDimension / 2f, center = Offset(size.width / 2f, size.height / 2f))
+                            drawCircle(colors.onSurface.copy(alpha = 0.25f + 0.75f * near), radius = size.minDimension / 2f, center = Offset(size.width / 2f, size.height / 2f))
                         },
                 )
             }
@@ -143,6 +154,9 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
         }
     }
 }
+
+/** How many dots on each side of the current letter the brightness fades over. */
+private const val GRADIENT_DOTS = 4f
 
 /** Height in px of the dot column (8dp padding each end, 6dp dots, 5dp gaps). */
 private fun androidx.compose.ui.unit.Density.size(count: Int, dot: androidx.compose.ui.unit.Dp): Float =

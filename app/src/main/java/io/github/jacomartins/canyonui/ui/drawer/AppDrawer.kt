@@ -119,8 +119,21 @@ interface DrawerActions {
 
 private const val COLUMNS = 4
 
-/** Opacity of the Apps screen's colour over the home screen (translucent mode). */
-private const val DRAWER_ALPHA = 0.9f
+/**
+ * The Apps screen's colour over what is behind it, by the Transparency setting: fairly solid
+ * when translucent, a lighter tint over glass, and a fuller one over the frosted blur.
+ */
+@Composable
+private fun drawerTint(): Color {
+    val blur by io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState()
+    val dark = io.github.jacomartins.canyonui.ui.design.isDarkSurface()
+    val alpha = when (blur?.mode) {
+        io.github.jacomartins.canyonui.data.RenderMode.GLASS -> if (dark) 0.32f else 0.2f
+        io.github.jacomartins.canyonui.data.RenderMode.FROSTED -> if (dark) 0.88f else 0.75f
+        else -> 0.9f
+    }
+    return MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = alpha)
+}
 private val SearchPillHeight = 56.dp
 
 /** The header row (options button) at the top of the Apps screen. */
@@ -153,7 +166,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
             Modifier
                 .fillMaxSize()
                 .backdrop(RoundedCornerShape(0.dp))
-                .background(backdropColor(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = DRAWER_ALPHA))),
+                .background(drawerTint()),
         )
         // The apps scroll under the header (it floats over them) instead of being cut off at it;
         // the letter dots stay between the header and the search field.
@@ -166,7 +179,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
             } else {
                 AppGrid(results, gridState, top, bottom, actions, model)
                 // The letter dots, for the full list (not search results).
-                if (model.query.isBlank()) {
+                if (model.query.isBlank() && !model.moving) {
                     AlphabetScrubber(results, gridState, touch, Modifier.align(Alignment.CenterEnd).padding(top = top, bottom = bottom))
                 }
             }

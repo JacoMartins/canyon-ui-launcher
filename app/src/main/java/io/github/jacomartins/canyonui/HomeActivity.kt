@@ -900,6 +900,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         ui.picker = null
         dismissResizeFrame()
         drawerModel.dragEpoch++
+        drawerModel.moving = true
         if (!drawer.isClosed) drawer.close(animate = false)
         ui.dragging = true
         // An empty page at the end, unless the last page already is empty.
@@ -913,6 +914,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onDropped(source: DragSource, result: DropResult) {
         ui.dragging = false
+        drawerModel.moving = false
         extraPage = false
         val st = state
         val existingId = (source.item as? DragItem.Existing)?.id

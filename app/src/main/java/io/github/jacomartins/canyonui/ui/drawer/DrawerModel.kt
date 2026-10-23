@@ -33,6 +33,9 @@ class DrawerModel(
     /** Bumped when a drag leaves the drawer, so open item menus close. */
     var dragEpoch by mutableIntStateOf(0)
 
+    /** An app is being moved (dragged out of the drawer): the letter dots hide meanwhile. */
+    var moving by mutableStateOf(false)
+
     private val all = apps.apps.filterNotNull()
     private val hiddenKeys = settings.settings.map { it.hiddenApps }
 
