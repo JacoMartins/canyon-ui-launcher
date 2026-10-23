@@ -135,8 +135,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private val overshoot = OvershootInterpolator(1.4f)
     private val decelerate = DecelerateInterpolator()
 
-    private val homeStyle = AppIconView.LabelStyle(LIGHT_LABEL, LABEL_SHADOW)
-    private val dockStyle = AppIconView.LabelStyle(LIGHT_LABEL, LABEL_SHADOW)
+    // Labels have no text shadow.
+    private val homeStyle = AppIconView.LabelStyle(LIGHT_LABEL, 0)
+    private val dockStyle = AppIconView.LabelStyle(LIGHT_LABEL, 0)
     private val views = HashMap<Long, View>()
     private var state: HomeState? = null
     private var boundOnce = false
@@ -1283,10 +1284,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     private fun applyLabelColors() {
         val dark = darkLabels
-        for (style in listOf(homeStyle, dockStyle)) {
-            style.color = if (dark) DARK_LABEL else LIGHT_LABEL
-            style.shadowColor = if (dark) 0 else LABEL_SHADOW
-        }
+        for (style in listOf(homeStyle, dockStyle)) style.color = if (dark) DARK_LABEL else LIGHT_LABEL
         views.values.forEach {
             (it as? AppIconView)?.applyStyle()
             (it as? FolderIconView)?.let { f -> styleFolder(f); f.applyStyle() }
@@ -1550,7 +1548,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     companion object {
         private const val LIGHT_LABEL = 0xFFFFFFFF.toInt()
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()
-        private const val LABEL_SHADOW = 0x8A000000.toInt()
         private const val FADE_IN_MS = 180L
         private const val EDIT_SCALE = 0.74f
         private const val BAR_RESET_DELAY_MS = 350L
