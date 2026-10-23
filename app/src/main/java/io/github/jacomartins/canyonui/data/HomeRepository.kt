@@ -1,6 +1,7 @@
 package io.github.jacomartins.canyonui.data
 
 import android.content.ComponentName
+import io.github.jacomartins.canyonui.model.CategoryOrder
 import io.github.jacomartins.canyonui.model.AppCategories
 import io.github.jacomartins.canyonui.model.AppKey
 import io.github.jacomartins.canyonui.model.Cell
@@ -445,6 +446,33 @@ class HomeRepository(
             undoSnapshot = Snapshot(st.mode, dao.pagesNow(), dao.itemsNow())
             block(dao, st)
         }
+    }
+
+    /**
+     * Orders the apps inside every category folder ([CategoryOrder]: alphabetical, then the most
+     * used first, changing slowly). Not an undoable edit: the user's last change stays undoable.
+     */
+    suspend fun arrangeCategoryFolders(usage: AppUsage) = writes.withLock {
+        val st = state.value ?: return@withLock
+        val appList = apps.apps.value ?: return@withLock
+        val labels = appList.associate { it.key.toString() to it.label }
+        val dao = daos.getValue(st.mode)
+        val collator = java.text.Collator.getInstance()
+        val today = usage.today()
+        dbs.getValue(st.mode).withTransaction {
+            for (f in dao.itemsNow().filter { it.type == ItemEntity.TYPE_FOLDER && it.category != null }) {
+                val kids = dao.children(f.id)
+                val keyed = kids.associateBy { keyOf(it)?.toString() ?: "#${it.id}" }
+                val current = kids.map { keyOf(it)?.toString() ?: "#${it.id}" }
+                val order = CategoryOrder.arrange(
+                    current, { labels[it] ?: it }, usage::score, usage.upSince, usage.known, today,
+                    compare = Comparator { a, b -> collator.compare(a, b) },
+                )
+                usage.known += current
+                if (order != current) dao.updateItems(order.mapIndexed { i, k -> keyed.getValue(k).copy(cellX = i) })
+            }
+        }
+        usage.save()
     }
 
     /** Restores the layout from before the last edit. Returns false if there is nothing to undo. */

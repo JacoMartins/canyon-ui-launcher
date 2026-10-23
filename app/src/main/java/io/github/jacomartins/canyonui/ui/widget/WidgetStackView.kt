@@ -49,6 +49,50 @@ class WidgetStackView(context: Context) : FrameLayout(context) {
 
     var onPageChanged: ((Int) -> Unit)? = null
 
+    /**
+     * Slideshow: above 0, the stack turns to its next widget every this many milliseconds. The
+     * page follows the clock (how many periods have passed), not how long the home screen has
+     * been showing, so coming back from an app shows the page it would be on by now.
+     */
+    var slideshowMs = 0L
+        set(value) {
+            if (field == value) return
+            field = value
+            scheduleSlide(animate = false)
+        }
+
+    private val slide = Runnable { scheduleSlide(animate = true) }
+
+    private fun scheduleSlide(animate: Boolean) {
+        removeCallbacks(slide)
+        val period = slideshowMs
+        if (period <= 0 || pages.size < 2 || !isAttachedToWindow) return
+        val now = System.currentTimeMillis()
+        val due = ((now / period) % pages.size).toInt()
+        if (due != current && !swiping && settle?.isRunning != true) {
+            if (animate && isShown && due == index(current + 1)) {
+                settleTo(1)
+            } else {
+                current = due
+                offset = 0f
+                layoutPages()
+                onPageChanged?.invoke(current)
+            }
+        }
+        postDelayed(slide, period - now % period + 5)
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        scheduleSlide(animate = false)
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        // Back on screen: catch up at once (no animation), then follow the clock again.
+        if (visibility == VISIBLE) scheduleSlide(animate = false) else removeCallbacks(slide)
+    }
+
     init {
         clipChildren = true
         setWillNotDraw(false)
@@ -202,6 +246,7 @@ class WidgetStackView(context: Context) : FrameLayout(context) {
         tracker = null
         settle?.cancel()
         removeCallbacks(hideDots)
+        removeCallbacks(slide)
     }
 
     private fun animateDots(to: Float) {

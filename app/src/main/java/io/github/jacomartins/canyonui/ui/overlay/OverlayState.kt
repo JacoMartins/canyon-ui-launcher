@@ -71,11 +71,13 @@ class OverlayState {
     var editScale by mutableFloatStateOf(1f)
     /** Edit mode: the page whose delete is waiting for confirmation, or null. */
     var confirmDeletePage by mutableStateOf<Int?>(null)
+    /** Edit mode: Categorize apps is waiting for confirmation. */
+    var confirmCategorize by mutableStateOf(false)
     var picker by mutableStateOf<WidgetPickerState?>(null)
     var editApp by mutableStateOf<EditAppState?>(null)
     var currentPage by mutableIntStateOf(0)
     var pageCount by mutableIntStateOf(1)
 
     /** True while something modal (menu, folder, widget picker, a dialog) covers the home screen. */
-    val isModal get() = menu != null || folder != null || confirmDeletePage != null || picker != null || editApp != null
+    val isModal get() = menu != null || folder != null || confirmDeletePage != null || confirmCategorize || picker != null || editApp != null
 }

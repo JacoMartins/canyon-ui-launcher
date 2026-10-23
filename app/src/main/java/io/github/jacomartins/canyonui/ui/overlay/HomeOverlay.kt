@@ -194,6 +194,7 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             }
         }
         state.confirmDeletePage?.let { DeletePageDialog(it, state, actions) }
+        if (state.confirmCategorize) CategorizeDialog(state, actions)
         SnackHost(state, Modifier.align(Alignment.BottomCenter))
     }
     }
@@ -234,7 +235,7 @@ private fun EditTopBar(state: OverlayState, actions: OverlayActions) {
         // Category mode: file the loose apps on the pages after the home page. Styled like
         // the two page buttons beside it.
         if (state.categoryMode) {
-            SecondaryButton(stringResource(R.string.categorize_apps), actions::categorizeApps, icon = R.drawable.ph_stack)
+            SecondaryButton(stringResource(R.string.categorize_apps), { state.confirmCategorize = true }, icon = R.drawable.ph_stack)
         }
         PageIconButton(R.drawable.ph_trash, stringResource(R.string.delete_page), enabled = !isHome && state.pageCount > 1) {
             state.confirmDeletePage = page
@@ -577,6 +578,24 @@ private fun SnackHost(state: OverlayState, modifier: Modifier) {
             }
         }
     }
+}
+
+/** Asks before the loose apps are filed into category folders. */
+@Composable
+private fun CategorizeDialog(state: OverlayState, actions: OverlayActions) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { state.confirmCategorize = false },
+        title = { Text(stringResource(R.string.categorize_title)) },
+        text = { Text(stringResource(R.string.categorize_message)) },
+        confirmButton = {
+            PrimaryButton(stringResource(R.string.categorize_apps), {
+                state.confirmCategorize = false
+                actions.categorizeApps()
+            })
+        },
+        dismissButton = { SecondaryButton(stringResource(R.string.cancel), { state.confirmCategorize = false }) },
+        shape = RoundedCornerShape(28.dp),
+    )
 }
 
 /** Asks before a page is deleted (with everything on it). */

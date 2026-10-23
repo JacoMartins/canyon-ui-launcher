@@ -5,6 +5,9 @@ import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.Context
+import androidx.core.content.ContextCompat
+import android.content.IntentFilter
 import io.github.jacomartins.canyonui.data.titleRes
 import io.github.jacomartins.canyonui.data.HomeRepository
 import android.content.ComponentName
@@ -132,6 +135,25 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private var launchedFrom: WeakReference<View>? = null
     private var launchPending = false
     private var returningFromApp = false
+
+    // Screen off: home waits small and hidden, and zooms in once the phone is unlocked.
+    private var unlockPending = false
+    // Paused without opening an app (most often the recent apps gesture): home steps back a little.
+    private var steppedBack = false
+
+    private val screenReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> prepareUnlock()
+                Intent.ACTION_USER_PRESENT -> if (unlockPending && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) playUnlock()
+                Intent.ACTION_SCREEN_ON -> {
+                    // No lock screen at all: nothing else announces the way back to home.
+                    val km = getSystemService(android.app.KeyguardManager::class.java)
+                    if (unlockPending && !km.isKeyguardLocked && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) playUnlock()
+                }
+            }
+        }
+    }
     private val overshoot = OvershootInterpolator(1.4f)
     private val decelerate = DecelerateInterpolator()
 
@@ -159,6 +181,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private var phonePalette by mutableStateOf(false)
     private var widgetBorder = true
     private var noOutline: Set<String> = emptySet()
+    private var slideshows: Set<String> = emptySet()
 
     /** The ring is on unless turned off in settings, or for this kind of widget. */
     private fun outlineFor(entry: HomeEntry): Boolean = widgetBorder && when (entry) {
@@ -233,6 +256,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 ui.picker != null -> closePicker()
                 ui.folder != null -> closeFolder()
                 ui.confirmDeletePage != null -> ui.confirmDeletePage = null
+                ui.confirmCategorize -> ui.confirmCategorize = false
                 ui.editMode -> exitEditMode()
             }
             updateBackCallbacks()
@@ -244,6 +268,15 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // on some devices (a grey strip under the dock and drawer).
         applyEdgeToEdge()
         super.onCreate(savedInstanceState)
+        ContextCompat.registerReceiver(
+            this, screenReceiver,
+            IntentFilter().apply {
+                addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
+            },
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         clearBarScrims()
         launcherApps = getSystemService(LauncherApps::class.java)
         lastNight = isNight
@@ -340,9 +373,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     swipeUpTarget = s.swipeUpTarget
                     ui.categoryMode = s.autoCategories && s.layoutMode == LayoutMode.HOME_ONLY
                     if (s.pendingSearchWidget) addSearchWidget()
-                    if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets) {
+                    if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets || slideshows != s.slideshowStacks) {
                         widgetBorder = s.widgetBorder
                         noOutline = s.noOutlineWidgets
+                        slideshows = s.slideshowStacks
                         state?.let(::bind)
                     }
                     setHintVisible(!hintSeen && drawerEnabled)
@@ -364,11 +398,64 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         super.onResume()
         // The wallpaper may have been changed elsewhere while away: drop a stale blur copy.
         lifecycleScope.launch { WallpaperBackdrop.check(this@HomeActivity) }
-        if (returningFromApp) {
+        // Category folders follow use, slowly (an app moves up after five days of more use).
+        lifecycleScope.launch { launcher.home.arrangeCategoryFolders(launcher.usage) }
+        if (unlockPending) {
+            // Unlocked straight into home (or the broadcast came before home was back).
+            val km = getSystemService(android.app.KeyguardManager::class.java)
+            if (!km.isKeyguardLocked) playUnlock()
             returningFromApp = false
+            steppedBack = false
+        } else if (returningFromApp) {
+            returningFromApp = false
+            steppedBack = false
             playReturnAnimation(launchedFrom?.get())
             launchedFrom = null
+        } else if (steppedBack) {
+            steppedBack = false
+            homeTo(1f, 1f, STEP_BACK_MS)
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Not an app launch, not a rotation: the recent apps screen (or another screen of ours).
+        if (!launchPending && !isChangingConfigurations && !isFinishing && !ui.editMode && drawer.isClosed && !unlockPending) {
+            steppedBack = true
+            homeTo(STEP_BACK_SCALE, 1f, STEP_BACK_MS)
+        }
+    }
+
+    /** Animates the pages, dock and dots to [scale] and [alpha] about the screen centre. */
+    private fun homeTo(scale: Float, alpha: Float, ms: Long) {
+        for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
+            v.pivotY = home.height / 2f - v.top
+            v.pivotX = v.width / 2f
+            v.animate().cancel()
+            if (Motion.enabled()) {
+                v.animate().scaleX(scale).scaleY(scale).alpha(alpha).setDuration(ms).setInterpolator(decelerate).withLayer().start()
+            } else {
+                v.scaleX = scale; v.scaleY = scale; v.alpha = alpha
+            }
+        }
+    }
+
+    private fun prepareUnlock() {
+        if (ui.editMode || !drawer.isClosed || !Motion.enabled()) return
+        unlockPending = true
+        for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
+            v.animate().cancel()
+            v.pivotY = home.height / 2f - v.top
+            v.pivotX = v.width / 2f
+            v.scaleX = UNLOCK_SCALE; v.scaleY = UNLOCK_SCALE
+            v.alpha = 0f
+        }
+    }
+
+    /** The unlock: home zooms in from two thirds of its size. */
+    private fun playUnlock() {
+        unlockPending = false
+        homeTo(1f, 1f, UNLOCK_MS)
     }
 
     override fun onStop() {
@@ -379,6 +466,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         wallpaperManager.removeOnColorsChangedListener(colorsListener)
         widgets.host.stopListeningSafely()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        unregisterReceiver(screenReceiver)
+        super.onDestroy()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -405,6 +497,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 closePicker()
                 closeFolder()
                 ui.confirmDeletePage = null
+                ui.confirmCategorize = false
                 if (ui.editMode) exitEditMode()
                 updateBackCallbacks()
                 return
@@ -456,6 +549,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     entry.widgets.forEach { widgetIds += it.id }
                     // The stack carries the frame; its widgets are plain inside it.
                     (view as WidgetStackView).setPages(entry.widgets.map { widgetView(it).also(WidgetFrame::clear) })
+                    view.slideshowMs = if (entry.id.toString() in slideshows) SLIDESHOW_MS else 0L
                 }
                 else -> Unit
             }
@@ -639,6 +733,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 }
                 out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove_from_stack)) {
                     edit(getString(R.string.snack_removed)) { launcher.home.remove(front.id) }
+                }
+                val sliding = entry.id.toString() in slideshows
+                out += MenuEntry(R.drawable.ph_pages, getString(if (sliding) R.string.menu_slideshow_off else R.string.menu_slideshow_on)) {
+                    lifecycleScope.launch { launcher.settings.setSlideshow(entry.id, !sliding) }
                 }
                 out += MenuEntry(R.drawable.ph_ungroup, getString(R.string.menu_unstack)) {
                     edit(getString(R.string.snack_unstacked)) { launcher.home.ungroup(entry.id) }
@@ -1412,6 +1510,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         try {
             launcherApps.startMainActivity(app.component, app.user, bounds, opts)
             launchPending = true
+            launcher.usage.record(app.key)
         } catch (e: ActivityNotFoundException) {
             toast(getString(R.string.app_unavailable, app.label))
         } catch (e: SecurityException) {
@@ -1532,9 +1631,16 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()
         private const val FADE_IN_MS = 180L
         private const val EDIT_SCALE = 0.74f
+
+        /** A slideshow stack turns to its next widget this often. */
+        private const val SLIDESHOW_MS = 20_000L
         private const val BAR_RESET_DELAY_MS = 350L
         /** Above this overall lightness a wallpaper gets dark labels (light mode). */
         private const val LIGHT_WALLPAPER = 0.62f
         private const val RETURN_SCALE = 1.06f
+        private const val UNLOCK_SCALE = 0.66f
+        private const val UNLOCK_MS = 420L
+        private const val STEP_BACK_SCALE = 0.92f
+        private const val STEP_BACK_MS = 220L
     }
 }

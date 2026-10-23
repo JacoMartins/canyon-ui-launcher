@@ -134,7 +134,7 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             // Frosted and glass: the blurred wallpaper under a lighter card colour.
             backdropPath.reset()
             backdropPath.addRoundRect(hintRect, r, r, android.graphics.Path.Direction.CW)
-            val blurred = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, backdropPath)
+            val blurred = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, backdropPath, r)
             val alpha = backdropPaint.alpha
             if (blurred) backdropPaint.alpha = (alpha * io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.fillShare()).toInt()
             canvas.drawRoundRect(hintRect, r, r, backdropPaint)

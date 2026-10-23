@@ -79,6 +79,8 @@ data class LauncherSettings(
     val swipeUpTarget: String? = null,
     /** Widget providers (flattened component names) drawn without the ring, chosen per widget. */
     val noOutlineWidgets: Set<String> = emptySet(),
+    /** Widget stacks (ids) that turn to their next widget on their own. */
+    val slideshowStacks: Set<String> = emptySet(),
     /** Home screen only mode: apps start in category folders; new apps join theirs. */
     val autoCategories: Boolean = false,
     val iconStyle: IconStyle = IconStyle(),
@@ -116,6 +118,7 @@ class SettingsStore(private val context: Context) {
         val PENDING_SEARCH_WIDGET = booleanPreferencesKey("pending_search_widget")
         val SWIPE_UP_TARGET = stringPreferencesKey("swipe_up_target")
         val NO_OUTLINE_WIDGETS = stringSetPreferencesKey("no_outline_widgets")
+        val SLIDESHOW_STACKS = stringSetPreferencesKey("slideshow_stacks")
         val AUTO_CATEGORIES = booleanPreferencesKey("auto_categories")
         val ICON_SHAPE = stringPreferencesKey("icon_shape")
         val THEMED_ICONS = booleanPreferencesKey("themed_icons")
@@ -159,6 +162,7 @@ class SettingsStore(private val context: Context) {
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
             swipeUpTarget = p[Keys.SWIPE_UP_TARGET],
             noOutlineWidgets = p[Keys.NO_OUTLINE_WIDGETS] ?: emptySet(),
+            slideshowStacks = p[Keys.SLIDESHOW_STACKS] ?: emptySet(),
             autoCategories = p[Keys.AUTO_CATEGORIES] ?: false,
             iconStyle = IconStyle(
                 shape = IconShape.fromKey(p[Keys.ICON_SHAPE]),
@@ -247,6 +251,13 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit {
             val set = it[Keys.NO_OUTLINE_WIDGETS].orEmpty()
             it[Keys.NO_OUTLINE_WIDGETS] = if (on) set - provider else set + provider
+        }
+    }
+
+    suspend fun setSlideshow(stackId: Long, on: Boolean) {
+        context.dataStore.edit {
+            val set = it[Keys.SLIDESHOW_STACKS].orEmpty()
+            it[Keys.SLIDESHOW_STACKS] = if (on) set + stackId.toString() else set - stackId.toString()
         }
     }
 

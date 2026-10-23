@@ -80,6 +80,12 @@ import androidx.compose.ui.unit.sp
 import io.github.jacomartins.canyonui.ui.home.AppIconView
 import io.github.jacomartins.canyonui.R
 import io.github.jacomartins.canyonui.ui.design.MenuEntry
+import io.github.jacomartins.canyonui.ui.design.BackdropSource
+import io.github.jacomartins.canyonui.ui.design.LocalBackdropHaze
+import io.github.jacomartins.canyonui.ui.design.backdrop
+import io.github.jacomartins.canyonui.ui.design.backdropColor
+import dev.chrisbanes.haze.HazeState
+import androidx.compose.runtime.CompositionLocalProvider
 import io.github.jacomartins.canyonui.data.AppInfo
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -111,6 +117,9 @@ interface DrawerActions {
 }
 
 private const val COLUMNS = 4
+
+/** Opacity of the Apps screen's colour over the home screen (translucent mode). */
+private const val DRAWER_ALPHA = 0.9f
 private val SearchPillHeight = 56.dp
 
 @Composable
@@ -130,7 +139,18 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
 
     val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
 
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
+    val haze = remember { HazeState() }
+    CompositionLocalProvider(LocalBackdropHaze provides haze) {
+    Box(Modifier.fillMaxSize()) {
+        // Behind the apps, by the Transparency setting: a see-through colour, or the blurred
+        // wallpaper (frosted) or glass over it, under a lighter tint.
+        BackdropSource(haze)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .backdrop(RoundedCornerShape(0.dp))
+                .background(backdropColor(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = DRAWER_ALPHA))),
+        )
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
             TopBar(onShowHidden = { showHidden = true }, onSettings = actions::openSettings, showMenu = actions::showMenu)
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -155,6 +175,8 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
                 .windowInsetsPadding(bottomInsets)
                 .padding(bottom = 12.dp),
         )
+    }
+
     }
 
     if (showHidden) {

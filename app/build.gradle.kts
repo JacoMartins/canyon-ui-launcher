@@ -18,8 +18,8 @@ android {
         applicationId = "io.github.jacomartins.canyonui"
         minSdk = 29
         targetSdk = 37
-        versionCode = 36
-        versionName = "0.4.15"
+        versionCode = 37
+        versionName = "0.4.16"
     }
 
     signingConfigs {
@@ -66,6 +66,7 @@ kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
         optIn.add("dev.chrisbanes.haze.ExperimentalHazeApi")
+        optIn.add("kotlinx.coroutines.FlowPreview")
     }
 }
 

@@ -24,9 +24,9 @@ import io.github.jacomartins.canyonui.util.Motion
 /**
  * A folder on the home screen or dock.
  * - Normal (1x1): an icon-sized rounded square with a 3x3 preview of its apps; a tap opens it.
- * - Large (2x2): up to nine apps that can be tapped directly; with more than nine, the last cell
- *   shows the next app a little smaller with a placeholder icon stacked behind it, and opens the
- *   folder, as does a tap on the name.
+ * - Large (2x2): up to nine apps that can be tapped directly. From nine apps on, the last cell
+ *   is a small stack that opens the folder (as does a tap on the name): the ninth app in front
+ *   and, behind it, the tenth app's icon, or a placeholder in the icon shape when there is none.
  * App icons are drawn as they are (no border or shadow); only the folder backdrop is a surface.
  */
 @SuppressLint("ViewConstructor")
@@ -158,7 +158,8 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         } else {
             outline()
         }
-        if (WallpaperBackdrop.draw(canvas, this, outlinePath)) {
+        val glassRadius = if (isLarge) box.width() * largeCornerShare() else box.width() * 0.3f
+        if (WallpaperBackdrop.draw(canvas, this, outlinePath, glassRadius)) {
             bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShare()).toInt()
         }
         if (isLarge) {
@@ -173,24 +174,25 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
 
         val apps = f.apps
         val slots = SLOTS
-        val overflow = apps.size > slots
-        val direct = if (overflow) slots - 1 else minOf(apps.size, slots)
+        // From nine apps on, the last cell opens the folder, so it is drawn as a stack.
+        val stacked = apps.size >= slots
+        val direct = if (stacked) slots - 1 else apps.size
         for (i in 0 until direct) {
             cellRect(i, cell)
             canvas.drawBitmap(apps[i].app.icon, null, cell, bitmapPaint)
         }
-        if (overflow) drawStack(canvas, apps[direct])
+        if (stacked) drawStack(canvas, apps[direct], apps.getOrNull(direct + 1))
         if (style.showLabel && shownLabel.isNotEmpty()) {
             canvas.drawText(shownLabel, width / 2f, box.bottom + gapPx - textPaint.ascent(), textPaint)
         }
     }
 
     /**
-     * The last cell of a large folder with more apps than fit: the next app, smaller, in front
-     * of a placeholder icon of the same size, offset up and to the end by the same amount in
-     * width and height so the pair reads as a stack.
+     * The last cell of a full large folder: [front], smaller, in front of [back] (the next app)
+     * or, without one, a placeholder in the icon shape from settings; offset up and to the end by
+     * the same amount in width and height so the pair reads as a stack.
      */
-    private fun drawStack(canvas: Canvas, front: AppEntry) {
+    private fun drawStack(canvas: Canvas, front: AppEntry, back: AppEntry?) {
         cellRect(SLOTS - 1, cell)
         val side = cell.width() * STACK_SCALE
         val shift = cell.width() - side
@@ -198,14 +200,14 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         // Behind: towards the top and the end.
         val backLeft = if (rtl) cell.left.toFloat() else cell.right - side
         stackRect.set(backLeft, cell.top.toFloat(), backLeft + side, cell.top + side)
-        placeholderPaint.color = if (darkSurface) 0x59FFFFFF else 0x47000000
-        val p = shape.path(side, placeholderPath)
-        if (p != null) {
+        if (back != null) {
+            hit.set(stackRect.left.toInt(), stackRect.top.toInt(), stackRect.right.toInt(), stackRect.bottom.toInt())
+            canvas.drawBitmap(back.app.icon, null, hit, bitmapPaint)
+        } else {
+            placeholderPaint.color = if (darkSurface) 0x59FFFFFF else 0x47000000
+            val p = iconMask(side, placeholderPath)
             p.offset(stackRect.left, stackRect.top)
             canvas.drawPath(p, placeholderPaint)
-        } else {
-            val r = side * 0.3f
-            canvas.drawRoundRect(stackRect, r, r, placeholderPaint)
         }
         // In front: towards the bottom and the start.
         val frontLeft = if (rtl) backLeft + shift else backLeft - shift
@@ -226,16 +228,19 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         val size = box.width()
         if (size == pathSize && box.left == pathLeft && box.top == pathTop) return shapePath
         pathSize = size; pathLeft = box.left; pathTop = box.top
-        val p = shape.path(size, shapePath) ?: run {
-            val probe = android.graphics.drawable.AdaptiveIconDrawable(
-                android.graphics.Color.TRANSPARENT.toDrawable(), android.graphics.Color.TRANSPARENT.toDrawable(),
-            )
-            probe.setBounds(0, 0, size.toInt(), size.toInt())
-            shapePath.set(probe.iconMask)
-            shapePath
-        }
+        val p = iconMask(size, shapePath)
         p.offset(box.left, box.top)
         return p
+    }
+
+    /** The icon shape from settings at [size] (the phone's own mask for "System"), at 0,0. */
+    private fun iconMask(size: Float, out: Path): Path = shape.path(size, out) ?: run {
+        val probe = android.graphics.drawable.AdaptiveIconDrawable(
+            android.graphics.Color.TRANSPARENT.toDrawable(), android.graphics.Color.TRANSPARENT.toDrawable(),
+        )
+        probe.setBounds(0, 0, size.toInt(), size.toInt())
+        out.set(probe.iconMask)
+        out
     }
 
     /**

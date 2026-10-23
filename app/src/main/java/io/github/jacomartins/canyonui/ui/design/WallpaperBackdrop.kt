@@ -268,7 +268,7 @@ object WallpaperBackdrop {
      * Draws the blur behind [view] inside [clip] (view coordinates), lined up with the wallpaper
      * however the view is scrolled or scaled. Returns false when there is nothing to draw.
      */
-    fun draw(canvas: Canvas, view: View, clip: Path): Boolean {
+    fun draw(canvas: Canvas, view: View, clip: Path, radius: Float = -1f): Boolean {
         val b = _active.value ?: return false
         view.getLocationOnScreen(loc)
         var scale = 1f
@@ -278,6 +278,12 @@ object WallpaperBackdrop {
             v = v.parent as? View
         }
         if (scale <= 0f) return false
+        // Glass on Android 13+: the lens shader ([radius] is the outline's corner radius).
+        if (b.mode == RenderMode.GLASS && Build.VERSION.SDK_INT >= 33 &&
+            GlassShader.draw(canvas, view, clip, radius, b.bitmap, b.screenW, b.screenH, loc, scale)
+        ) {
+            return true
+        }
         canvas.withClip(clip) {
             scale(1f / scale, 1f / scale)
             translate(-loc[0].toFloat(), -loc[1].toFloat())

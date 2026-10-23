@@ -75,6 +75,10 @@
     <string name="folder_no_room">Not enough room on this page for a large folder</string>
     <string name="delete_page">Delete page</string>
     <string name="add_page">Add page</string>
+    <string name="menu_slideshow_on">Slideshow</string>
+    <string name="menu_slideshow_off">Stop slideshow</string>
+    <string name="categorize_title">Categorize apps?</string>
+    <string name="categorize_message">Apps that are not in a folder go into their category folders, and empty pages are removed (the first page stays).</string>
     <string name="delete_page_title">Delete this page?</string>
     <string name="delete_page_message">The page and everything on it will be removed.</string>
     <string name="delete">Delete</string>
