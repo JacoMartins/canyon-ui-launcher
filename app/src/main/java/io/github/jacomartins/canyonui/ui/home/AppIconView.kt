@@ -113,7 +113,7 @@ class AppIconView(context: Context, private var style: LabelStyle) : View(contex
     }
 
     companion object {
-        const val LABEL_SP = 10f
+        const val LABEL_SP = 11f
         const val LABEL_GAP_DP = 3f
     }
 
