@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.example.homelauncher.data.AppInfo
 import com.example.homelauncher.data.IconSize
+import com.example.homelauncher.data.HomeRepository
 import com.example.homelauncher.data.LauncherSettings
 import com.example.homelauncher.data.LayoutMode
 import com.example.homelauncher.data.SettingsStore
@@ -73,7 +74,7 @@ class SettingsActivity : ComponentActivity() {
                 val settings by app.settings.settings.collectAsState(initial = null)
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainer) {
                     val apps by app.apps.apps.collectAsState()
-                    settings?.let { SettingsScreen(it, app.settings, hiddenModel, apps.orEmpty()) }
+                    settings?.let { SettingsScreen(it, app.settings, hiddenModel, apps.orEmpty(), app.home) }
                 }
             }
         }
@@ -81,7 +82,7 @@ class SettingsActivity : ComponentActivity() {
 }
 
 @Composable
-private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenModel: DrawerModel, apps: List<AppInfo>) {
+private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenModel: DrawerModel, apps: List<AppInfo>, home: HomeRepository) {
     val scope = rememberCoroutineScope()
     var showHidden by remember { mutableStateOf(false) }
     var showPacks by remember { mutableStateOf(false) }
@@ -125,6 +126,20 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                         }
                     }
                 }
+            }
+            if (s.layoutMode == LayoutMode.HOME_ONLY) {
+                SwitchRow(
+                    title = stringResource(R.string.auto_categories),
+                    checked = s.autoCategories,
+                    onChange = { on ->
+                        scope.launch {
+                            // Folders first, then the switch, so new apps never see a half-built layout.
+                            if (on) home.organizeByCategory() else home.unlockCategories()
+                            store.setAutoCategories(on)
+                        }
+                    },
+                )
+                Text(stringResource(R.string.auto_categories_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
                 stringResource(R.string.layout_separate_note),

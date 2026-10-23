@@ -597,10 +597,13 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         MenuEntry(R.drawable.ph_enlarge, getString(R.string.menu_make_large)) { setLarge(entry, true) }
                     }
                 }
-                out += MenuEntry(R.drawable.ph_ungroup, getString(R.string.menu_ungroup)) {
-                    edit(getString(R.string.snack_ungrouped)) { launcher.home.ungroup(entry.id) }
+                // A category folder keeps its apps: no ungrouping or removing it by hand.
+                if (!entry.locked) {
+                    out += MenuEntry(R.drawable.ph_ungroup, getString(R.string.menu_ungroup)) {
+                        edit(getString(R.string.snack_ungrouped)) { launcher.home.ungroup(entry.id) }
+                    }
+                    if (drawerEnabled) out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove)) { removeWithUndo(entry.id) }
                 }
-                if (drawerEnabled) out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove)) { removeWithUndo(entry.id) }
             }
         }
         return out
@@ -660,7 +663,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun armDragFromFolder(app: AppEntry, folder: FolderEntry, bounds: Rect) {
         ui.menu = ItemMenu(bounds, menuFor(app))
         updateBackCallbacks()
-        drag.arm(newAppSource(DragItem.Existing(app.id), app.app))
+        // Apps stay in their category folder.
+        if (!folder.locked) drag.arm(newAppSource(DragItem.Existing(app.id), app.app))
     }
 
     // --- DragController.Callbacks -------------------------------------------------------------

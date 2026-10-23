@@ -331,6 +331,8 @@ private fun FolderPopup(folder: FolderEntry, actions: OverlayActions) {
                     BasicTextField(
                         value = title,
                         onValueChange = { title = it.take(40) },
+                        // A category folder is named after its category.
+                        readOnly = folder.locked,
                         singleLine = true,
                         textStyle = MaterialTheme.typography.headlineSmall.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),

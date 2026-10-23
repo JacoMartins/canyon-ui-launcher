@@ -44,6 +44,8 @@ object DropLogic {
         draggedType: Int,
         spanX: Int,
         spanY: Int,
+        /** Folders whose apps are chosen automatically: nothing can be dropped into them. */
+        locked: Set<Long> = emptySet(),
     ): DropAction {
         if (container == Container.DOCK && (spanX != 1 || spanY != 1 || draggedType == ItemType.WIDGET || draggedType == ItemType.STACK)) {
             return DropAction.Reject
@@ -51,7 +53,7 @@ object DropLogic {
         val others = items.filter { it.id != draggedId }
 
         if (centerHit && draggedType == ItemType.APP && spanX == 1 && spanY == 1) {
-            val occupant = others.firstOrNull { it.covers(fingerCell.x, fingerCell.y) }
+            val occupant = others.firstOrNull { it.covers(fingerCell.x, fingerCell.y) }?.takeIf { it.id !in locked }
             when (occupant?.type) {
                 ItemType.APP -> return DropAction.CreateFolder(occupant.id)
                 ItemType.FOLDER -> return DropAction.AddToFolder(occupant.id)

@@ -105,4 +105,12 @@ class DropLogicTest {
         val r = DropLogic.decide(Container.DESKTOP, 0, 4, 6, listOf(widget(1, 0, 0, 1, 1)), Cell(0, 0), Cell(0, 0), true, 99, ItemType.APP, 1, 1)
         assertTrue(r is DropAction.Move)
     }
+
+    @Test fun nothingIsDroppedIntoALockedFolder() {
+        val r = DropLogic.decide(
+            Container.DESKTOP, 0, 4, 6, listOf(folder(7, 0, 0)), Cell(0, 0), Cell(0, 0), true, 99, ItemType.APP, 1, 1,
+            locked = setOf(7L),
+        )
+        assertTrue(r is DropAction.Move)
+    }
 }

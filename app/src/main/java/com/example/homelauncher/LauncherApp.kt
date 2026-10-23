@@ -3,6 +3,7 @@ package com.example.homelauncher
 import android.app.Application
 import android.content.res.Configuration
 import com.example.homelauncher.data.AppRepository
+import com.example.homelauncher.model.AppCategories
 import com.example.homelauncher.data.DefaultApps
 import com.example.homelauncher.data.HomeRepository
 import com.example.homelauncher.data.IconCache
@@ -36,7 +37,7 @@ class LauncherApp : Application() {
         val dbs = LayoutMode.entries.associateWith { LauncherDatabase.create(this, it) }
         settings = SettingsStore(this)
         apps = AppRepository(this, scope, IconCache(this))
-        home = HomeRepository(dbs, settings, apps, DefaultApps(this), scope)
+        home = HomeRepository(dbs, settings, apps, DefaultApps(this), scope, ::categoryTitle)
         apps.start()
         home.start()
         scope.launch {
@@ -70,6 +71,23 @@ class LauncherApp : Application() {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
     }
+
+    private fun categoryTitle(c: AppCategories.Category): String = getString(
+        when (c) {
+            AppCategories.Category.COMMUNICATION -> R.string.category_communication
+            AppCategories.Category.ENTERTAINMENT -> R.string.category_entertainment
+            AppCategories.Category.GAMES -> R.string.category_games
+            AppCategories.Category.CREATION -> R.string.category_creation
+            AppCategories.Category.PRODUCTIVITY -> R.string.category_productivity
+            AppCategories.Category.EDUCATION_AI -> R.string.category_education_ai
+            AppCategories.Category.TRIP -> R.string.category_trip
+            AppCategories.Category.WELLNESS -> R.string.category_wellness
+            AppCategories.Category.FINANCE -> R.string.category_finance
+            AppCategories.Category.SHOPPING -> R.string.category_shopping
+            AppCategories.Category.NEWS -> R.string.category_news
+            AppCategories.Category.TOOLS -> R.string.category_tools
+        },
+    )
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)

@@ -56,6 +56,8 @@ data class LauncherSettings(
     val resizeAnyWidget: Boolean = false,
     /** OneDepth's translucent ring along widget edges. */
     val widgetBorder: Boolean = true,
+    /** Home screen only mode: apps live in locked category folders; new apps join theirs. */
+    val autoCategories: Boolean = false,
     val iconStyle: IconStyle = IconStyle(),
     /** Per-app label and icon choices, by [com.example.homelauncher.model.AppKey] string. */
     val iconOverrides: Map<String, IconOverride> = emptyMap(),
@@ -86,6 +88,7 @@ class SettingsStore(private val context: Context) {
         val ICON_PACK = stringPreferencesKey("icon_pack")
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
         val WIDGET_BORDER = booleanPreferencesKey("widget_border")
+        val AUTO_CATEGORIES = booleanPreferencesKey("auto_categories")
         val ICON_SHAPE = stringPreferencesKey("icon_shape")
         val THEMED_ICONS = booleanPreferencesKey("themed_icons")
         val PACK_STYLE = booleanPreferencesKey("pack_style")
@@ -123,6 +126,7 @@ class SettingsStore(private val context: Context) {
             iconPack = p[Keys.ICON_PACK],
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
+            autoCategories = p[Keys.AUTO_CATEGORIES] ?: false,
             iconStyle = IconStyle(
                 shape = IconShape.fromKey(p[Keys.ICON_SHAPE]),
                 themed = p[Keys.THEMED_ICONS] ?: false,
@@ -198,6 +202,10 @@ class SettingsStore(private val context: Context) {
             })
         }
     }.toString()
+
+    suspend fun setAutoCategories(on: Boolean) {
+        context.dataStore.edit { it[Keys.AUTO_CATEGORIES] = on }
+    }
 
     suspend fun setWidgetBorder(on: Boolean) {
         context.dataStore.edit { it[Keys.WIDGET_BORDER] = on }

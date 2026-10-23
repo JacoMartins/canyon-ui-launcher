@@ -231,7 +231,7 @@ class DragController(
         val draggedId = (s.item as? DragItem.Existing)?.id
         val action = DropLogic.decide(
             container, pageIndex, columns, rows, st.placedIn(container, pageIndex),
-            desired, finger, centerHit, draggedId, s.type, s.spanX, s.spanY,
+            desired, finger, centerHit, draggedId, s.type, s.spanX, s.spanY, st.lockedFolders,
         )
         if (action != lastAction) {
             lastAction = action

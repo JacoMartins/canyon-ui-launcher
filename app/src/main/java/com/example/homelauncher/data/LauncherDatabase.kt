@@ -54,6 +54,11 @@ data class ItemEntity(
     val parentId: Long = 0,
     /** The id the widget host gave this widget (widgets only), else -1. */
     val appWidgetId: Int = -1,
+    /**
+     * Folders made by "Organize apps by category": the category's key. Such a folder is locked
+     * (its apps are chosen automatically); null for every other item.
+     */
+    val category: String? = null,
 ) {
     companion object {
         const val TYPE_APP = 0
@@ -145,7 +150,7 @@ interface LauncherDao {
     }
 }
 
-@Database(entities = [PageEntity::class, ItemEntity::class], version = 3, exportSchema = true)
+@Database(entities = [PageEntity::class, ItemEntity::class], version = 4, exportSchema = true)
 abstract class LauncherDatabase : RoomDatabase() {
     abstract fun dao(): LauncherDao
 
@@ -167,6 +172,13 @@ abstract class LauncherDatabase : RoomDatabase() {
             }
         }
 
+        /** Category folders (home screen only mode). */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE items ADD COLUMN category TEXT")
+            }
+        }
+
         /** One database per layout mode, so each mode keeps its own pages and icons. */
         fun create(context: Context, mode: LayoutMode): LauncherDatabase {
             val name = when (mode) {
@@ -174,7 +186,7 @@ abstract class LauncherDatabase : RoomDatabase() {
                 LayoutMode.HOME_ONLY -> "launcher_home_only.db"
             }
             return Room.databaseBuilder(context, LauncherDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
         }
     }

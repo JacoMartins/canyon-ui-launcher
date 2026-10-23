@@ -144,4 +144,18 @@
     <string name="make_home_page">Make this the home page</string>
     <string name="home_page">Home page</string>
     <string name="snack_home_page">Home page changed</string>
+    <string name="category_communication">Communication</string>
+    <string name="category_entertainment">Entertainment</string>
+    <string name="category_games">Games</string>
+    <string name="category_creation">Creation &amp; Editing</string>
+    <string name="category_productivity">Productivity</string>
+    <string name="category_education_ai">Education &amp; AI Assistants</string>
+    <string name="category_trip">Trip &amp; Mobility</string>
+    <string name="category_wellness">Wellness &amp; Fitness</string>
+    <string name="category_finance">Finance</string>
+    <string name="category_shopping">Shopping</string>
+    <string name="category_news">News &amp; Reading</string>
+    <string name="category_tools">Tools</string>
+    <string name="auto_categories">Organize apps by category</string>
+    <string name="auto_categories_summary">Apps go into locked category folders, and new apps join theirs. Apps without a category go to a page of their own. Turning this off keeps the folders as ordinary folders.</string>
 </resources>
