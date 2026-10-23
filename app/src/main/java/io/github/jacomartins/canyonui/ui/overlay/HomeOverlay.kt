@@ -101,6 +101,8 @@ import io.github.jacomartins.canyonui.R
 import io.github.jacomartins.canyonui.data.AppEntry
 import io.github.jacomartins.canyonui.data.FolderEntry
 import io.github.jacomartins.canyonui.ui.design.IconPillButton
+import io.github.jacomartins.canyonui.ui.design.backdrop
+import io.github.jacomartins.canyonui.ui.design.backdropColor
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.MenuLayer
@@ -201,9 +203,10 @@ private fun EditBottomBar(actions: OverlayActions) {
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(bottom = Spacing.lg)
             .shadow(Spacing.sm, PanelShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-            .surfaceRing(cornerRadius = 32.dp),
+            .surfaceRing(cornerRadius = 32.dp)
+            .backdrop(PanelShape),
         shape = PanelShape,
-        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
+        color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f)),
     ) {
         Row(Modifier.padding(Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             ToolButton(R.drawable.ph_wallpaper, stringResource(R.string.wallpaper), actions::chooseWallpaper)
@@ -337,12 +340,13 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                     AnimatedVisibility(visible = showPicker) {
                         Surface(
                             shape = RoundedCornerShape(24.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f),
+                            color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f)),
                             modifier = Modifier
                                 .padding(top = Spacing.smMd)
                                 .fillMaxWidth()
                                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
-                                .surfaceRing(cornerRadius = 24.dp),
+                                .surfaceRing(cornerRadius = 24.dp)
+                                .backdrop(RoundedCornerShape(24.dp)),
                         ) {
                             ColorPicker(
                                 initial = folder.color,
@@ -367,9 +371,10 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                     // Square cells: each column is as wide as a row is tall.
                     .width(rowHeight * FOLDER_COLUMNS + Spacing.sm * 2)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { } // keep taps inside
-                    .surfaceRing(cornerRadius = 32.dp),
+                    .surfaceRing(cornerRadius = 32.dp)
+                    .backdrop(PanelShape),
                 shape = PanelShape,
-                color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f),
+                color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f)),
             ) {
                 Column(Modifier.padding(vertical = Spacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
                     val pages = (folder.apps.size + FOLDER_PER_PAGE - 1) / FOLDER_PER_PAGE
@@ -600,10 +605,11 @@ private fun SnackHost(state: OverlayState, modifier: Modifier) {
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(bottom = 128.dp, start = Spacing.md, end = Spacing.md)
                 .shadow(Spacing.sm, PanelShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-                .surfaceRing(cornerRadius = 32.dp),
+                .surfaceRing(cornerRadius = 32.dp)
+                .backdrop(PanelShape),
             shape = PanelShape,
             // The mode's own surface (not the inverted one), like every other panel.
-            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
+            color = backdropColor(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f)),
         ) {
             Row(Modifier.padding(start = Spacing.mdLg, end = Spacing.xs, top = Spacing.xs, bottom = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                 Text(s.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = Spacing.md))

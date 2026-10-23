@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import io.github.jacomartins.canyonui.ui.design.Spacing
+import io.github.jacomartins.canyonui.ui.design.isDarkSurface
+import io.github.jacomartins.canyonui.ui.design.SectionHeader
 import androidx.lifecycle.lifecycleScope
 import io.github.jacomartins.canyonui.data.AppInfo
 import io.github.jacomartins.canyonui.data.IconSize
@@ -61,6 +63,12 @@ import io.github.jacomartins.canyonui.ui.drawer.DrawerModel
 import io.github.jacomartins.canyonui.ui.drawer.HiddenAppsDialog
 import io.github.jacomartins.canyonui.ui.design.ChoiceButton
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
+import io.github.jacomartins.canyonui.ui.design.SecondaryButton
+import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
+import io.github.jacomartins.canyonui.data.RenderMode
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import io.github.jacomartins.canyonui.ui.settings.IconPackPicker
 import io.github.jacomartins.canyonui.ui.settings.AppTargetPicker
 import io.github.jacomartins.canyonui.ui.settings.SEARCH_ACTIONS
@@ -79,7 +87,7 @@ class SettingsActivity : ComponentActivity() {
         setContent {
             val settings by app.settings.settings.collectAsState(initial = null)
             HomeTheme(phonePalette = settings?.phonePalette == true) {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainer) {
+                Surface(Modifier.fillMaxSize(), color = pageColor()) {
                     val apps by app.apps.apps.collectAsState()
                     settings?.let { SettingsScreen(it, app.settings, hiddenModel, apps.orEmpty(), app.home) }
                 }
@@ -104,18 +112,17 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // Page title (h1): bold, lined up with the text inside the cards.
+        // Page title (h1): bold, lined up with the text inside the containers.
         Text(
             stringResource(R.string.home_settings),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.md, bottom = Spacing.sm),
+            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.xl, bottom = Spacing.lg),
         )
         // Radio buttons and switches without Material's extra 48dp touch padding, so they line
         // up with the text; the whole row is the touch target.
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
 
-        Card {
-            SectionTitle(stringResource(R.string.layout_mode))
+        Card(title = stringResource(R.string.layout_mode)) {
             Column(Modifier.selectableGroup()) {
                 for (mode in LayoutMode.entries) {
                     val (title, summary) = when (mode) {
@@ -183,8 +190,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             )
         }
 
-        Card {
-            SectionTitle(stringResource(R.string.home_grid))
+        Card(title = stringResource(R.string.home_grid)) {
             Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (c in SettingsStore.MIN_COLUMNS..SettingsStore.MAX_COLUMNS) {
@@ -211,8 +217,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             )
         }
 
-        Card {
-            SectionTitle(stringResource(R.string.icon_size))
+        Card(title = stringResource(R.string.icon_size)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (size in IconSize.entries) {
                     val label = when (size) {
@@ -247,8 +252,11 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             Text(stringResource(R.string.phone_palette_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        Card {
-            SectionTitle(stringResource(R.string.icon_shape))
+        Card(title = stringResource(R.string.render_mode)) {
+            RenderModeChoice(s.renderMode, onSelect = { scope.launch { store.setRenderMode(it) } })
+        }
+
+        Card(title = stringResource(R.string.icon_shape)) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (shape in IconShape.entries) {
                     ShapeChoice(shape, s.iconStyle.shape == shape, Modifier.weight(1f)) {
@@ -368,6 +376,53 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
     }
 }
 
+/** Translucent, frosted or glass (one at a time), and the wallpaper photo the blur needs. */
+@Composable
+private fun RenderModeChoice(mode: RenderMode, onSelect: (RenderMode) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val hasCopy by WallpaperBackdrop.hasCopy.collectAsState()
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) scope.launch {
+            if (!WallpaperBackdrop.setFromPhoto(context, uri)) {
+                android.widget.Toast.makeText(context, R.string.render_photo_failed, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    Column(Modifier.selectableGroup()) {
+        for (m in RenderMode.entries) {
+            val (title, summary) = when (m) {
+                RenderMode.TRANSLUCENT -> R.string.render_translucent to R.string.render_translucent_summary
+                RenderMode.FROSTED -> R.string.render_frosted to R.string.render_frosted_summary
+                RenderMode.GLASS -> R.string.render_glass to R.string.render_glass_summary
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .selectable(selected = mode == m, role = Role.RadioButton) { onSelect(m) }
+                    .padding(vertical = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = mode == m, onClick = null)
+                Column(Modifier.padding(start = Spacing.smMd)) {
+                    Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+    if (mode != RenderMode.TRANSLUCENT) {
+        Text(
+            stringResource(if (hasCopy) R.string.render_has_photo else R.string.render_needs_photo),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val label = stringResource(R.string.render_pick_photo)
+        val onPick = { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+        if (hasCopy) SecondaryButton(label, onPick, icon = R.drawable.ph_wallpaper) else PrimaryButton(label, onPick, icon = R.drawable.ph_wallpaper)
+    }
+}
+
 @Composable
 private fun pluralHidden(n: Int): String =
     androidx.compose.ui.res.pluralStringResource(R.plurals.hidden_count, n, n)
@@ -423,22 +478,29 @@ private fun ShapeChoice(shape: IconShape, selected: Boolean, modifier: Modifier,
     }
 }
 
+/** The page behind the sections: black in dark mode; light grey in light mode, under white containers. */
 @Composable
-private fun SectionTitle(text: String) {
-    // Section headlines (h2): semi-bold in the primary colour, above the medium item titles (h3).
-    Text(text, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-}
+private fun pageColor() = if (isDarkSurface()) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surfaceContainer
 
+/**
+ * A settings section: an optional [title] straight on the page (14sp bold, white in dark mode),
+ * then its content in a rounded container a step lighter than the page.
+ */
 @Composable
-private fun Card(onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            (if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(Spacing.mdLg),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) { content() }
+private fun Card(title: String? = null, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = if (title != null) Spacing.md else Spacing.none)) {
+        if (title != null) {
+            SectionHeader(title, Modifier.padding(start = Spacing.mdLg, bottom = Spacing.sm))
+        }
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = if (isDarkSurface()) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLowest,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                (if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = Spacing.mdLg, vertical = Spacing.md),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) { content() }
+        }
     }
 }

@@ -42,6 +42,11 @@ class LauncherApp : Application() {
         apps.start()
         home.start()
         scope.launch {
+            settings.settings.map { it.renderMode }.distinctUntilChanged().collect {
+                io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.setMode(this@LauncherApp, it)
+            }
+        }
+        scope.launch {
             settings.settings.map { it.iconPack }.distinctUntilChanged().collect { apps.setIconPack(it) }
         }
         scope.launch {

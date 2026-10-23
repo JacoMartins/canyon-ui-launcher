@@ -22,23 +22,31 @@ class PageIndicatorView(context: Context) : View(context) {
     private val house = (12 * d).toInt()
     private val gap = 7 * d
 
-    private val circleFill = icon(R.drawable.ph_circle_fill)
+    // One drawable per dot: a vector drawable's alpha is read when the frame is rendered, so a
+    // single drawable drawn at several opacities in one frame shows them all at the last one.
     private val homeFill = icon(R.drawable.ph_house_fill)
+    private val circles = ArrayList<Drawable>()
 
     private fun icon(res: Int): Drawable = ContextCompat.getDrawable(context, res)!!.mutate()
 
     var pageCount = 1
         set(value) {
-            if (field != value) { field = value; invalidate() }
+            if (field != value) {
+                field = value
+                while (circles.size < value) circles += icon(R.drawable.ph_circle_fill).also { it.colorFilter = filter }
+                invalidate()
+            }
         }
+
+    private var filter = PorterDuffColorFilter(0xFFFFFFFF.toInt(), PorterDuff.Mode.SRC_IN)
 
     private var position = 0f
 
     var color: Int = 0xFFFFFFFF.toInt()
         set(value) {
             field = value
-            val filter = PorterDuffColorFilter(value, PorterDuff.Mode.SRC_IN)
-            listOf(circleFill, homeFill).forEach { it.colorFilter = filter }
+            filter = PorterDuffColorFilter(value, PorterDuff.Mode.SRC_IN)
+            (circles + homeFill).forEach { it.colorFilter = filter }
             invalidate()
         }
 
@@ -86,7 +94,7 @@ class PageIndicatorView(context: Context) : View(context) {
             val t = (1f - abs(position - page)).coerceIn(0f, 1f)
             val size = if (page == 0) house else dot
             val cx = x + size / 2f
-            draw(canvas, if (page == 0) homeFill else circleFill, cx, cy, size, INACTIVE + (1f - INACTIVE) * t)
+            draw(canvas, if (page == 0) homeFill else circles[page], cx, cy, size, INACTIVE + (1f - INACTIVE) * t)
             x += size + gap
         }
     }

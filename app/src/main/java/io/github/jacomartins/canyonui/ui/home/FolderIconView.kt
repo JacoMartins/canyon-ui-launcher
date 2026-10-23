@@ -16,6 +16,7 @@ import io.github.jacomartins.canyonui.data.AppEntry
 import io.github.jacomartins.canyonui.data.FolderEntry
 import io.github.jacomartins.canyonui.data.IconShape
 import io.github.jacomartins.canyonui.ui.design.DepthRingPainter
+import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
 import android.graphics.Path
 import androidx.core.graphics.drawable.toDrawable
 import io.github.jacomartins.canyonui.util.Motion
@@ -54,6 +55,7 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
 
     private val ring = DepthRingPainter(resources.displayMetrics.density)
     private val shapePath = Path()
+    private val largePath = Path()
     private var pathSize = -1f
     private var pathLeft = 0f
     private var pathTop = 0f
@@ -84,6 +86,7 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         isLongClickable = true
         isFocusable = true
         setOnClickListener { onTap() }
+        WallpaperBackdrop.track(this)
         applyStyle()
     }
 
@@ -121,7 +124,7 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         val showLabel = style.showLabel && folder?.title?.isNotBlank() == true
         val textH = if (showLabel) textPaint.fontSpacing + gapPx else 0f
         if (isLarge) {
-            val pad = 10 * dm.density
+            val pad = LARGE_MARGIN_DP * dm.density
             val size = minOf(width - 2 * pad, height - textH - 2 * pad)
             val left = (width - size) / 2f
             val top = (height - textH - size) / 2f
@@ -145,6 +148,18 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
             f.color == 0 -> defaultColor
             f.color ushr 24 == 0xFF -> (f.color and 0x00FFFFFF) or (0xA6 shl 24)
             else -> f.color
+        }
+        // Frosted and glass: the blurred wallpaper first, then less of the folder's own colour.
+        val outlinePath = if (isLarge) {
+            val radius = box.width() * largeCornerShare()
+            largePath.reset()
+            largePath.addRoundRect(box, radius, radius, Path.Direction.CW)
+            largePath
+        } else {
+            outline()
+        }
+        if (WallpaperBackdrop.draw(canvas, this, outlinePath)) {
+            bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShare()).toInt()
         }
         if (isLarge) {
             val radius = box.width() * largeCornerShare()
@@ -223,17 +238,21 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         return p
     }
 
-    /** Cell [i] of the 3x3 inner grid, inset so icons have air around them. */
+    /**
+     * Cell [i] of the 3x3 inner grid, inset so icons have air around them. A large folder is
+     * inset a little more at the top and bottom: its rounded corners otherwise make the space
+     * above and below the icons look smaller than at the sides.
+     */
     private fun cellRect(i: Int, out: Rect) {
-        // Large folders: icons about 27% of the side, about 5.5% from the edge.
-        val inset = box.width() * if (isLarge) 0.035f else 0.14f
-        val inner = box.width() - 2 * inset
-        val step = inner / 3f
-        val pad = step * if (isLarge) 0.07f else 0.06f
+        val insetX = box.width() * if (isLarge) 0.045f else 0.14f
+        val insetY = box.height() * if (isLarge) 0.065f else 0.14f
+        val stepX = (box.width() - 2 * insetX) / 3f
+        val stepY = (box.height() - 2 * insetY) / 3f
+        val icon = minOf(stepX, stepY) * if (isLarge) 0.86f else 0.88f
         val col = if (layoutDirection == LAYOUT_DIRECTION_RTL) 2 - i % 3 else i % 3
-        val l = box.left + inset + col * step + pad
-        val t = box.top + inset + (i / 3) * step + pad
-        out.set(l.toInt(), t.toInt(), (l + step - 2 * pad).toInt(), (t + step - 2 * pad).toInt())
+        val l = box.left + insetX + col * stepX + (stepX - icon) / 2f
+        val t = box.top + insetY + (i / 3) * stepY + (stepY - icon) / 2f
+        out.set(l.toInt(), t.toInt(), (l + icon).toInt(), (t + icon).toInt())
     }
 
     @SuppressLint("ClickableViewAccessibility") // Taps still go through performClick().
@@ -266,6 +285,9 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
 
     private companion object {
         const val SLOTS = 9
+
+        /** Gap between a large folder's backdrop and its cells, per side. */
+        const val LARGE_MARGIN_DP = 8f
 
         /** Size of each icon in the last cell's stack, as a share of the cell. */
         const val STACK_SCALE = 0.78f

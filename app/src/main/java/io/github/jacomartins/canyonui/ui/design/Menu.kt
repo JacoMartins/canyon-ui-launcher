@@ -65,9 +65,10 @@ fun MenuLayer(anchor: Rect, entries: List<MenuEntry>, onDismiss: () -> Unit) {
                     }
                 }
                 .shadow(Spacing.sm, MenuShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-                .surfaceRing(cornerRadius = MENU_RADIUS),
+                .surfaceRing(cornerRadius = MENU_RADIUS)
+                .backdrop(MenuShape),
             shape = MenuShape,
-            color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f),
+            color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f)),
         ) {
             // OneDepth list, compact: an inset column of pill rows (16 x 8 padding, 12 between
             // icon and text, 2 between rows). The panel's radius is the row's plus the inset, so a

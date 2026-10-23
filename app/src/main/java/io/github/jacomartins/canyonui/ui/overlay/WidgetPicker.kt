@@ -49,6 +49,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
@@ -252,7 +255,7 @@ private fun WidgetCard(w: PickerWidget, actions: OverlayActions) {
             val img = image
             Box(Modifier.fillMaxSize().padding(Spacing.sm), contentAlignment = Alignment.Center) {
                 when {
-                    !WidgetCatalog.hasPreviewImage(w.info) && Build.VERSION.SDK_INT >= 31 && w.info.previewLayout != 0 -> LayoutPreview(w.info)
+                    !WidgetCatalog.hasPreviewImage(w.info) && Build.VERSION.SDK_INT >= 31 && w.info.previewLayout != 0 -> LayoutPreview(w.info, w.spanX, w.spanY)
                     img != null -> Image(img, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
                 }
             }
@@ -285,10 +288,19 @@ private fun WidgetCard(w: PickerWidget, actions: OverlayActions) {
     }
 }
 
-/** Android 12+ widgets can describe their preview as a layout instead of an image. */
+/**
+ * Android 12+ widgets can describe their preview as a layout instead of an image. The layout is
+ * laid out at the widget's real size on home ([spanX] x [spanY] cells) and scaled down into the
+ * card: wide widgets (four cells) built for that width come out empty or broken when squeezed
+ * into the card's own small size.
+ */
 @androidx.annotation.RequiresApi(31)
 @Composable
-private fun LayoutPreview(info: AppWidgetProviderInfo) {
+private fun LayoutPreview(info: AppWidgetProviderInfo, spanX: Int, spanY: Int) {
+    // A home cell is about a quarter of the screen width, and a little taller than wide.
+    val cellW = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width / 4
+    val realW = cellW * spanX
+    val realH = (cellW * 1.15f).toInt() * spanY
     AndroidView(
         factory = { c ->
             try {
@@ -302,6 +314,21 @@ private fun LayoutPreview(info: AppWidgetProviderInfo) {
                 View(c)
             }
         },
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds()
+            .layout { measurable, constraints ->
+                val p = measurable.measure(androidx.compose.ui.unit.Constraints.fixed(realW, realH))
+                val scale = minOf(constraints.maxWidth / realW.toFloat(), constraints.maxHeight / realH.toFloat())
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    val x = ((constraints.maxWidth - realW * scale) / 2f).roundToInt()
+                    val y = ((constraints.maxHeight - realH * scale) / 2f).roundToInt()
+                    p.placeWithLayer(x, y) {
+                        scaleX = scale
+                        scaleY = scale
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    }
+                }
+            },
     )
 }

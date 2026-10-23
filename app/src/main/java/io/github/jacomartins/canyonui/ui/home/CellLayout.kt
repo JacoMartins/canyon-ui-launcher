@@ -53,7 +53,10 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
 
     init {
         setWillNotDraw(false)
+        io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.track(this)
     }
+
+    private val backdropPath = android.graphics.Path()
 
     private val plusPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         style = android.graphics.Paint.Style.STROKE
@@ -128,7 +131,14 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
         if (showBackdrop) {
             val r = 28 * d
             hintRect.set(4 * d, 0f, width - 4 * d, height.toFloat())
+            // Frosted and glass: the blurred wallpaper under a lighter card colour.
+            backdropPath.reset()
+            backdropPath.addRoundRect(hintRect, r, r, android.graphics.Path.Direction.CW)
+            val blurred = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, backdropPath)
+            val alpha = backdropPaint.alpha
+            if (blurred) backdropPaint.alpha = (alpha * io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.fillShare()).toInt()
             canvas.drawRoundRect(hintRect, r, r, backdropPaint)
+            backdropPaint.alpha = alpha
             // OneDepth's border, the same as the interface's buttons.
             ring.draw(canvas, hintRect, r, darkBehind)
         }

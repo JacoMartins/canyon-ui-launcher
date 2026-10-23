@@ -38,13 +38,13 @@
     <string name="wallpaper_unavailable">No wallpaper picker found</string>
 
     <!-- Settings -->
-    <string name="layout_mode">Home screen layout</string>
+    <string name="layout_mode">Layout</string>
     <string name="layout_home_and_apps">Home and Apps screens</string>
     <string name="layout_home_and_apps_summary">Swipe up on the Home screen to see all apps</string>
     <string name="layout_home_only">Home screen only</string>
     <string name="layout_home_only_summary">Every app is on the Home screen; no Apps screen</string>
     <string name="layout_separate_note">Each layout keeps its own pages, grid, icon size and hidden apps.</string>
-    <string name="home_grid">Home screen grid</string>
+    <string name="home_grid">Grid</string>
     <string name="grid_columns">Columns</string>
     <string name="grid_rows">Rows</string>
     <string name="licenses">Open-source licenses</string>
@@ -165,7 +165,18 @@
     <string name="menu_show_outline">Show outline</string>
     <string name="phone_palette">Use the phone\'s colour palette</string>
     <string name="phone_palette_summary">Off: Canyon UI\'s own light and dark colours. On: menus, buttons and panels take the colours of the phone\'s palette (Color palette in the phone\'s settings).</string>
-    <string name="menu_send_to_category">Send to its category</string>
+    <string name="render_mode">Transparency</string>
+    <string name="render_translucent">Translucent</string>
+    <string name="render_translucent_summary">See-through colour over the wallpaper</string>
+    <string name="render_frosted">Frosted blur</string>
+    <string name="render_frosted_summary">The wallpaper strongly blurred behind folders, panels and menus</string>
+    <string name="render_glass">Glass</string>
+    <string name="render_glass_summary">Lightly frosted, clearer glass with a soft sheen</string>
+    <string name="render_pick_photo">Choose wallpaper photo</string>
+    <string name="render_needs_photo">Blur needs a wallpaper chosen here: Android does not let apps read a wallpaper set elsewhere. Until then, surfaces stay translucent.</string>
+    <string name="render_has_photo">Blurring the wallpaper chosen here. Setting another wallpaper elsewhere turns the blur off until you choose one here again.</string>
+    <string name="render_photo_failed">Could not set that photo as the wallpaper</string>
+    <string name="menu_send_to_category">Categorize</string>
     <string name="categorize_apps">Categorize apps</string>
     <string name="snack_categorized">Apps put into their categories</string>
     <string name="swipe_up">Swipe up on home opens</string>

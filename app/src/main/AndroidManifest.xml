@@ -8,6 +8,10 @@
         tools:ignore="QueryAllPackagesPermission" />
     <!-- Lets "Uninstall" open the system uninstall confirmation. -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Frosted and glass effects: sets the photo the user picks as the home wallpaper, so the
+         launcher has the image to blur (apps cannot read a wallpaper set elsewhere). -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER_HINTS" />
 
     <application
         android:name=".LauncherApp"

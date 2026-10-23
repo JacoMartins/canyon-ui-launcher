@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import io.github.jacomartins.canyonui.ui.design.SectionHeader
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
@@ -195,7 +196,7 @@ private fun MainPage(
             SecondaryButton(stringResource(R.string.edit_app_default_icon), { state.draft = draft.copy(packPackage = null, drawable = null, file = null) }, icon = R.drawable.ph_close)
         }
         if (state.showCategory) {
-            Text(stringResource(R.string.edit_app_category), style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
+            SectionHeader(stringResource(R.string.edit_app_category), Modifier.padding(top = Spacing.sm))
             val auto = state.app.autoCategory ?: AppCategories.Category.OTHERS
             val autoLabel = stringResource(R.string.edit_app_category_auto, stringResource(auto.titleRes()))
             val chosen = AppCategories.Category.fromKey(draft.category)

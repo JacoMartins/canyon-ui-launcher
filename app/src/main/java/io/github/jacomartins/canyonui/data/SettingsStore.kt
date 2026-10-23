@@ -16,6 +16,16 @@ import org.json.JSONObject
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
+/**
+ * How see-through surfaces (folders, panels, menus, edit pages) are drawn: plain [TRANSLUCENT]
+ * colour, [FROSTED] over a strongly blurred wallpaper, or [GLASS] over a lightly blurred one.
+ */
+enum class RenderMode(val storageKey: String) {
+    TRANSLUCENT("translucent"),
+    FROSTED("frosted"),
+    GLASS("glass"),
+}
+
 /** "Home and Apps screens" (with a drawer) or "Home screen only" (every app on home). */
 enum class LayoutMode(val storageKey: String) {
     HOME_AND_DRAWER("home_drawer"),
@@ -58,6 +68,8 @@ data class LauncherSettings(
     val widgetBorder: Boolean = true,
     /** Interface colours from the phone's palette instead of Canyon UI's own. */
     val phonePalette: Boolean = false,
+    /** How see-through surfaces are drawn. */
+    val renderMode: RenderMode = RenderMode.TRANSLUCENT,
     /** Category mode just started and the home page has room for a Google search bar. */
     val pendingSearchWidget: Boolean = false,
     /**
@@ -102,6 +114,7 @@ class SettingsStore(private val context: Context) {
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
         val WIDGET_BORDER = booleanPreferencesKey("widget_border")
         val PHONE_PALETTE = booleanPreferencesKey("phone_palette")
+        val RENDER_MODE = stringPreferencesKey("render_mode")
         val PENDING_SEARCH_WIDGET = booleanPreferencesKey("pending_search_widget")
         val SWIPE_UP_TARGET = stringPreferencesKey("swipe_up_target")
         val WALLPAPER_TARGET = stringPreferencesKey("wallpaper_target")
@@ -145,6 +158,7 @@ class SettingsStore(private val context: Context) {
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
             phonePalette = p[Keys.PHONE_PALETTE] ?: false,
+            renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.TRANSLUCENT,
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
             swipeUpTarget = p[Keys.SWIPE_UP_TARGET],
             wallpaperTarget = p[Keys.WALLPAPER_TARGET],
@@ -254,6 +268,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setPhonePalette(on: Boolean) {
         context.dataStore.edit { it[Keys.PHONE_PALETTE] = on }
+    }
+
+    suspend fun setRenderMode(mode: RenderMode) {
+        context.dataStore.edit { it[Keys.RENDER_MODE] = mode.storageKey }
     }
 
     suspend fun setWidgetBorder(on: Boolean) {

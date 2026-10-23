@@ -52,6 +52,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
 import io.github.jacomartins.canyonui.data.AppEntry
 import io.github.jacomartins.canyonui.data.AppInfo
 import io.github.jacomartins.canyonui.data.DragItem
@@ -317,6 +318,15 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 }
             }
         }
+        // Frosted/glass blur switched or replaced: repaint the folders and edit pages under it.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                WallpaperBackdrop.active.collect {
+                    views.values.forEach { v -> if (v is FolderIconView) v.invalidate() }
+                    for (i in 0 until home.workspace.childCount) home.workspace.pageAt(i)?.invalidate()
+                }
+            }
+        }
         // Ids of widgets removed earlier (kept until now so Undo could bring them back).
         if (savedInstanceState == null) lifecycleScope.launch { widgets.releaseUnused(launcher.home.widgetIdsInUse()) }
         lifecycleScope.launch {
@@ -355,6 +365,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onResume() {
         super.onResume()
+        // The wallpaper may have been changed elsewhere while away: drop a stale blur copy.
+        lifecycleScope.launch { WallpaperBackdrop.check(this@HomeActivity) }
         if (returningFromApp) {
             returningFromApp = false
             playReturnAnimation(launchedFrom?.get())
@@ -1059,6 +1071,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.drawerEnabled = false
         if (hintVisible) home.hint.animate().alpha(0f).setDuration(120).start()
         home.setPageBackdrops(true)
+        // Zoomed out, the pages beside the current one are on screen although they are outside
+        // the workspace's own bounds; with clipping on they would be culled and blink in and out.
+        home.workspace.clipChildren = false
         zoomHome(EDIT_SCALE)
         fade(home.hotseat, 0f)
         updateBackCallbacks()
@@ -1074,6 +1089,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.drawerEnabled = drawerEnabled
         if (hintVisible) home.hint.animate().alpha(1f).setDuration(150).start()
         home.setPageBackdrops(false)
+        home.workspace.clipChildren = true
         zoomHome(1f)
         fade(home.hotseat, 1f)
         updateBackCallbacks()

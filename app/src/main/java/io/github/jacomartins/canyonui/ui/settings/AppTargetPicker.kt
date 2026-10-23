@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import io.github.jacomartins.canyonui.ui.design.SectionHeader
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -125,12 +126,7 @@ fun AppTargetPicker(
 
 @Composable
 private fun Header(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp, start = 4.dp),
-    )
+    SectionHeader(text, Modifier.padding(top = 12.dp, bottom = 8.dp, start = 4.dp))
 }
 
 @Composable
