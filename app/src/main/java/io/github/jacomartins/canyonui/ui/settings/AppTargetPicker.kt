@@ -38,6 +38,15 @@ import androidx.core.graphics.drawable.toBitmap
 import io.github.jacomartins.canyonui.R
 import io.github.jacomartins.canyonui.data.AppInfo
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
+import io.github.jacomartins.canyonui.ui.design.PrimaryButton
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -49,6 +58,50 @@ class AppTarget(val key: String, val label: String, val icon: ImageBitmap?, val 
 
 /** Actions search apps answer to; a phone's own search (no app icon) is found this way. */
 val SEARCH_ACTIONS = listOf("android.search.action.GLOBAL_SEARCH", Intent.ACTION_WEB_SEARCH)
+
+/** Apps that set wallpapers, including ones without an app icon. */
+val WALLPAPER_ACTIONS = listOf(Intent.ACTION_SET_WALLPAPER, android.app.WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)
+
+/** A target typed as a package name ("pkg:" + package), for apps without an icon to pick. */
+const val PACKAGE_TARGET = "pkg:"
+
+/** The package a stored target opens. */
+fun targetPackage(target: String): String =
+    if (target.startsWith(PACKAGE_TARGET)) target.removePrefix(PACKAGE_TARGET) else target.substringAfter('|').substringBefore('/')
+
+/** The app's name for [target], or its package when it is not installed. */
+fun targetLabel(context: Context, target: String): String {
+    val pkg = targetPackage(target)
+    return runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+}
+
+/**
+ * The intent that opens [target]. A typed package is tried with [actions] first (a search or
+ * wallpaper screen it offers), then its launcher entry, then any screen it lets others open.
+ */
+fun targetIntent(context: Context, target: String, actions: List<String>): Intent? {
+    if (!target.startsWith(PACKAGE_TARGET)) {
+        val action = target.substringBefore('|')
+        val cn = android.content.ComponentName.unflattenFromString(target.substringAfter('|')) ?: return null
+        return Intent(action).setComponent(cn).apply { if (action == Intent.ACTION_MAIN) addCategory(Intent.CATEGORY_LAUNCHER) }
+    }
+    val pkg = target.removePrefix(PACKAGE_TARGET).trim()
+    if (pkg.isEmpty()) return null
+    val pm = context.packageManager
+    for (action in actions) {
+        val i = Intent(action).setPackage(pkg)
+        if (i.resolveActivity(pm) != null) return i
+    }
+    pm.getLaunchIntentForPackage(pkg)?.let { return it }
+    val activities = try {
+        @Suppress("DEPRECATION")
+        pm.getPackageInfo(pkg, PackageManager.GET_ACTIVITIES).activities
+    } catch (e: PackageManager.NameNotFoundException) {
+        null
+    }
+    val open = activities?.firstOrNull { it.exported && it.enabled && it.permission == null } ?: return null
+    return Intent(Intent.ACTION_MAIN).setClassName(pkg, open.name)
+}
 
 /** Apps answering [actions] first, then every app (main profile), without duplicates. */
 fun appTargets(context: Context, apps: List<AppInfo>, actions: List<String>): List<AppTarget> {
@@ -100,6 +153,7 @@ fun AppTargetPicker(
     val targets by produceState<List<AppTarget>?>(null, apps, actions) {
         value = withContext(Dispatchers.Default) { appTargets(context, apps, actions) }
     }
+    var typed by remember { mutableStateOf(selected?.takeIf { it.startsWith(PACKAGE_TARGET) }?.removePrefix(PACKAGE_TARGET).orEmpty()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { SecondaryButton(stringResource(R.string.cancel), onDismiss) },
@@ -109,6 +163,23 @@ fun AppTargetPicker(
             val list = targets.orEmpty()
             LazyColumn(Modifier.heightIn(max = 480.dp)) {
                 item { Choice(noneLabel, null, selected == null) { onSelect(null) } }
+                // Any package, by name: for apps that have no icon to pick from the lists.
+                item {
+                    Header(stringResource(R.string.target_package))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = typed,
+                            onValueChange = { typed = it.trim() },
+                            singleLine = true,
+                            placeholder = { Text(stringResource(R.string.target_package_hint)) },
+                            shape = CircleShape,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { if (typed.isNotEmpty()) onSelect(PACKAGE_TARGET + typed) }),
+                            modifier = Modifier.weight(1f),
+                        )
+                        PrimaryButton(stringResource(R.string.target_package_use), { onSelect(PACKAGE_TARGET + typed) }, enabled = typed.isNotEmpty())
+                    }
+                }
                 val special = list.filter { it.special }
                 if (special.isNotEmpty()) {
                     item { Header(specialHeader) }

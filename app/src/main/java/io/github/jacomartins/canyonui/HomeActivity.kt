@@ -56,6 +56,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
+import io.github.jacomartins.canyonui.ui.settings.targetIntent
+import io.github.jacomartins.canyonui.ui.settings.WALLPAPER_ACTIONS
+import io.github.jacomartins.canyonui.ui.settings.SEARCH_ACTIONS
 import io.github.jacomartins.canyonui.data.AppEntry
 import io.github.jacomartins.canyonui.data.AppInfo
 import io.github.jacomartins.canyonui.data.DragItem
@@ -145,11 +148,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_SCREEN_OFF -> prepareUnlock()
-                Intent.ACTION_USER_PRESENT -> if (unlockPending && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) playUnlock()
+                Intent.ACTION_USER_PRESENT -> if (unlockPending && hasWindowFocus()) playUnlock()
                 Intent.ACTION_SCREEN_ON -> {
                     // No lock screen at all: nothing else announces the way back to home.
                     val km = getSystemService(android.app.KeyguardManager::class.java)
-                    if (unlockPending && !km.isKeyguardLocked && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) playUnlock()
+                    if (unlockPending && !km.isKeyguardLocked && hasWindowFocus()) playUnlock()
                 }
             }
         }
@@ -174,7 +177,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private lateinit var widgets: HomeWidgets
     private var resizeFrame: ResizeFrame? = null
     private var resizeAnyWidget = false
-    private var fullCellWidgetSizes = false
+    private var fullCellWidgetSizes = true
+    private var wallpaperTarget: String? = null
     private var swipeUpTarget: String? = null
     private var lastNight: Boolean? = null
     private var iconShape = io.github.jacomartins.canyonui.data.IconShape.SYSTEM
@@ -376,6 +380,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         views.values.forEach { (it as? FolderIconView)?.let(::styleFolder) }
                     }
                     swipeUpTarget = s.swipeUpTarget
+                    wallpaperTarget = s.wallpaperTarget
                     ui.categoryMode = s.autoCategories && s.layoutMode == LayoutMode.HOME_ONLY
                     if (s.pendingSearchWidget) addSearchWidget()
                     if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets || slideshows != s.slideshowStacks) {
@@ -406,9 +411,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // Category folders follow use, slowly (an app moves up after five days of more use).
         lifecycleScope.launch { launcher.home.arrangeCategoryFolders(launcher.usage) }
         if (unlockPending) {
-            // Unlocked straight into home (or the broadcast came before home was back).
-            val km = getSystemService(android.app.KeyguardManager::class.java)
-            if (!km.isKeyguardLocked) playUnlock()
+            // Plays when home gets the focus (onWindowFocusChanged), after the lock screen.
+            if (hasWindowFocus()) playUnlock()
             returningFromApp = false
             steppedBack = false
         } else if (returningFromApp) {
@@ -448,23 +452,41 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun prepareUnlock() {
         if (ui.editMode || !drawer.isClosed || !Motion.enabled()) return
         unlockPending = true
+        setHomeSmall()
+    }
+
+    /** Home at two thirds of its size and hidden, ready to zoom in. */
+    private fun setHomeSmall() {
         for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
             v.animate().cancel()
             v.pivotY = home.height / 2f - v.top
             v.pivotX = v.width / 2f
-            v.scaleX = UNLOCK_SCALE; v.scaleY = UNLOCK_SCALE
+            v.scaleX = ENTRY_SCALE; v.scaleY = ENTRY_SCALE
             v.alpha = 0f
         }
     }
 
-    /** The unlock: home zooms in from two thirds of its size. */
+    /**
+     * The unlock: home zooms in from two thirds of its size. It starts once home has the focus,
+     * that is once the lock screen is gone: started earlier, it ran under the lock screen's own
+     * closing animation and was over before it could be seen.
+     */
     private fun playUnlock() {
         unlockPending = false
-        homeTo(1f, 1f, UNLOCK_MS)
+        homeTo(1f, 1f, ENTRY_MS)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && unlockPending && !getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked) playUnlock()
     }
 
     override fun onStop() {
-        if (launchPending) returningFromApp = true
+        if (launchPending) {
+            returningFromApp = true
+            // Waits small behind the app, for the zoom back in.
+            if (Motion.enabled() && drawer.isClosed && !ui.editMode) setHomeSmall()
+        }
         launchPending = false
         drag.cancel()
         dismissResizeFrame()
@@ -1282,15 +1304,16 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     /** Home screen only mode: a swipe up opens the app chosen in settings (e.g. a search app). */
     private fun openSwipeTarget() {
-        openTarget(swipeUpTarget ?: return, R.anim.swipe_up_enter)
+        openTarget(swipeUpTarget ?: return, SEARCH_ACTIONS, R.anim.swipe_up_enter)
     }
 
     /** Opens a chosen "action|package/class" target; false if it is gone. */
-    private fun openTarget(target: String, enterAnim: Int = 0): Boolean {
-        val action = target.substringBefore('|')
-        val cn = ComponentName.unflattenFromString(target.substringAfter('|')) ?: return false
-        val intent = Intent(action).setComponent(cn).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (action == Intent.ACTION_MAIN) intent.addCategory(Intent.CATEGORY_LAUNCHER)
+    private fun openTarget(target: String, actions: List<String>, enterAnim: Int = 0): Boolean {
+        val intent = targetIntent(this, target, actions)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (intent == null) {
+            toast(getString(R.string.swipe_up_unavailable))
+            return false
+        }
         val opts = if (enterAnim != 0) ActivityOptions.makeCustomAnimation(this, enterAnim, 0).toBundle() else null
         return try {
             startActivity(intent, opts)
@@ -1322,6 +1345,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun movePage(from: Int, to: Int) = edit(getString(R.string.snack_page_moved)) { launcher.home.movePage(from, to) }
 
     override fun chooseWallpaper() {
+        // The app chosen in settings (also one typed by package name), else Canyon UI's chooser.
+        wallpaperTarget?.let { if (openTarget(it, WALLPAPER_ACTIONS)) return }
         startActivity(Intent(this, WallpaperActivity::class.java))
     }
 
@@ -1374,10 +1399,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
         if (dark) {
             home.setSurfaceColors(0x1F000000, 0xE6FFFFFF.toInt(), 0xFF1C1B1F.toInt(), DARK_LABEL)
-            home.setEditColors(backdrop = 0x1A000000, hint = 0x33000000)
         } else {
             home.setSurfaceColors(0x26FFFFFF, 0xE6202124.toInt(), 0xFFFFFFFF.toInt(), LIGHT_LABEL)
-            home.setEditColors(backdrop = 0x24FFFFFF, hint = 0x40FFFFFF)
+        }
+        // Edit-mode pages follow dark and light mode (not the wallpaper): a dark card in dark mode.
+        if (isNight) {
+            home.setEditColors(backdrop = 0x47000000, hint = 0x40FFFFFF)
+        } else {
+            home.setEditColors(backdrop = 0x47FFFFFF, hint = 0x33000000)
         }
     }
 
@@ -1478,16 +1507,15 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
      * opened from grows back into place. Skipped if that icon is gone.
      */
     private fun playReturnAnimation(icon: View?) {
-        if (!Motion.enabled() || !drawer.isClosed || ui.editMode || ui.isModal) return
-        for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
-            v.pivotY = home.height / 2f - v.top
-            v.scaleX = RETURN_SCALE
-            v.scaleY = RETURN_SCALE
-            v.alpha = 0.6f
-            // On a hardware layer: scaling and fading the live pages (widgets included) redrew
-            // all of them every frame, which dropped frames on 120Hz screens.
-            v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(280).setInterpolator(decelerate).withLayer().start()
+        if (!Motion.enabled() || !drawer.isClosed || ui.editMode || ui.isModal) {
+            homeTo(1f, 1f, 0)
+            return
         }
+        // The same zoom in from afar as after unlocking. Home was made small when the app
+        // opened (onStop), so it is already small while the app's closing animation shows it.
+        // On a hardware layer: scaling and fading the live pages (widgets included) redrew all
+        // of them every frame, which dropped frames on 120Hz screens.
+        homeTo(1f, 1f, ENTRY_MS)
         if (icon != null && icon.isAttachedToWindow && icon.parent != null) {
             icon.scaleX = 0.6f
             icon.scaleY = 0.6f
@@ -1642,9 +1670,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         private const val BAR_RESET_DELAY_MS = 350L
         /** Above this overall lightness a wallpaper gets dark labels (light mode). */
         private const val LIGHT_WALLPAPER = 0.62f
-        private const val RETURN_SCALE = 1.06f
-        private const val UNLOCK_SCALE = 0.66f
-        private const val UNLOCK_MS = 420L
+        private const val ENTRY_SCALE = 0.66f
+        private const val ENTRY_MS = 480L
         private const val STEP_BACK_SCALE = 0.92f
         private const val STEP_BACK_MS = 220L
     }

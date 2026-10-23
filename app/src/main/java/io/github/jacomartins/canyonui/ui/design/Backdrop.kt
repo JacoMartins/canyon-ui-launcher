@@ -26,7 +26,6 @@ import dev.chrisbanes.haze.glass.hazeGlass
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Path
@@ -53,12 +52,12 @@ fun BackdropSource(state: HazeState) {
     val src by WallpaperBackdrop.source.collectAsState()
     val b = src ?: return
     val image = remember(b) { b.asImageBitmap() }
-    val view = LocalView.current
-    val loc = remember { IntArray(2) }
+    // Drawn at the view's own origin: the home overlay and the Apps screen fill the screen from
+    // its top-left at rest. (Following the view's live position recorded the copy off screen
+    // while the Apps screen was still slid away, so it had nothing to blur.)
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0f }) {
         Canvas(Modifier.fillMaxSize().hazeSource(state)) {
-            view.getLocationOnScreen(loc)
-            drawImage(image, dstOffset = IntOffset(-loc[0], -loc[1]), dstSize = IntSize(b.width, b.height))
+            drawImage(image, dstOffset = IntOffset.Zero, dstSize = IntSize(b.width, b.height))
         }
     }
 }
@@ -77,7 +76,15 @@ fun Modifier.backdrop(shape: RoundedCornerShape): Modifier = composed {
     if (haze != null && Build.VERSION.SDK_INT >= 31) {
         val input = HazeInput.Sources(haze)
         return@composed if (b.mode == RenderMode.GLASS) {
-            val style = remember(shape) { GlassStyle.regular.then { shape(shape) } }
+            // No rim light or edge shadow of Haze's own: the border is the interface's depth
+            // ring, the same in every mode.
+            val style = remember(shape) {
+                GlassStyle.regular.then {
+                    shape(shape)
+                    specularIntensity(0f)
+                    edgeShadow(Color.Transparent)
+                }
+            }
             this.hazeGlass(input, style = style)
         } else {
             this.clip(shape).hazeBlur(input, style = FrostedStyle)
@@ -103,9 +110,6 @@ fun Modifier.backdrop(shape: RoundedCornerShape): Modifier = composed {
                     dstSize = IntSize(b.screenW, b.screenH),
                     filterQuality = FilterQuality.Low,
                 )
-                if (b.mode == RenderMode.GLASS) {
-                    drawRect(Brush.verticalGradient(0f to Color.White.copy(alpha = 0.10f), 0.5f to Color.Transparent))
-                }
             }
         }
 }

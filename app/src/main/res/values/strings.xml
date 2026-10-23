@@ -79,6 +79,13 @@
     <string name="menu_slideshow_off">Stop slideshow</string>
     <string name="full_cell_widget_sizes">Larger layouts for 1-row widgets</string>
     <string name="full_cell_widget_sizes_summary">Tells widgets one row tall (or one column wide) the whole cell\'s size instead of the pill\'s. Some widgets, like a weather and clock pair, then use bigger text. Turn it off if a widget gets cut off.</string>
+    <string name="wallpaper_app">Wallpaper app</string>
+    <string name="wallpaper_app_own">Canyon UI wallpapers</string>
+    <string name="wallpaper_apps">Wallpaper apps</string>
+    <string name="wallpaper_app_summary">What the Wallpaper button in edit mode opens.</string>
+    <string name="target_package">Package name</string>
+    <string name="target_package_hint">com.example.app</string>
+    <string name="target_package_use">Use</string>
     <string name="categorize_title">Categorize apps?</string>
     <string name="categorize_message">Apps that are not in a folder go into their category folders, and empty pages are removed (the first page stays).</string>
     <string name="delete_page_title">Delete this page?</string>

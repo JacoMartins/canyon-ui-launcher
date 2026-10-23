@@ -71,6 +71,8 @@ import io.github.jacomartins.canyonui.data.RenderMode
 import io.github.jacomartins.canyonui.ui.settings.IconPackPicker
 import io.github.jacomartins.canyonui.ui.settings.AppTargetPicker
 import io.github.jacomartins.canyonui.ui.settings.SEARCH_ACTIONS
+import io.github.jacomartins.canyonui.ui.settings.WALLPAPER_ACTIONS
+import io.github.jacomartins.canyonui.ui.settings.targetLabel
 import io.github.jacomartins.canyonui.ui.theme.HomeTheme
 import kotlinx.coroutines.launch
 
@@ -100,6 +102,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
     var showHidden by remember { mutableStateOf(false) }
     var showPacks by remember { mutableStateOf(false) }
     var showSwipeUp by remember { mutableStateOf(false) }
+    var showWallpaperApp by remember { mutableStateOf(false) }
     var showLicenses by remember { mutableStateOf(false) }
     val context = LocalContext.current
     Column(
@@ -170,11 +173,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                         .padding(vertical = 8.dp),
                 ) {
                     Text(stringResource(R.string.swipe_up), style = MaterialTheme.typography.titleMedium)
-                    val target = s.swipeUpTarget
-                    val current = target?.let { t ->
-                        val pkg = t.substringAfter('|').substringBefore('/')
-                        runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
-                    } ?: stringResource(R.string.swipe_up_none)
+                    val current = s.swipeUpTarget?.let { targetLabel(context, it) } ?: stringResource(R.string.swipe_up_none)
                     Text(current, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(stringResource(R.string.swipe_up_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -234,6 +233,16 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                 onChange = { scope.launch { store.setPhonePalette(it) } },
             )
             Text(stringResource(R.string.phone_palette_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        SettingsSection(onClick = { showWallpaperApp = true }) {
+            Text(stringResource(R.string.wallpaper_app), style = MaterialTheme.typography.titleMedium)
+            Text(
+                s.wallpaperTarget?.let { targetLabel(context, it) } ?: stringResource(R.string.wallpaper_app_own),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(stringResource(R.string.wallpaper_app_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         SettingsSection(title = stringResource(R.string.render_mode)) {
@@ -332,6 +341,18 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         )
     }
     if (showHidden) HiddenAppsDialog(hiddenModel, onDismiss = { showHidden = false })
+    if (showWallpaperApp) {
+        AppTargetPicker(
+            title = stringResource(R.string.wallpaper_app),
+            noneLabel = stringResource(R.string.wallpaper_app_own),
+            specialHeader = stringResource(R.string.wallpaper_apps),
+            actions = WALLPAPER_ACTIONS,
+            selected = s.wallpaperTarget,
+            apps = apps,
+            onSelect = { scope.launch { store.setWallpaperTarget(it) }; showWallpaperApp = false },
+            onDismiss = { showWallpaperApp = false },
+        )
+    }
     if (showSwipeUp) {
         AppTargetPicker(
             title = stringResource(R.string.swipe_up),

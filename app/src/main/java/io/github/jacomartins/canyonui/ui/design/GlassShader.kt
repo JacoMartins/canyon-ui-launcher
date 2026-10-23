@@ -16,8 +16,8 @@ import java.util.WeakHashMap
 /**
  * Liquid glass for the View-based surfaces (folders, edit pages, widget cards), where Haze (a
  * Compose library) cannot draw: an AGSL lens over the lightly blurred wallpaper. Near the rim
- * the glass bends what is behind it inward (the edge magnifies, like a thick pane), and a light
- * from above brightens the top rim with a weaker bounce at the bottom. Android 13+.
+ * the glass bends what is behind it inward (the edge magnifies, like a thick pane). No light of
+ * its own: the border is the same depth ring as everywhere else. Android 13+.
  */
 @RequiresApi(33)
 internal object GlassShader {
@@ -28,7 +28,6 @@ internal object GlassShader {
         uniform float2 size;
         uniform float radius;
         uniform float bend;
-        uniform float rim;
 
         float sdBox(float2 p, float2 b, float r) {
             float2 q = abs(p) - b + float2(r);
@@ -48,9 +47,6 @@ internal object GlassShader {
             float2 n = g / max(length(g), 0.0001);
             float2 s = xy - n * (t * t * bend);
             half4 c = image.eval(s);
-            float lit = smoothstep(0.6, 1.0, t) * (0.5 - 0.5 * n.y);
-            float bounce = smoothstep(0.75, 1.0, t) * max(n.y, 0.0) * 0.35;
-            c.rgb = c.rgb + half3(rim * (lit + bounce));
             return half4(c.rgb, 1.0);
         }
     """
@@ -80,7 +76,8 @@ internal object GlassShader {
         loc: IntArray,
         scale: Float,
     ): Boolean {
-        if (broken) return false
+        // Runtime shaders draw only on the GPU; snapshots (drag images) are drawn in software.
+        if (broken || !canvas.isHardwareAccelerated) return false
         val h = holders[view] ?: try {
             Holder(RuntimeShader(SRC), Paint(Paint.ANTI_ALIAS_FLAG)).also { holders[view] = it }
         } catch (e: IllegalArgumentException) {
@@ -108,7 +105,6 @@ internal object GlassShader {
         s.setFloatUniform("size", bounds.width(), bounds.height())
         s.setFloatUniform("radius", if (radius >= 0f) radius else minOf(bounds.width(), bounds.height()) * 0.25f)
         s.setFloatUniform("bend", BEND_DP * d)
-        s.setFloatUniform("rim", RIM)
         h.paint.shader = s
         canvas.drawPath(clip, h.paint)
         return true
@@ -117,5 +113,4 @@ internal object GlassShader {
     private var broken = false
 
     private const val BEND_DP = 7f
-    private const val RIM = 0.22f
 }
