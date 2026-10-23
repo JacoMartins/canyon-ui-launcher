@@ -88,4 +88,30 @@
     <string name="snack_moved_page">Moved to page %1$d</string>
     <string name="snack_page_moved">Page moved</string>
     <string name="no_room">No room here</string>
+    <!-- Widgets (Stage 3) -->
+    <string name="widgets">Widgets</string>
+    <string name="widgets_for_stack">Add to stack</string>
+    <string name="widgets_search">Search widgets</string>
+    <string name="widgets_none">No widgets found</string>
+    <string name="close">Close</string>
+    <plurals name="widget_count">
+        <item quantity="one">%d widget</item>
+        <item quantity="other">%d widgets</item>
+    </plurals>
+    <string name="widget_size">%1$d × %2$d</string>
+    <string name="widget_add">Add to home screen</string>
+    <string name="widget_add_failed">The widget couldn\'t be added</string>
+    <string name="widget_error">This widget stopped working</string>
+    <string name="widget_unavailable">Widget unavailable</string>
+    <string name="widget_generic">this widget</string>
+    <string name="widget_restore">Tap to set up %1$s again</string>
+    <string name="menu_widget_settings">Widget settings</string>
+    <string name="menu_create_stack">Create stack</string>
+    <string name="menu_add_to_stack">Add widget</string>
+    <string name="menu_remove_from_stack">Remove this widget</string>
+    <string name="menu_unstack">Unstack</string>
+    <string name="menu_remove_stack">Remove stack</string>
+    <string name="snack_widget_added">Widget added</string>
+    <string name="snack_stack_created">Stack created</string>
+    <string name="snack_unstacked">Stack split up</string>
 </resources>

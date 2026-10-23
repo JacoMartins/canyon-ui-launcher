@@ -10,6 +10,12 @@ sealed interface DropAction {
     /** Dropped onto the centre of a folder. */
     data class AddToFolder(val folderId: Long) : DropAction
 
+    /** A widget dropped exactly over another widget of the same size: both become a stack. */
+    data class CreateStack(val targetId: Long) : DropAction
+
+    /** A widget dropped exactly over a stack of the same size. */
+    data class AddToStack(val stackId: Long) : DropAction
+
     /** Nowhere to put it (page or dock full, or a large folder over the dock). */
     data object Reject : DropAction
 }
@@ -39,7 +45,9 @@ object DropLogic {
         spanX: Int,
         spanY: Int,
     ): DropAction {
-        if (container == Container.DOCK && (spanX != 1 || spanY != 1)) return DropAction.Reject
+        if (container == Container.DOCK && (spanX != 1 || spanY != 1 || draggedType == ItemType.WIDGET || draggedType == ItemType.STACK)) {
+            return DropAction.Reject
+        }
         val others = items.filter { it.id != draggedId }
 
         if (centerHit && draggedType == ItemType.APP && spanX == 1 && spanY == 1) {
@@ -47,6 +55,15 @@ object DropLogic {
             when (occupant?.type) {
                 ItemType.APP -> return DropAction.CreateFolder(occupant.id)
                 ItemType.FOLDER -> return DropAction.AddToFolder(occupant.id)
+            }
+        }
+
+        if (draggedType == ItemType.WIDGET) {
+            // Stacking: the widget's outline sits exactly on a widget or stack of its size.
+            val occupant = others.firstOrNull { it.x == desired.x && it.y == desired.y && it.spanX == spanX && it.spanY == spanY }
+            when (occupant?.type) {
+                ItemType.WIDGET -> return DropAction.CreateStack(occupant.id)
+                ItemType.STACK -> return DropAction.AddToStack(occupant.id)
             }
         }
 

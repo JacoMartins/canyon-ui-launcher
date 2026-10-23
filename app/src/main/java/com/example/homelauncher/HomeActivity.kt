@@ -31,6 +31,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -49,6 +51,10 @@ import com.example.homelauncher.data.DragItem
 import com.example.homelauncher.data.FolderEntry
 import com.example.homelauncher.data.HomeEntry
 import com.example.homelauncher.data.HomeState
+import com.example.homelauncher.data.StackEntry
+import com.example.homelauncher.data.WidgetEntry
+import com.example.homelauncher.model.GridOccupancy
+import com.example.homelauncher.model.LayoutResolver
 import com.example.homelauncher.model.Container
 import com.example.homelauncher.model.DropAction
 import com.example.homelauncher.model.ItemType
@@ -72,7 +78,15 @@ import com.example.homelauncher.ui.overlay.OverlayActions
 import com.example.homelauncher.ui.overlay.OverlayState
 import com.example.homelauncher.ui.overlay.PageThumb
 import com.example.homelauncher.ui.overlay.Snack
+import com.example.homelauncher.ui.overlay.WidgetPickerState
 import com.example.homelauncher.ui.theme.HomeTheme
+import com.example.homelauncher.ui.widget.LauncherWidgetHostView
+import com.example.homelauncher.ui.widget.PickerWidget
+import com.example.homelauncher.ui.widget.ResizeFrame
+import com.example.homelauncher.ui.widget.WidgetCatalog
+import com.example.homelauncher.ui.widget.WidgetPlaceholderView
+import com.example.homelauncher.ui.widget.WidgetSizes
+import com.example.homelauncher.ui.widget.WidgetStackView
 import com.example.homelauncher.util.Motion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filterNotNull
@@ -120,6 +134,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     /** An empty page shown at the end while dragging, so items can go onto a new page. */
     private var extraPage = false
 
+    private lateinit var widgets: HomeWidgets
+    private var resizeFrame: ResizeFrame? = null
+    /** Where the picker adds: null for the current page, else onto a widget or stack. */
+    private var pickerTarget: DropAction? = null
+    private var pickerSpan: Pair<Int, Int>? = null
+    /** The last loaded picker contents, to find what a dragged-in widget is. */
+    private var pickerWidgets: Map<Pair<android.content.ComponentName, Long>, PickerWidget> = emptyMap()
+
     private val tmpRect = Rect()
     private val tmpRectF = RectF()
     private val pt = FloatArray(2)
@@ -159,6 +181,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         override fun handleOnBackPressed() {
             when {
                 ui.menu != null -> ui.menu = null
+                resizeFrame != null -> dismissResizeFrame()
+                ui.picker != null -> closePicker()
                 ui.folder != null -> closeFolder()
                 ui.overview != null -> closeOverview()
                 ui.editMode -> exitEditMode()
@@ -177,6 +201,13 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         super.onCreate(savedInstanceState)
         window.isNavigationBarContrastEnforced = false
         launcherApps = getSystemService(LauncherApps::class.java)
+        widgets = HomeWidgets(
+            this,
+            onProvidersChanged = ::onWidgetProvidersChanged,
+            onAdded = ::onWidgetAdded,
+            onFailed = { toast(getString(R.string.widget_add_failed)) },
+        )
+        widgets.restore(savedInstanceState)
 
         home = HomeScreenLayout(this, 4, 6, 4)
         // Content fades in once on the first bind so a cold start never shows a half-built page.
@@ -227,6 +258,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 launcher.home.state.filterNotNull().collect(::bind)
             }
         }
+        // Ids of widgets removed earlier (kept until now so Undo could bring them back).
+        if (savedInstanceState == null) lifecycleScope.launch { widgets.releaseUnused(launcher.home.widgetIdsInUse()) }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launcher.settings.settings.collect { s ->
@@ -239,6 +272,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onStart() {
         super.onStart()
+        widgets.host.startListeningSafely()
         wallpaperManager.addOnColorsChangedListener(colorsListener, Handler(Looper.getMainLooper()))
         refreshWallpaperColors()
     }
@@ -256,8 +290,21 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         if (launchPending) returningFromApp = true
         launchPending = false
         drag.cancel()
+        dismissResizeFrame()
         wallpaperManager.removeOnColorsChangedListener(colorsListener)
+        widgets.host.stopListeningSafely()
         super.onStop()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        widgets.save(outState)
+    }
+
+    @Deprecated("Widget binding and setup screens need request codes.")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        if (!widgets.onActivityResult(requestCode, resultCode)) super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -266,8 +313,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // first page or close the drawer; if returning from another app, reset without animation.
         val visible = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
         if (Intent.ACTION_MAIN == intent.action && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            dismissResizeFrame()
             if (ui.isModal || ui.editMode) {
                 ui.menu = null
+                closePicker()
                 closeFolder()
                 closeOverview()
                 if (ui.editMode) exitEditMode()
@@ -310,10 +359,19 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
         val dragged = drag.source?.view
         val seen = HashSet<Long>(st.entries.size)
+        val widgetIds = HashSet<Long>()
         for (entry in st.entries) {
             seen += entry.id
             val p = entry.placed
             val view = viewFor(entry)
+            when (entry) {
+                is WidgetEntry -> widgetIds += entry.id
+                is StackEntry -> {
+                    entry.widgets.forEach { widgetIds += it.id }
+                    (view as WidgetStackView).setPages(entry.widgets.map { widgetView(it) })
+                }
+                else -> Unit
+            }
             val parent: CellLayout = if (p.container == Container.DOCK) home.hotseat else home.workspace.pageAt(p.pageIndex) ?: continue
             val style = if (p.container == Container.DOCK) dockStyle else homeStyle
             when (view) {
@@ -322,7 +380,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             }
             val lp = view.layoutParams as? CellLayout.LayoutParams
             if (view.parent !== parent) {
-                (view.parent as? CellLayout)?.removeView(view)
+                (view.parent as? android.view.ViewGroup)?.removeView(view) // A page, the dock or a stack.
                 parent.addView(view, CellLayout.LayoutParams(p.x, p.y, p.spanX, p.spanY))
             } else if (lp != null && (lp.cellX != p.x || lp.cellY != p.y || lp.spanX != p.spanX || lp.spanY != p.spanY)) {
                 lp.cellX = p.x; lp.cellY = p.y; lp.spanX = p.spanX; lp.spanY = p.spanY
@@ -338,6 +396,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 it.remove()
             }
         }
+        widgets.prune(widgetIds)
+        applyWidgetSizes(st)
 
         // Keep an open folder in step with changes (renamed, apps added or dragged out).
         ui.folder?.let { open -> ui.folder = st.entry(open.id) as? FolderEntry }
@@ -353,12 +413,60 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     private fun viewFor(entry: HomeEntry): View {
         val existing = views[entry.id]
-        val wantFolder = entry is FolderEntry
-        if (existing != null && (existing is FolderIconView) == wantFolder) return existing
+        if (entry is WidgetEntry) {
+            val v = widgetView(entry)
+            if (existing !== v) (existing?.parent as? CellLayout)?.removeView(existing)
+            views[entry.id] = v
+            return v
+        }
+        val fits = when (entry) {
+            is FolderEntry -> existing is FolderIconView
+            is StackEntry -> existing is WidgetStackView
+            else -> existing is AppIconView
+        }
+        if (existing != null && fits) return existing
         (existing?.parent as? CellLayout)?.removeView(existing)
-        val v = if (wantFolder) newFolderView() else newIconView()
+        val v = when (entry) {
+            is FolderEntry -> newFolderView()
+            is StackEntry -> WidgetStackView(this)
+            else -> newIconView()
+        }
         views[entry.id] = v
         return v
+    }
+
+    private fun widgetView(entry: WidgetEntry): View = widgets.viewFor(entry) { v ->
+        v.setOnLongClickListener { onItemLongPress(it) }
+        if (v is WidgetPlaceholderView) {
+            v.setOnClickListener { if (ui.editMode) exitEditMode() else restoreWidget(entry.id) }
+        } else {
+            (v as? LauncherWidgetHostView)?.blockContent = ui.editMode
+            v.setOnClickListener { if (ui.editMode) exitEditMode() }
+        }
+    }
+
+    /** Tells each widget its size in dp when it is new or its cells changed. */
+    private fun applyWidgetSizes(st: HomeState) {
+        val sizes = widgetSizes() ?: return
+        fun apply(v: View?, sx: Int, sy: Int) {
+            val hv = v as? LauncherWidgetHostView ?: return
+            val key = sx * 100 + sy
+            if (hv.getTag(R.id.tag_widget_size) == key) return
+            hv.setTag(R.id.tag_widget_size, key)
+            sizes.applySize(hv, sx, sy)
+        }
+        for (e in st.entries) when (e) {
+            is WidgetEntry -> apply(views[e.id], e.placed.spanX, e.placed.spanY)
+            is StackEntry -> e.widgets.forEach { w -> apply(widgetView(w), e.placed.spanX, e.placed.spanY) }
+            else -> Unit
+        }
+    }
+
+    /** Cell geometry of the pages, once laid out. */
+    private fun widgetSizes(): WidgetSizes? {
+        val page = home.workspace.pageAt(home.workspace.currentPage) ?: home.workspace.pageAt(0) ?: return null
+        if (page.cellWidth <= 0 || page.cellHeight <= 0) return null
+        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density)
     }
 
     private fun newIconView() = AppIconView(this, homeStyle).apply {
@@ -381,18 +489,49 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     private fun entryOf(v: View): HomeEntry? = views.entries.firstOrNull { it.value === v }?.key?.let { state?.entry(it) }
 
-    private fun onItemLongPress(v: View): Boolean {
+    private fun onItemLongPress(pressed: View): Boolean {
+        // A widget inside a stack stands for the whole stack.
+        val v = pressed.parent as? WidgetStackView ?: pressed
         val entry = entryOf(v) ?: return false
         v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        ui.menu = ItemMenu(v.windowBounds(), menuFor(entry))
+        dismissResizeFrame()
+        ui.menu = ItemMenu(v.windowBounds(), menuFor(entry, v))
+        if (entry is WidgetEntry || entry is StackEntry) showResizeFrame(v, entry)
         updateBackCallbacks()
         drag.arm(sourceFor(v, entry))
         return true
     }
 
-    private fun menuFor(entry: HomeEntry): List<MenuEntry> {
+    private fun menuFor(entry: HomeEntry, view: View? = null): List<MenuEntry> {
         val out = ArrayList<MenuEntry>()
         when (entry) {
+            is WidgetEntry -> {
+                if (widgets.canReconfigure(entry.appWidgetId)) {
+                    out += MenuEntry(R.drawable.ph_widget_settings, getString(R.string.menu_widget_settings)) { widgets.reconfigure(entry.appWidgetId) }
+                }
+                if (entry.placed.container == Container.DESKTOP) {
+                    out += MenuEntry(R.drawable.ph_stack, getString(R.string.menu_create_stack)) {
+                        openPicker(DropAction.CreateStack(entry.id), entry.placed.spanX to entry.placed.spanY)
+                    }
+                }
+                out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove)) { removeWithUndo(entry.id) }
+            }
+            is StackEntry -> {
+                val front = entry.widgets.getOrNull((view as? WidgetStackView)?.current ?: 0) ?: entry.widgets.first()
+                if (widgets.canReconfigure(front.appWidgetId)) {
+                    out += MenuEntry(R.drawable.ph_widget_settings, getString(R.string.menu_widget_settings)) { widgets.reconfigure(front.appWidgetId) }
+                }
+                out += MenuEntry(R.drawable.ph_plus, getString(R.string.menu_add_to_stack)) {
+                    openPicker(DropAction.AddToStack(entry.id), entry.placed.spanX to entry.placed.spanY)
+                }
+                out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove_from_stack)) {
+                    edit(getString(R.string.snack_removed)) { launcher.home.remove(front.id) }
+                }
+                out += MenuEntry(R.drawable.ph_ungroup, getString(R.string.menu_unstack)) {
+                    edit(getString(R.string.snack_unstacked)) { launcher.home.ungroup(entry.id) }
+                }
+                out += MenuEntry(R.drawable.ph_trash, getString(R.string.menu_remove_stack)) { removeWithUndo(entry.id) }
+            }
             is AppEntry -> {
                 val app = entry.app
                 out += MenuEntry(R.drawable.ph_info, getString(R.string.menu_app_info)) { appInfo(app, null) }
@@ -433,7 +572,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val h = (local.height() * scale).toInt().coerceAtLeast(1)
         val image: Bitmap = when (entry) {
             is AppEntry -> entry.app.icon
-            is FolderEntry -> createBitmap(local.width().toInt().coerceAtLeast(1), local.height().toInt().coerceAtLeast(1)).also { b ->
+            else -> createBitmap(local.width().toInt().coerceAtLeast(1), local.height().toInt().coerceAtLeast(1)).also { b ->
                 val c = Canvas(b)
                 c.translate(-local.left, -local.top)
                 v.draw(c)
@@ -444,7 +583,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val app = (entry as? AppEntry)?.app
         return DragSource(
             item = DragItem.Existing(entry.id),
-            type = if (entry is FolderEntry) ItemType.FOLDER else ItemType.APP,
+            type = when (entry) {
+                is FolderEntry -> ItemType.FOLDER
+                is WidgetEntry -> ItemType.WIDGET
+                is StackEntry -> ItemType.STACK
+                else -> ItemType.APP
+            },
             spanX = entry.placed.spanX, spanY = entry.placed.spanY,
             image = image, width = w, height = h, touchX = touchX, touchY = touchY,
             view = v, app = app,
@@ -479,6 +623,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun onDragStarted(source: DragSource) {
         ui.menu = null
         ui.folder = null
+        ui.picker = null
+        dismissResizeFrame()
         drawerModel.dragEpoch++
         if (!drawer.isClosed) drawer.close(animate = false)
         ui.dragging = true
@@ -496,7 +642,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         extraPage = false
         val st = state
         val existingId = (source.item as? DragItem.Existing)?.id
+        val newWidget = source.item as? DragItem.NewWidget
         when (result) {
+            // A widget from the picker is bound (and maybe set up) before it is saved.
+            is DropResult.OnGrid if newWidget != null -> {
+                val w = pickerWidgets[newWidget.provider to newWidget.userSerial]
+                if (result.action == DropAction.Reject) toast(getString(R.string.no_room))
+                else if (w != null) addPickedWidget(w, result.action, source.spanX, source.spanY)
+            }
             is DropResult.OnGrid -> when (val a = result.action) {
                 is DropAction.Move -> {
                     val from = existingId?.let { st?.entry(it)?.placed }
@@ -511,6 +664,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     launcher.home.createFolder(source.item, a.targetId, getString(R.string.folder_default_title))
                 }
                 is DropAction.AddToFolder -> edit(null) { launcher.home.addToFolder(source.item, a.folderId) }
+                is DropAction.CreateStack -> edit(getString(R.string.snack_stack_created)) { launcher.home.createStack(source.item, a.targetId) }
+                is DropAction.AddToStack -> edit(null) { launcher.home.addToStack(source.item, a.stackId) }
                 DropAction.Reject -> toast(getString(R.string.no_room))
             }
             DropResult.Cancelled -> Unit
@@ -541,6 +696,139 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         } else {
             v.requestLayout()
         }
+    }
+
+    // --- Widgets ------------------------------------------------------------------------------
+
+    /** Opens the picker for the current page, or ([target]) to add to a widget or stack. */
+    private fun openPicker(target: DropAction?, span: Pair<Int, Int>?) {
+        val sizes = widgetSizes() ?: return
+        val apps = launcher.apps.apps.value.orEmpty()
+        lifecycleScope.launch {
+            val groups = withContext(Dispatchers.Default) { WidgetCatalog.load(this@HomeActivity, apps, sizes) }
+            pickerWidgets = groups.flatMap { it.widgets }.associateBy { it.info.provider to widgets.serialOf(it.info.profile) }
+            pickerTarget = target
+            pickerSpan = span
+            ui.menu = null
+            ui.picker = WidgetPickerState(groups, span)
+            updateBackCallbacks()
+        }
+    }
+
+    override fun openWidgets() = openPicker(null, null)
+
+    override fun closePicker() {
+        ui.picker = null
+        pickerTarget = null
+        pickerSpan = null
+        updateBackCallbacks()
+    }
+
+    /** Tap in the picker: onto the stack it was opened for, else the first free spot from the current page on. */
+    override fun addWidget(widget: PickerWidget) {
+        val target = pickerTarget
+        val span = pickerSpan
+        closePicker()
+        if (target != null && span != null) {
+            addPickedWidget(widget, target, span.first, span.second)
+            return
+        }
+        val st = state ?: return
+        val (page, cell) = LayoutResolver.findSlotForNewItem(
+            st.entries.map { it.placed }, st.pageCount, st.columns, st.rows, home.workspace.currentPage, widget.spanX, widget.spanY,
+        )
+        addPickedWidget(widget, DropAction.Move(Container.DESKTOP, page, cell.x, cell.y), widget.spanX, widget.spanY)
+        if (page != home.workspace.currentPage) dragLayer.postDelayed({ home.workspace.snapToPage(page) }, 300)
+    }
+
+    override fun armWidgetDrag(widget: PickerWidget, preview: ImageBitmap?, bounds: Rect) {
+        val page = home.workspace.pageAt(home.workspace.currentPage) ?: return
+        val scale = ViewMap.scaleOf(dragLayer, page)
+        val w = (widget.spanX * page.cellWidth * scale).toInt().coerceAtLeast(1)
+        val h = (widget.spanY * page.cellHeight * scale).toInt().coerceAtLeast(1)
+        val image = preview?.asAndroidBitmap() ?: createBitmap(w, h).also { it.eraseColor(0x66FFFFFF) }
+        drag.arm(
+            DragSource(
+                item = DragItem.NewWidget(widget.info.provider, widgets.serialOf(widget.info.profile)),
+                type = ItemType.WIDGET, spanX = widget.spanX, spanY = widget.spanY,
+                image = image, width = w, height = h, touchX = w / 2f, touchY = h / 2f,
+                view = null, app = null,
+            ),
+        )
+    }
+
+    private fun addPickedWidget(w: PickerWidget, action: DropAction, spanX: Int, spanY: Int) {
+        val sizes = widgetSizes() ?: return
+        widgets.startAdd(w.info, spanX, spanY, action, sizes.options(spanX, spanY))
+    }
+
+    /** The widget is bound (and set up, if it asked): save it where it was dropped. */
+    private fun onWidgetAdded(p: HomeWidgets.PendingAdd) {
+        lifecycleScope.launch {
+            if (p.restoreItemId != 0L) {
+                launcher.home.rebindWidget(p.restoreItemId, p.appWidgetId)
+            } else {
+                launcher.home.addWidget(p.toNewWidget(widgets.serialOf(p.user)), p.action)
+                ui.snack = Snack(getString(R.string.snack_widget_added)) { lifecycleScope.launch { launcher.home.undo() } }
+            }
+        }
+    }
+
+    /** A widget whose app was reinstalled: bind it again in the same place. */
+    private fun restoreWidget(itemId: Long) {
+        val entry = state?.widget(itemId) ?: return
+        val info = widgets.installedProvider(entry.provider, entry.userSerial)
+        val sizes = widgetSizes()
+        if (info == null || sizes == null) {
+            toast(getString(R.string.widget_unavailable))
+            return
+        }
+        widgets.startAdd(info, entry.placed.spanX, entry.placed.spanY, DropAction.Reject, sizes.options(entry.placed.spanX, entry.placed.spanY), restoreItemId = itemId)
+    }
+
+    /** Apps with widgets were installed, updated or removed: placeholders may now work, and the picker changes. */
+    private fun onWidgetProvidersChanged() {
+        val ids = state?.entries.orEmpty().flatMap { e ->
+            when (e) {
+                is WidgetEntry -> listOf(e.id)
+                is StackEntry -> e.widgets.map { it.id }
+                else -> emptyList()
+            }
+        }.toSet()
+        widgets.prune(ids, dropPlaceholders = true)
+        state?.let(::bind)
+        if (ui.picker != null) openPicker(pickerTarget, pickerSpan)
+    }
+
+    private fun showResizeFrame(view: View, entry: HomeEntry) {
+        val sizes = widgetSizes() ?: return
+        val range = widgets.range(entry, sizes) ?: return
+        if (!range.resizable) return
+        val page = view.parent as? CellLayout ?: return
+        val st = state ?: return
+        val occupied = GridOccupancy(st.columns, st.rows)
+        for (o in st.placedIn(Container.DESKTOP, entry.placed.pageIndex)) if (o.id != entry.id) occupied.mark(o.x, o.y, o.spanX, o.spanY)
+        val frame = ResizeFrame(
+            this, dragLayer, page, view, occupied, range,
+            onStart = {
+                drag.disarm()
+                ui.menu = null
+                updateBackCallbacks()
+            },
+            onResize = { x, y, sx, sy -> edit(null) { launcher.home.resize(entry.id, x, y, sx, sy) } },
+            // Not while the touch that dismissed it is still being dispatched.
+            onDismiss = { dragLayer.post(::dismissResizeFrame) },
+        )
+        dragLayer.addView(frame, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        resizeFrame = frame
+        updateBackCallbacks()
+    }
+
+    private fun dismissResizeFrame() {
+        val f = resizeFrame ?: return
+        resizeFrame = null
+        dragLayer.removeView(f)
+        updateBackCallbacks()
     }
 
     // --- Edits with undo ---------------------------------------------------------------------
@@ -607,6 +895,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun enterEditMode() {
         if (!drawer.isClosed || ui.editMode) return
         ui.editMode = true
+        widgets.setEditMode(true)
+        dismissResizeFrame()
         ui.currentPage = home.workspace.currentPage
         dragLayer.drawerEnabled = false
         if (hintVisible) home.hint.animate().alpha(0f).setDuration(120).start()
@@ -619,6 +909,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun exitEditMode() {
         if (!ui.editMode) return
         ui.editMode = false
+        widgets.setEditMode(false)
+        dismissResizeFrame()
         dragLayer.drawerEnabled = drawerEnabled
         if (hintVisible) home.hint.animate().alpha(1f).setDuration(150).start()
         home.setPageBackdrops(false)
@@ -699,7 +991,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     private fun updateBackCallbacks() {
-        overlayBack.isEnabled = ui.isModal || ui.editMode
+        overlayBack.isEnabled = ui.isModal || ui.editMode || resizeFrame != null
     }
 
     // --- Wallpaper-aware colours ---------------------------------------------------------------

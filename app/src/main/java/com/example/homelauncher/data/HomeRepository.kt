@@ -1,9 +1,11 @@
 package com.example.homelauncher.data
 
+import android.content.ComponentName
 import com.example.homelauncher.model.AppKey
 import com.example.homelauncher.model.Cell
 import com.example.homelauncher.model.Container
 import com.example.homelauncher.model.DefaultLayoutPlanner
+import com.example.homelauncher.model.DropAction
 import com.example.homelauncher.model.DropLogic
 import com.example.homelauncher.model.GridOccupancy
 import com.example.homelauncher.model.ItemType
@@ -42,6 +44,15 @@ class FolderEntry(placed: PlacedItem, val title: String, val color: Int, val app
     val isLarge get() = placed.spanX > 1 || placed.spanY > 1
 }
 
+/** A widget: the host's [appWidgetId] and the provider it was added from. */
+class WidgetEntry(placed: PlacedItem, val appWidgetId: Int, val provider: ComponentName, val userSerial: Long) : HomeEntry(placed)
+
+/** Widgets of one size in one place, swiped through; [widgets] in rank order. */
+class StackEntry(placed: PlacedItem, val widgets: List<WidgetEntry>) : HomeEntry(placed)
+
+/** A widget to add: what the user picked, bound to [appWidgetId] by the host. */
+class NewWidget(val appWidgetId: Int, val provider: ComponentName, val userSerial: Long, val spanX: Int, val spanY: Int)
+
 data class HomeState(
     val mode: LayoutMode,
     val pageCount: Int,
@@ -65,12 +76,21 @@ data class HomeState(
 
     fun folderOf(childId: Long): FolderEntry? =
         entries.firstOrNull { it is FolderEntry && it.apps.any { a -> a.id == childId } } as? FolderEntry
+
+    fun stackOf(childId: Long): StackEntry? =
+        entries.firstOrNull { it is StackEntry && it.widgets.any { w -> w.id == childId } } as? StackEntry
+
+    /** A top-level entry or a widget inside a stack. */
+    fun widget(id: Long): WidgetEntry? = entry(id) as? WidgetEntry ?: stackOf(id)?.widgets?.firstOrNull { it.id == id }
 }
 
 /** What is being dropped: an item already on home (by id) or a new app (from the drawer). */
 sealed interface DragItem {
     data class Existing(val id: Long) : DragItem
     data class NewApp(val key: AppKey) : DragItem
+
+    /** A widget from the picker; bound by the host only once it is dropped. */
+    data class NewWidget(val provider: ComponentName, val userSerial: Long) : DragItem
 }
 
 /**
@@ -144,14 +164,14 @@ class HomeRepository(
             val sourceItems = source.itemsNow()
             // Folders first, so their apps can point at the copies' new ids.
             val folderIds = HashMap<Long, Long>()
-            for (e in sourceItems.filter { it.type == ItemEntity.TYPE_FOLDER }) {
+            for (e in sourceItems.filter { ItemType.isGroup(it.type) }) {
                 val copy = if (e.container == Container.DOCK) e.copy(id = 0) else pageMap[e.pageId]?.let { e.copy(id = 0, pageId = it) }
                 if (copy != null) folderIds[e.id] = dao.insertItem(copy)
             }
-            val rest = sourceItems.filter { it.type != ItemEntity.TYPE_FOLDER }.mapNotNull { e ->
+            val rest = sourceItems.filter { !ItemType.isGroup(it.type) }.mapNotNull { e ->
                 when (e.container) {
                     Container.DOCK -> e.copy(id = 0)
-                    Container.FOLDER -> folderIds[e.parentId]?.let { e.copy(id = 0, parentId = it) }
+                    Container.FOLDER, Container.STACK -> folderIds[e.parentId]?.let { e.copy(id = 0, parentId = it) }
                     else -> pageMap[e.pageId]?.let { e.copy(id = 0, pageId = it) }
                 }
             }
@@ -161,7 +181,7 @@ class HomeRepository(
     }
 
     private fun keyOf(e: ItemEntity): AppKey? =
-        if (e.type == ItemEntity.TYPE_FOLDER || e.packageName.isEmpty()) null else AppKey(e.packageName, e.className, e.userSerial)
+        if (e.type != ItemEntity.TYPE_APP || e.packageName.isEmpty()) null else AppKey(e.packageName, e.className, e.userSerial)
 
     private fun compute(
         mode: LayoutMode,
@@ -189,7 +209,7 @@ class HomeRepository(
                 x = e.cellX, y = e.cellY, spanX = e.spanX, spanY = e.spanY,
                 key = keyOf(e),
                 missingSince = e.missingSince,
-                type = if (e.type == ItemEntity.TYPE_FOLDER) ItemType.FOLDER else ItemType.APP,
+                type = e.type, // ItemEntity.TYPE_* and ItemType share their values.
                 parentId = e.parentId,
             )
         }
@@ -208,9 +228,19 @@ class HomeRepository(
         val hidden = s.hiddenByMode.getValue(mode)
         fun shown(p: PlacedItem) = !homeOnly || p.key?.toString() !in hidden
 
+        fun widgetEntry(p: PlacedItem): WidgetEntry? {
+            val e = entities[p.id] ?: return null
+            return WidgetEntry(p, e.appWidgetId, ComponentName(e.packageName, e.className), e.userSerial)
+        }
+
         val visible = ArrayList<HomeEntry>(resolved.visible.size)
         for (p in resolved.visible) {
-            if (p.type == ItemType.FOLDER) {
+            if (p.type == ItemType.WIDGET) {
+                widgetEntry(p)?.let { visible += it }
+            } else if (p.type == ItemType.STACK) {
+                val widgets = resolved.children[p.id].orEmpty().mapNotNull(::widgetEntry)
+                if (widgets.isNotEmpty()) visible += StackEntry(p, widgets)
+            } else if (p.type == ItemType.FOLDER) {
                 val kids = resolved.children[p.id].orEmpty().filter(::shown).mapNotNull { c -> byKey[c.key]?.let { AppEntry(c, it) } }
                 if (kids.isEmpty()) continue
                 val e = entities[p.id]
@@ -330,6 +360,10 @@ class HomeRepository(
     private fun ItemEntity.inFolder(folderId: Long, rank: Int) =
         copy(container = Container.FOLDER, pageId = 0, cellX = rank, cellY = 0, spanX = 1, spanY = 1, parentId = folderId)
 
+    /** In a stack a widget takes the stack's size. */
+    private fun ItemEntity.inStack(stack: ItemEntity, rank: Int) =
+        copy(container = Container.STACK, pageId = 0, cellX = rank, cellY = 0, spanX = stack.spanX, spanY = stack.spanY, parentId = stack.id)
+
     // ---------------------------------------------------------------------------------- edits
 
     /** Runs a user edit on the active mode's database after saving the layout for undo. */
@@ -361,6 +395,7 @@ class HomeRepository(
             val e = entity(item.key, Container.DESKTOP, 0, 0, 0)
             e.copy(id = dao.insertItem(e))
         }
+        is DragItem.NewWidget -> null // Added through addWidget after binding.
     }
 
     /** Moves an existing item or places a new app at a cell of a page or the dock. */
@@ -396,16 +431,18 @@ class HomeRepository(
     }
 
     /**
-     * After an app leaves a folder: an empty folder is deleted, and a folder with one app left is
-     * replaced by that app in the same cell.
+     * After an item leaves a folder or stack: an empty one is deleted, and one with a single item
+     * left is replaced by that item in the same place (an app as 1x1, a widget at the stack's size).
      */
     private suspend fun tidyFolder(dao: LauncherDao, folderId: Long) {
         val folder = dao.item(folderId) ?: return
         val kids = dao.children(folderId)
+        val stack = folder.type == ItemEntity.TYPE_STACK
         when (kids.size) {
             0 -> dao.deleteItems(listOf(folderId))
             1 -> {
-                dao.updateItem(kids[0].placedAt(folder.container, folder.pageId, folder.cellX, folder.cellY).copy(spanX = 1, spanY = 1))
+                val last = kids[0].placedAt(folder.container, folder.pageId, folder.cellX, folder.cellY)
+                dao.updateItem(if (stack) last.copy(spanX = folder.spanX, spanY = folder.spanY) else last.copy(spanX = 1, spanY = 1))
                 dao.deleteItems(listOf(folderId))
             }
             else -> {
@@ -422,35 +459,116 @@ class HomeRepository(
         if (e.parentId != 0L) tidyFolder(dao, e.parentId)
     }
 
-    /** Puts a folder's apps back on its page: the first in the folder's cell, the rest nearby. */
+    /**
+     * Puts a folder's apps (or a stack's widgets) back on its page: the first in the group's
+     * place, the rest nearby, then on the following pages.
+     */
     suspend fun ungroup(folderId: Long) = edit { dao, st ->
         val folder = dao.item(folderId) ?: return@edit
         val kids = dao.children(folderId)
         val page = st.entry(folderId)?.placed?.pageIndex ?: 0
         val others = st.entries.map { it.placed }.filter { it.id != folderId }
-        val grid = Array(st.pageCount + kids.size) { GridOccupancy(st.columns, st.rows) }
+        val grid = Array(st.pageCount + kids.size + 1) { GridOccupancy(st.columns, st.rows) }
         val dock = GridOccupancy(st.dockSlots, 1)
         for (o in others) {
             if (o.container == Container.DOCK) dock.mark(o.x, 0) else if (o.pageIndex in grid.indices) grid[o.pageIndex].mark(o.x, o.y, o.spanX, o.spanY)
         }
         val updated = ArrayList<ItemEntity>()
         kids.forEachIndexed { i, kid ->
+            val sx = minOf(kid.spanX, st.columns)
+            val sy = minOf(kid.spanY, st.rows)
             if (i == 0) {
-                updated += kid.placedAt(folder.container, folder.pageId, folder.cellX, folder.cellY)
-                if (folder.container == Container.DOCK) dock.mark(folder.cellX, 0) else grid[page].mark(folder.cellX, folder.cellY)
+                updated += kid.placedAt(folder.container, folder.pageId, folder.cellX, folder.cellY).copy(spanX = sx, spanY = sy)
+                if (folder.container == Container.DOCK) dock.mark(folder.cellX, 0) else grid[page].mark(folder.cellX, folder.cellY, sx, sy)
             } else {
                 var p = if (folder.container == Container.DOCK) 0 else page
                 var cell: Cell? = null
-                while (cell == null) {
-                    cell = grid[p].findNearestFree(folder.cellX, folder.cellY)
+                while (cell == null && p < grid.size) {
+                    cell = grid[p].findNearestFree(folder.cellX, folder.cellY, sx, sy)
                     if (cell == null) p++
                 }
-                grid[p].mark(cell.x, cell.y)
-                updated += kid.placedAt(Container.DESKTOP, pageId(dao, Container.DESKTOP, p), cell.x, cell.y)
+                if (cell == null) return@forEachIndexed // Cannot happen: the last page is empty.
+                grid[p].mark(cell.x, cell.y, sx, sy)
+                updated += kid.placedAt(Container.DESKTOP, pageId(dao, Container.DESKTOP, p), cell.x, cell.y).copy(spanX = sx, spanY = sy)
             }
         }
         dao.updateItems(updated)
         dao.deleteItems(listOf(folderId))
+    }
+
+    /** Drops [item] (a widget) onto the widget [targetId]: both go into a new stack in its place. */
+    suspend fun createStack(item: DragItem, targetId: Long) = edit { dao, _ ->
+        val target = dao.item(targetId) ?: return@edit
+        val dragged = materialize(dao, item) ?: return@edit
+        stackWith(dao, target, dragged)
+    }
+
+    private suspend fun stackWith(dao: LauncherDao, target: ItemEntity, dragged: ItemEntity) {
+        val oldParent = dragged.parentId
+        val stack = ItemEntity(
+            type = ItemEntity.TYPE_STACK,
+            container = target.container, pageId = target.pageId, cellX = target.cellX, cellY = target.cellY,
+            spanX = target.spanX, spanY = target.spanY,
+            packageName = "", className = "", userSerial = 0,
+        )
+        val saved = stack.copy(id = dao.insertItem(stack))
+        // The dropped widget goes on top.
+        dao.updateItems(listOf(dragged.inStack(saved, 0), target.inStack(saved, 1)))
+        if (oldParent != 0L) tidyFolder(dao, oldParent)
+    }
+
+    suspend fun addToStack(item: DragItem, stackId: Long) = edit { dao, _ ->
+        val stack = dao.item(stackId) ?: return@edit
+        val dragged = materialize(dao, item) ?: return@edit
+        addToStack(dao, stack, dragged)
+    }
+
+    private suspend fun addToStack(dao: LauncherDao, stack: ItemEntity, dragged: ItemEntity) {
+        if (dragged.parentId == stack.id) return
+        val oldParent = dragged.parentId
+        // The new widget goes on top; the others shift down one rank.
+        val kids = dao.children(stack.id).mapIndexed { i, k -> k.copy(cellX = i + 1) }
+        dao.updateItems(kids + dragged.inStack(stack, 0))
+        if (oldParent != 0L) tidyFolder(dao, oldParent)
+    }
+
+    /** Adds a bound widget where it was dropped: on a cell, or onto a widget or stack. */
+    suspend fun addWidget(w: NewWidget, action: DropAction) = edit { dao, _ ->
+        val base = ItemEntity(
+            type = ItemEntity.TYPE_WIDGET,
+            container = Container.DESKTOP, pageId = 0, cellX = 0, cellY = 0, spanX = w.spanX, spanY = w.spanY,
+            packageName = w.provider.packageName, className = w.provider.className, userSerial = w.userSerial,
+            appWidgetId = w.appWidgetId,
+        )
+        when (action) {
+            is DropAction.Move -> dao.insertItem(base.copy(pageId = pageId(dao, Container.DESKTOP, action.pageIndex), cellX = action.x, cellY = action.y))
+            is DropAction.CreateStack -> {
+                val target = dao.item(action.targetId) ?: return@edit
+                stackWith(dao, target, base.copy(id = dao.insertItem(base)))
+            }
+            is DropAction.AddToStack -> {
+                val stack = dao.item(action.stackId) ?: return@edit
+                addToStack(dao, stack, base.copy(id = dao.insertItem(base)))
+            }
+            else -> Unit
+        }
+    }
+
+    /** Points a widget at a newly bound host id (after its app was reinstalled). */
+    suspend fun rebindWidget(id: Long, appWidgetId: Int) = edit { dao, _ ->
+        dao.item(id)?.let { dao.updateItem(it.copy(appWidgetId = appWidgetId)) }
+    }
+
+    /** Resizes a widget or stack (and the widgets in it) to a new cell rectangle. */
+    suspend fun resize(id: Long, x: Int, y: Int, spanX: Int, spanY: Int) = edit { dao, _ ->
+        val e = dao.item(id) ?: return@edit
+        dao.updateItem(e.copy(cellX = x, cellY = y, spanX = spanX, spanY = spanY))
+        if (e.type == ItemEntity.TYPE_STACK) dao.updateItems(dao.children(id).map { it.copy(spanX = spanX, spanY = spanY) })
+    }
+
+    /** Every widget id stored in any mode, so unused host ids can be released. */
+    suspend fun widgetIdsInUse(): Set<Int> = writes.withLock {
+        daos.values.flatMapTo(HashSet()) { it.widgetIds() }
     }
 
     /** Makes a folder 2x2 (moving it if needed) or 1x1. Returns false if there is no room. */

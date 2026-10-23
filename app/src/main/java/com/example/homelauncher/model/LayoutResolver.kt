@@ -7,16 +7,27 @@ object Container {
 
     /** Inside a folder: the item's parent is the folder's id, its x is its rank. */
     const val FOLDER = 2
+
+    /** Inside a widget stack: the widget's parent is the stack's id, its x is its rank. */
+    const val STACK = 3
 }
 
 object ItemType {
     const val APP = 0
     const val FOLDER = 1
+    const val WIDGET = 2
+
+    /** Widgets of one size swiped through in one place. */
+    const val STACK = 3
+
+    /** Items that hold others (apps in folders, widgets in stacks). */
+    fun isGroup(type: Int) = type == FOLDER || type == STACK
 }
 
 /**
  * A stored home item, independent of Room. For apps [key] is the launch target
- * ("pkg/cls#userSerial"); folders have no key.
+ * ("pkg/cls#userSerial"); folders, widgets and stacks have no key (a widget whose provider is
+ * gone is shown as a placeholder by the UI, not hidden here).
  */
 data class StoredItem(
     val id: Long,
@@ -76,7 +87,7 @@ data class PlacedItem(
 
 /**
  * [visible] are top-level items (pages and dock). [children] maps a folder id to its visible
- * apps in rank order.
+ * apps, or a stack id to its widgets, in rank order.
  */
 class ResolvedLayout(
     val visible: List<PlacedItem>,
@@ -96,7 +107,9 @@ class ResolvedLayout(
  *   to the first free cell on their page, then the next pages, then a new page.
  * - Folders: their apps follow the same rules. A folder whose apps are all temporarily missing
  *   is hidden but kept; a folder with no apps left is deleted; apps whose folder no longer
- *   exists move onto the pages. Only 1x1 items fit in the dock.
+ *   exists move onto the pages. Only 1x1 apps and folders fit in the dock.
+ * - Stacks follow the folder rules for widgets: an empty stack is deleted, and widgets whose
+ *   stack no longer exists move onto the pages with their own size.
  */
 object LayoutResolver {
 
@@ -115,19 +128,31 @@ object LayoutResolver {
     ): ResolvedLayout {
         val updates = ArrayList<ItemUpdate>()
         val present = ArrayList<StoredItem>(items.size)
-        val folderIds = items.filter { it.type == ItemType.FOLDER }.mapTo(HashSet()) { it.id }
+        val groupIds = items.filter { ItemType.isGroup(it.type) }.mapTo(HashSet()) { it.id }
         val children = HashMap<Long, MutableList<StoredItem>>()
         val liveChildren = HashMap<Long, Int>() // Present or still-remembered apps per folder.
 
         for (item in items) {
-            if (item.type == ItemType.FOLDER) continue
+            if (ItemType.isGroup(item.type)) continue
+            if (item.type == ItemType.WIDGET) {
+                val inStack = item.container == Container.STACK
+                when {
+                    inStack && item.parentId !in groupIds -> present += item.copy(container = Container.DESKTOP, pageIndex = -1)
+                    inStack -> {
+                        children.getOrPut(item.parentId) { ArrayList() } += item
+                        liveChildren.merge(item.parentId, 1, Int::plus)
+                    }
+                    else -> present += item
+                }
+                continue
+            }
             val key = item.key
             if (key == null) {
                 updates += ItemUpdate.Delete(item.id) // An app row without a target is unusable.
                 continue
             }
             val inFolder = item.container == Container.FOLDER
-            val orphan = inFolder && item.parentId !in folderIds
+            val orphan = inFolder && item.parentId !in groupIds
             val target = when {
                 key in installed -> key
                 else -> defaultActivityFor(key.packageName, key.userSerial)
@@ -156,7 +181,7 @@ object LayoutResolver {
         }
 
         for (folder in items) {
-            if (folder.type != ItemType.FOLDER) continue
+            if (!ItemType.isGroup(folder.type)) continue
             when {
                 (liveChildren[folder.id] ?: 0) == 0 -> updates += ItemUpdate.Delete(folder.id)
                 children[folder.id].isNullOrEmpty() -> Unit // Every app is temporarily missing: hide, keep.
@@ -179,7 +204,8 @@ object LayoutResolver {
         val displaced = ArrayList<StoredItem>()
 
         for (item in ordered) {
-            val fitsDock = item.container == Container.DOCK && item.spanX == 1 && item.spanY == 1 && dock.isFree(item.x, 0)
+            val fitsDock = item.container == Container.DOCK && item.spanX == 1 && item.spanY == 1 &&
+                (item.type == ItemType.APP || item.type == ItemType.FOLDER) && dock.isFree(item.x, 0)
             val fitsPage = item.container == Container.DESKTOP && item.pageIndex in 0 until pageCount &&
                 page(item.pageIndex).isFree(item.x, item.y, item.spanX, item.spanY)
             when {
@@ -223,7 +249,7 @@ object LayoutResolver {
         }
 
         val visibleChildren = children.mapValues { (_, list) ->
-            list.sortedWith(compareBy({ it.x }, { it.id })).map { it.placed(Container.FOLDER, 0, it.x, 0) }
+            list.sortedWith(compareBy({ it.x }, { it.id })).map { it.placed(it.container, 0, it.x, 0) }
         }
         return ResolvedLayout(visible, updates, visibleChildren)
     }
@@ -232,8 +258,8 @@ object LayoutResolver {
         PlacedItem(id, container, page, x, y, spanX, spanY, key, type)
 
     /**
-     * Where to put a new 1x1 app: the first free cell on [preferredPage], then on any page,
-     * else on a new page (returned index == page count).
+     * Where to put a new item ([spanX] x [spanY], an app is 1x1): the first free spot on
+     * [preferredPage], then on any page, else on a new page (returned index == page count).
      */
     fun findSlotForNewItem(
         visible: List<PlacedItem>,
@@ -241,6 +267,8 @@ object LayoutResolver {
         columns: Int,
         rows: Int,
         preferredPage: Int,
+        spanX: Int = 1,
+        spanY: Int = 1,
     ): Pair<Int, Cell> {
         val pages = List(maxOf(pageCount, 1)) { GridOccupancy(columns, rows) }
         for (v in visible) {
@@ -250,7 +278,7 @@ object LayoutResolver {
         }
         val start = preferredPage.coerceIn(0, pages.size - 1)
         for (p in listOf(start) + pages.indices.filter { it != start }) {
-            pages[p].findFirstFree()?.let { return p to it }
+            pages[p].findFirstFree(spanX, spanY)?.let { return p to it }
         }
         return pages.size to Cell(0, 0)
     }

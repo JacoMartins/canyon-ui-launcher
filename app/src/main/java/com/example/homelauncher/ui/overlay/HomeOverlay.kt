@@ -109,7 +109,7 @@ private val PanelShape = RoundedCornerShape(32.dp)
 @Composable
 fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
     Box(Modifier.fillMaxSize()) {
-        val chrome = state.editMode && state.overview == null && state.folder == null && !state.dragging
+        val chrome = state.editMode && state.overview == null && state.folder == null && state.picker == null && !state.dragging
         AnimatedVisibility(
             visible = chrome,
             enter = fadeIn() + slideInVertically { -it / 2 },
@@ -123,6 +123,7 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             modifier = Modifier.align(Alignment.BottomCenter),
         ) { EditBottomBar(actions) }
 
+        state.picker?.let { WidgetPicker(it, actions) }
         state.folder?.let { FolderPopup(it, actions) }
         state.menu?.let { ItemMenuLayer(it) { state.menu = null } }
         state.overview?.let { PageOverview(it, state, actions) }
@@ -159,6 +160,7 @@ private fun EditBottomBar(actions: OverlayActions) {
     ) {
         Row(Modifier.padding(Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             ToolButton(R.drawable.ph_wallpaper, stringResource(R.string.wallpaper), actions::chooseWallpaper)
+            ToolButton(R.drawable.ph_widgets, stringResource(R.string.widgets), actions::openWidgets)
             ToolButton(R.drawable.ph_settings, stringResource(R.string.settings), actions::openSettings)
         }
     }

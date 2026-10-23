@@ -163,4 +163,43 @@ class LayoutResolverTest {
         val r = resolve(listOf(folderItem(10, 0, 0, 0, span = 2, container = Container.DOCK), child(11, 10, 0, a)), setOf(a))
         assertEquals(Container.DESKTOP, r.visible.single().container)
     }
+
+    // --- Widgets and stacks
+
+    private fun widget(id: Long, x: Int, y: Int, sx: Int, sy: Int, container: Int = Container.DESKTOP, parent: Long = 0) =
+        StoredItem(id, container, 0, x, y, sx, sy, null, null, ItemType.WIDGET, parent)
+
+    private fun stack(id: Long, x: Int, y: Int, sx: Int, sy: Int) =
+        StoredItem(id, Container.DESKTOP, 0, x, y, sx, sy, null, null, ItemType.STACK)
+
+    @Test fun widgetKeepsItsCellsWithoutAnAppKey() {
+        val r = resolve(listOf(widget(1, 0, 0, 4, 2)), emptySet(), columns = 4)
+        assertEquals(PlacedItem(1, Container.DESKTOP, 0, 0, 0, 4, 2, null, ItemType.WIDGET), r.visible.single())
+        assertTrue(r.updates.isEmpty())
+    }
+
+    @Test fun stackShowsItsWidgetsInRankOrder() {
+        val r = resolve(listOf(stack(10, 0, 0, 2, 2), widget(11, 1, 0, 2, 2, Container.STACK, 10), widget(12, 0, 0, 2, 2, Container.STACK, 10)), emptySet())
+        assertEquals(listOf(10L), r.visible.map { it.id })
+        assertEquals(listOf(12L, 11L), r.children.getValue(10).map { it.id })
+        assertEquals(Container.STACK, r.children.getValue(10).first().container)
+    }
+
+    @Test fun emptyStackIsDeleted() {
+        val r = resolve(listOf(stack(10, 0, 0, 2, 2)), emptySet())
+        assertEquals(listOf(ItemUpdate.Delete(10)), r.updates)
+    }
+
+    @Test fun widgetWhoseStackIsGoneMovesOntoThePageAtItsSize() {
+        val r = resolve(listOf(widget(11, 0, 0, 2, 2, Container.STACK, parent = 99)), emptySet())
+        val v = r.visible.single()
+        assertEquals(Container.DESKTOP, v.container)
+        assertEquals(2, v.spanX)
+        assertEquals(2, v.spanY)
+    }
+
+    @Test fun widgetNeverStaysInTheDock() {
+        val r = resolve(listOf(widget(1, 0, 0, 1, 1, Container.DOCK)), emptySet())
+        assertEquals(Container.DESKTOP, r.visible.single().container)
+    }
 }

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- View tags on widget views: the host's widget id and the home item id. -->
+    <item name="tag_widget_id" type="id" />
+    <item name="tag_item_id" type="id" />
+    <!-- The cell size last reported to a widget. -->
+    <item name="tag_widget_size" type="id" />
+</resources>

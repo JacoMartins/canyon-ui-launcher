@@ -244,6 +244,11 @@ class DragController(
                     val t = st.entry(id)?.placed
                     if (t != null) cellLayout.showDropHint(t.x, t.y, t.spanX, t.spanY, folder = t.spanX == 1)
                 }
+                is DropAction.CreateStack, is DropAction.AddToStack -> {
+                    val id = (action as? DropAction.CreateStack)?.targetId ?: (action as DropAction.AddToStack).stackId
+                    val t = st.entry(id)?.placed
+                    if (t != null) cellLayout.showDropHint(t.x, t.y, t.spanX, t.spanY, folder = false)
+                }
                 DropAction.Reject -> cellLayout.clearDropHint()
             }
             if (action != DropAction.Reject) root.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)

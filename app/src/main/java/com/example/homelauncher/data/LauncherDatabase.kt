@@ -24,8 +24,8 @@ data class PageEntity(
 )
 
 /**
- * Anything placed on the home screen, the dock or in a folder ([type]: app or folder; widgets
- * reuse this table in Stage 3).
+ * Anything placed on the home screen, the dock, in a folder or in a widget stack ([type]: app,
+ * folder, widget or stack). A widget keeps its provider in [packageName]/[className].
  */
 @Entity(tableName = "items", indices = [Index("pageId"), Index("parentId")])
 data class ItemEntity(
@@ -40,7 +40,7 @@ data class ItemEntity(
     val cellY: Int,
     val spanX: Int = 1,
     val spanY: Int = 1,
-    /** Empty for folders. */
+    /** App package, or a widget's provider package. Empty for folders and stacks. */
     val packageName: String,
     val className: String,
     val userSerial: Long,
@@ -50,12 +50,16 @@ data class ItemEntity(
     val title: String? = null,
     /** Folder colour as ARGB; 0 = theme default (folders only). */
     val color: Int = 0,
-    /** The folder an app is in (container FOLDER), else 0. */
+    /** The folder an app is in (container FOLDER) or the stack a widget is in (STACK), else 0. */
     val parentId: Long = 0,
+    /** The id the widget host gave this widget (widgets only), else -1. */
+    val appWidgetId: Int = -1,
 ) {
     companion object {
         const val TYPE_APP = 0
         const val TYPE_FOLDER = 1
+        const val TYPE_WIDGET = 2
+        const val TYPE_STACK = 3
     }
 }
 
@@ -103,6 +107,9 @@ interface LauncherDao {
     @Query("SELECT * FROM items WHERE parentId = :folderId ORDER BY cellX, id")
     suspend fun children(folderId: Long): List<ItemEntity>
 
+    @Query("SELECT appWidgetId FROM items WHERE type = 2")
+    suspend fun widgetIds(): List<Int>
+
     /** Puts back a saved layout exactly (same ids), for undo. */
     @Transaction
     suspend fun replaceAll(pages: List<PageEntity>, items: List<ItemEntity>) {
@@ -138,7 +145,7 @@ interface LauncherDao {
     }
 }
 
-@Database(entities = [PageEntity::class, ItemEntity::class], version = 2, exportSchema = true)
+@Database(entities = [PageEntity::class, ItemEntity::class], version = 3, exportSchema = true)
 abstract class LauncherDatabase : RoomDatabase() {
     abstract fun dao(): LauncherDao
 
@@ -153,6 +160,13 @@ abstract class LauncherDatabase : RoomDatabase() {
             }
         }
 
+        /** Stage 3: widgets (the host's widget id). */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE items ADD COLUMN appWidgetId INTEGER NOT NULL DEFAULT -1")
+            }
+        }
+
         /** One database per layout mode, so each mode keeps its own pages and icons. */
         fun create(context: Context, mode: LayoutMode): LauncherDatabase {
             val name = when (mode) {
@@ -160,7 +174,7 @@ abstract class LauncherDatabase : RoomDatabase() {
                 LayoutMode.HOME_ONLY -> "launcher_home_only.db"
             }
             return Room.databaseBuilder(context, LauncherDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
         }
     }

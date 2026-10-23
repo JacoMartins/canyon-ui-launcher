@@ -2,6 +2,7 @@ package com.example.homelauncher.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DropLogicTest {
@@ -73,5 +74,35 @@ class DropLogicTest {
         assertEquals(Cell(2, 1), DropLogic.largeFolderSpot(7, 0, 1, 4, 3, blockers))
         val full = (0 until 4).map { app(it.toLong() + 10, it % 2, it / 2) } + folder(7, 0, 0)
         assertNull(DropLogic.largeFolderSpot(7, 0, 0, 2, 2, full.filter { it.id != 10L }))
+    }
+
+    // --- Widgets
+
+    private fun widget(id: Long, x: Int, y: Int, sx: Int, sy: Int, type: Int = ItemType.WIDGET) =
+        PlacedItem(id, Container.DESKTOP, 0, x, y, sx, sy, null, type)
+
+    private fun decideWidget(items: List<PlacedItem>, desired: Cell, sx: Int, sy: Int, container: Int = Container.DESKTOP) =
+        DropLogic.decide(container, 0, 4, 6, items, desired, desired, true, 99, ItemType.WIDGET, sx, sy)
+
+    @Test fun widgetOverSameSizeWidgetMakesAStack() {
+        assertEquals(DropAction.CreateStack(1), decideWidget(listOf(widget(1, 0, 2, 2, 2)), Cell(0, 2), 2, 2))
+    }
+
+    @Test fun widgetOverSameSizeStackJoinsIt() {
+        assertEquals(DropAction.AddToStack(5), decideWidget(listOf(widget(5, 2, 0, 2, 2, ItemType.STACK)), Cell(2, 0), 2, 2))
+    }
+
+    @Test fun widgetOfAnotherSizeIsPlacedBesideInstead() {
+        val r = decideWidget(listOf(widget(1, 0, 0, 2, 2)), Cell(0, 0), 4, 1)
+        assertEquals(DropAction.Move(Container.DESKTOP, 0, 0, 2), r)
+    }
+
+    @Test fun widgetsDoNotGoInTheDock() {
+        assertEquals(DropAction.Reject, decideWidget(emptyList(), Cell(0, 0), 1, 1, Container.DOCK))
+    }
+
+    @Test fun appsDoNotMakeStacks() {
+        val r = DropLogic.decide(Container.DESKTOP, 0, 4, 6, listOf(widget(1, 0, 0, 1, 1)), Cell(0, 0), Cell(0, 0), true, 99, ItemType.APP, 1, 1)
+        assertTrue(r is DropAction.Move)
     }
 }

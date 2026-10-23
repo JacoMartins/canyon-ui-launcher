@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
+import com.example.homelauncher.ui.widget.PickerWidget
 import com.example.homelauncher.data.AppEntry
 import com.example.homelauncher.data.FolderEntry
 
@@ -29,6 +30,10 @@ interface OverlayActions {
     fun setFolderColor(folder: FolderEntry, color: Int)
     fun closeFolder()
     fun chooseWallpaper()
+    fun openWidgets()
+    fun closePicker()
+    fun addWidget(widget: PickerWidget)
+    fun armWidgetDrag(widget: PickerWidget, preview: ImageBitmap?, bounds: Rect)
     fun openSettings()
     fun openOverview()
     fun closeOverview()
@@ -48,9 +53,10 @@ class OverlayState {
     var dragging by mutableStateOf(false)
     var editMode by mutableStateOf(false)
     var overview by mutableStateOf<List<PageThumb>?>(null)
+    var picker by mutableStateOf<WidgetPickerState?>(null)
     var currentPage by mutableIntStateOf(0)
     var pageCount by mutableIntStateOf(1)
 
-    /** True while something modal (menu, folder, overview) covers the home screen. */
-    val isModal get() = menu != null || folder != null || overview != null
+    /** True while something modal (menu, folder, overview, widget picker) covers the home screen. */
+    val isModal get() = menu != null || folder != null || overview != null || picker != null
 }
