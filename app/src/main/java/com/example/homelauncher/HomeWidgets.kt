@@ -77,6 +77,24 @@ class HomeWidgets(
         }
     }
 
+    /**
+     * True when the widget's app is no longer installed, so the widget should go. Not decided
+     * while its profile is paused or locked (its apps are then only hidden, not removed).
+     */
+    fun appRemoved(entry: WidgetEntry): Boolean {
+        if (entry.appWidgetId >= 0 && info(entry.appWidgetId) != null) return false
+        val user = userOf(entry.userSerial) ?: return true // The profile itself was removed.
+        if (users.isQuietModeEnabled(user) || !users.isUserUnlocked(user)) return false
+        return try {
+            activity.getSystemService(android.content.pm.LauncherApps::class.java).getApplicationInfo(entry.provider.packageName, 0, user)
+            false
+        } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
+            true
+        } catch (e: RuntimeException) {
+            false
+        }
+    }
+
     // ------------------------------------------------------------------------------- views
 
     /**
@@ -100,12 +118,17 @@ class HomeWidgets(
         return v
     }
 
-    /** Forgets views of widgets no longer on home, and placeholders (to retry them). */
-    fun prune(keep: Set<Long>, dropPlaceholders: Boolean = false) {
+    /**
+     * Forgets views of widgets no longer on home. With [recheck], also placeholders (their app
+     * may be back) and widgets the system no longer knows (their app was removed), so the next
+     * bind makes them again as what they now are.
+     */
+    fun prune(keep: Set<Long>, recheck: Boolean = false) {
         val it = views.entries.iterator()
         while (it.hasNext()) {
             val (id, v) = it.next()
-            if (id !in keep || (dropPlaceholders && v is WidgetPlaceholderView)) {
+            val stale = recheck && (v is WidgetPlaceholderView || info(v.getTag(R.id.tag_widget_id) as? Int ?: -1) == null)
+            if (id !in keep || stale) {
                 (v.parent as? android.view.ViewGroup)?.removeView(v)
                 it.remove()
             }

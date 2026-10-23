@@ -273,6 +273,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun onStart() {
         super.onStart()
         widgets.host.startListeningSafely()
+        // Apps may have been removed or reinstalled while home was not listening.
+        if (state != null) onWidgetProvidersChanged()
         wallpaperManager.addOnColorsChangedListener(colorsListener, Handler(Looper.getMainLooper()))
         refreshWallpaperColors()
     }
@@ -788,14 +790,18 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     /** Apps with widgets were installed, updated or removed: placeholders may now work, and the picker changes. */
     private fun onWidgetProvidersChanged() {
-        val ids = state?.entries.orEmpty().flatMap { e ->
+        val all = state?.entries.orEmpty().flatMap { e ->
             when (e) {
-                is WidgetEntry -> listOf(e.id)
-                is StackEntry -> e.widgets.map { it.id }
+                is WidgetEntry -> listOf(e)
+                is StackEntry -> e.widgets
                 else -> emptyList()
             }
-        }.toSet()
-        widgets.prune(ids, dropPlaceholders = true)
+        }
+        // Widgets of uninstalled apps go away; the system already deleted their host ids.
+        val removed = all.filter(widgets::appRemoved).map { it.id }
+        if (removed.isNotEmpty()) lifecycleScope.launch { launcher.home.removeWidgets(removed) }
+        val ids = all.map { it.id }.toSet()
+        widgets.prune(ids, recheck = true)
         state?.let(::bind)
         if (ui.picker != null) openPicker(pickerTarget, pickerSpan)
     }

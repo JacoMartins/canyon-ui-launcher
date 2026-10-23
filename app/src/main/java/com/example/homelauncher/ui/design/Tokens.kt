@@ -1,6 +1,7 @@
 package com.example.homelauncher.ui.design
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -24,7 +25,30 @@ object Spacing {
  * OneDepth's text hierarchy on the phone's own font (no bundled typeface): bold display and
  * headlines, semi-bold large titles, medium small titles, bold button labels.
  */
-val LauncherTypography: Typography = Typography().let { t ->
+val LauncherTypography: Typography = Typography(
+    // The phone's own font. Compose's default family resolves the stock sans-serif and skips a
+    // font the user picked in the phone's settings; the platform default typeface (what the
+    // home screen's View labels use) carries it.
+).let { base ->
+    val phone = FontFamily(android.graphics.Typeface.DEFAULT)
+    Typography(
+        displayLarge = base.displayLarge.copy(fontFamily = phone),
+        displayMedium = base.displayMedium.copy(fontFamily = phone),
+        displaySmall = base.displaySmall.copy(fontFamily = phone),
+        headlineLarge = base.headlineLarge.copy(fontFamily = phone),
+        headlineMedium = base.headlineMedium.copy(fontFamily = phone),
+        headlineSmall = base.headlineSmall.copy(fontFamily = phone),
+        titleLarge = base.titleLarge.copy(fontFamily = phone),
+        titleMedium = base.titleMedium.copy(fontFamily = phone),
+        titleSmall = base.titleSmall.copy(fontFamily = phone),
+        bodyLarge = base.bodyLarge.copy(fontFamily = phone),
+        bodyMedium = base.bodyMedium.copy(fontFamily = phone),
+        bodySmall = base.bodySmall.copy(fontFamily = phone),
+        labelLarge = base.labelLarge.copy(fontFamily = phone),
+        labelMedium = base.labelMedium.copy(fontFamily = phone),
+        labelSmall = base.labelSmall.copy(fontFamily = phone),
+    )
+}.let { t ->
     t.copy(
         displayLarge = t.displayLarge.copy(fontWeight = FontWeight.Bold),
         displayMedium = t.displayMedium.copy(fontWeight = FontWeight.Bold),

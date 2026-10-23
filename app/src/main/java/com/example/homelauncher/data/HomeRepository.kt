@@ -554,6 +554,20 @@ class HomeRepository(
         }
     }
 
+    /**
+     * Deletes widgets whose app was uninstalled (a stack left with one widget becomes that widget).
+     * Not an undoable edit: the app is gone, so there is nothing to bring back.
+     */
+    suspend fun removeWidgets(ids: Collection<Long>) = writes.withLock {
+        val st = state.value ?: return@withLock
+        val dao = daos.getValue(st.mode)
+        dbs.getValue(st.mode).withTransaction {
+            val rows = dao.itemsById(ids.toList())
+            dao.deleteItems(rows.map { it.id })
+            for (parent in rows.map { it.parentId }.filter { it != 0L }.distinct()) tidyFolder(dao, parent)
+        }
+    }
+
     /** Points a widget at a newly bound host id (after its app was reinstalled). */
     suspend fun rebindWidget(id: Long, appWidgetId: Int) = edit { dao, _ ->
         dao.item(id)?.let { dao.updateItem(it.copy(appWidgetId = appWidgetId)) }
