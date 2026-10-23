@@ -86,6 +86,9 @@ class DragController(
 
         /** The drag left the folder: close it and continue on home. */
         fun leaveFolder()
+
+        /** Where [view]'s visible part (icon, folder backdrop, widget) is now, in root coordinates. */
+        fun landingBounds(view: View): Rect?
     }
 
     // A drag from a folder stays in the folder (reordering) until the finger rests outside it.
@@ -203,22 +206,37 @@ class DragController(
         source = null
         lastAction = null
         lastKey = Long.MIN_VALUE
-        val target = if (dv != null && Motion.enabled()) landingPoint(s, result) else null
+        val lands = dv != null && Motion.enabled() && s.view != null && landsInView(result)
         root.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         callbacks.onDropped(s, result)
         if (dv == null) return
-        if (target != null) {
-            // The image flies from the finger into its cell; the real view shows when it lands.
-            val view = s.view
+        if (lands) {
+            // The image flies from the finger to where the item now is; the real view shows when
+            // it lands. Measured a frame later, once the item has been laid out in its new cell.
+            val view = s.view!!
             landing = view
-            view?.visibility = View.INVISIBLE
-            dv.animate().translationX(target[0]).translationY(target[1]).scaleX(1f).scaleY(1f)
-                .setDuration(LAND_MS).setInterpolator(decelerate)
-                .withEndAction {
+            view.visibility = View.INVISIBLE
+            dv.animate().cancel()
+            root.post {
+                val to = callbacks.landingBounds(view)
+                val done = {
                     if (landing === view) landing = null
-                    if (!isDragging) view?.visibility = View.VISIBLE
+                    if (!isDragging) view.visibility = View.VISIBLE
                     root.removeView(dv)
-                }.start()
+                }
+                if (to == null || to.isEmpty) { done(); return@post }
+                // Keep where the image is on screen while its pivot moves to the top-left.
+                val left = dv.translationX + dv.pivotX * (1f - dv.scaleX)
+                val top = dv.translationY + dv.pivotY * (1f - dv.scaleY)
+                dv.pivotX = 0f
+                dv.pivotY = 0f
+                dv.translationX = left
+                dv.translationY = top
+                val scale = to.width() / dv.width.coerceAtLeast(1).toFloat()
+                dv.animate().translationX(to.left.toFloat()).translationY(to.top.toFloat()).scaleX(scale).scaleY(scale)
+                    .setDuration(LAND_MS).setInterpolator(decelerate)
+                    .withEndAction(done).start()
+            }
         } else if (Motion.enabled()) {
             dv.animate().alpha(0f).scaleX(1f).scaleY(1f).setDuration(140).setInterpolator(decelerate)
                 .withEndAction { root.removeView(dv) }.start()
@@ -227,19 +245,10 @@ class DragController(
         }
     }
 
-    /** Where the drag image's top-left lands for a move onto the page in view or the dock (root px). */
-    private fun landingPoint(s: DragSource, result: DropResult): FloatArray? {
-        val a = (result as? DropResult.OnGrid)?.action as? DropAction.Move ?: return null
-        val layout = if (a.container == Container.DOCK) {
-            home.hotseat
-        } else {
-            if (a.pageIndex != home.workspace.currentPage) return null
-            home.workspace.pageAt(a.pageIndex) ?: return null
-        }
-        val inset = (s.view?.layoutParams as? CellLayout.LayoutParams)?.inset ?: 0
-        val out = floatArrayOf((layout.cellLeft(a.x, s.spanX) + inset).toFloat(), (layout.cellTop(a.y) + inset).toFloat())
-        ViewMap.localToRoot(root, layout, out)
-        return out
+    /** A move that ends on the page in view or the dock, where the item can be seen landing. */
+    private fun landsInView(result: DropResult): Boolean {
+        val a = (result as? DropResult.OnGrid)?.action as? DropAction.Move ?: return result is DropResult.Cancelled
+        return a.container == Container.DOCK || a.pageIndex == home.workspace.currentPage
     }
 
     /** Over a folder (or an app that would become one) the image shrinks, as if going in. */
@@ -377,7 +386,7 @@ class DragController(
         private const val FOLDER_SCALE = 0.8f
 
         /** The drag image's flight into its cell after a drop. */
-        private const val LAND_MS = 200L
+        private const val LAND_MS = 260L
         private const val PAGE_FLIP_DELAY_MS = 550L
 
         /** How long the finger must stay outside an open folder before the app leaves it. */

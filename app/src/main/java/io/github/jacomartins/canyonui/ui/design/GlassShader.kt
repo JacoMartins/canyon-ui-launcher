@@ -21,11 +21,12 @@ import java.util.WeakHashMap
  */
 /**
  * The glass's optics, shared by the views' lens ([GlassShader]) and the panels' Haze glass.
- * Stronger than Haze's default (15dp over a quarter of the shorter side): more bending at the rim.
+ * Stronger than Haze's default (15dp over a quarter of the shorter side): a thinner rim that
+ * bends more.
  */
 object LiquidGlass {
-    const val BEND_DP = 26f
-    const val BAND_SHARE = 0.32f
+    const val BEND_DP = 32f
+    const val BAND_SHARE = 0.2f
 }
 
 @RequiresApi(33)

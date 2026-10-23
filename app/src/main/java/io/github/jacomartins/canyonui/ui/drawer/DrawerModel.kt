@@ -33,6 +33,9 @@ class DrawerModel(
     /** Bumped when a drag leaves the drawer, so open item menus close. */
     var dragEpoch by mutableIntStateOf(0)
 
+    /** How far the Apps screen is slid down (px): its glass stays still against the wallpaper. */
+    var offsetY by androidx.compose.runtime.mutableFloatStateOf(0f)
+
     /** An app is being moved (dragged out of the drawer): the letter dots hide meanwhile. */
     var moving by mutableStateOf(false)
 

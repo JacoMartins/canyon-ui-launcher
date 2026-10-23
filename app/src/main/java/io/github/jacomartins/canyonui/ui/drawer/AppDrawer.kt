@@ -161,7 +161,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
     Box(Modifier.fillMaxSize()) {
         // Behind the apps, by the Transparency setting: a see-through colour, or the blurred
         // wallpaper (frosted) or glass over it, under a lighter tint.
-        BackdropSource(haze)
+        BackdropSource(haze) { model.offsetY }
         Box(
             Modifier
                 .fillMaxSize()
@@ -247,12 +247,17 @@ private fun SearchPill(
     val focus = remember { FocusRequester() }
     val searchLabel = stringResource(R.string.search)
 
+    val blurOn = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState().value != null
     Surface(
         modifier = modifier
             .padding(horizontal = 16.dp)
             .fillMaxWidth(widthFraction)
             .height(SearchPillHeight)
-            .shadow(Spacing.sm, CircleShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
+            // No shadow under a see-through (blurred) field: it showed through and darkened it.
+            .then(
+                if (blurOn) Modifier
+                else Modifier.shadow(Spacing.sm, CircleShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f)),
+            )
             .oneDepthBorder()
             // Glass or frosted (by the Transparency setting) over the apps and the wallpaper.
             .backdrop(CircleShape, withContent = true),

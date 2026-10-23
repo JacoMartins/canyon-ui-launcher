@@ -327,6 +327,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.addView(drawerView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         dragLayer.addView(overlayView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         drawer = DrawerController(home, drawerView, this)
+        drawer.onOffset = { drawerModel.offsetY = it }
         dragLayer.drawer = drawer
         drag = DragController(dragLayer, home, this)
         dragLayer.drag = drag
@@ -630,7 +631,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             val p = entry.placed
             val view = viewFor(entry)
             when (entry) {
-                is WidgetEntry -> widgetIds += entry.id
+                is WidgetEntry -> {
+                    widgetIds += entry.id
+                    // Out of a stack (ungrouped): drop the offset its paging left on it.
+                    view.translationX = 0f
+                }
                 is StackEntry -> {
                     entry.widgets.forEach { widgetIds += it.id }
                     // The stack carries the frame; its widgets are plain inside it.
@@ -728,10 +733,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val sizes = widgetSizes() ?: return
         fun apply(v: View?, sx: Int, sy: Int) {
             val hv = v as? LauncherWidgetHostView ?: return
-            val key = sx * 100 + sy + if (fullCellWidgetSizes) 10_000 else 0
+            val key = sx * 100 + sy + (if (fullCellWidgetSizes) 10_000 else 0) + if (isNight) 100_000 else 0
             if (hv.getTag(R.id.tag_widget_size) == key) return
             hv.setTag(R.id.tag_widget_size, key)
-            sizes.applySize(hv, sx, sy)
+            sizes.applySize(hv, sx, sy, isNight)
         }
         for (e in st.entries) when (e) {
             is WidgetEntry -> apply(views[e.id], e.placed.spanX, e.placed.spanY)
@@ -937,6 +942,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val col = ((x - g.left) / (g.width() / 3f)).toInt().coerceIn(0, 2)
         val row = ((y - g.top) / (g.height() / 3f)).toInt().coerceIn(0, 2)
         return (ui.folderPage * 9 + row * 3 + col).coerceAtMost(f.apps.size - 1)
+    }
+
+    override fun landingBounds(view: View): Rect? {
+        if (!view.isAttachedToWindow) return null
+        val r = view.visualBounds()
+        val origin = IntArray(2).also { dragLayer.getLocationInWindow(it) }
+        r.offset(-origin[0], -origin[1])
+        return r
     }
 
     override fun leaveFolder() {

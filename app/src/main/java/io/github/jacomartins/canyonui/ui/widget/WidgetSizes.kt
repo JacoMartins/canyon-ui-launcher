@@ -79,20 +79,31 @@ class WidgetSizes(
         )
     }
 
-    /** Tells the provider the size it is shown at, in dp, so it can pick a matching layout. */
-    fun applySize(view: AppWidgetHostView, spanX: Int, spanY: Int) {
+    /**
+     * Tells the provider the size it is shown at, in dp, so it can pick a matching layout.
+     * [night] is passed along as well: a change of it is an options change, which makes widgets
+     * that pick their colours when they update (rather than from the theme) draw again after a
+     * switch between light and dark mode.
+     */
+    fun applySize(view: AppWidgetHostView, spanX: Int, spanY: Int, night: Boolean) {
         val w = widthDp(spanX)
         val h = heightDp(spanY)
+        val extras = Bundle().apply { putBoolean(NIGHT_OPTION, night) }
         try {
             if (Build.VERSION.SDK_INT >= 31) {
-                view.updateAppWidgetSize(Bundle(), listOf(SizeF(w, h)))
+                view.updateAppWidgetSize(extras, listOf(SizeF(w, h)))
             } else {
                 @Suppress("DEPRECATION")
-                view.updateAppWidgetSize(null, w.toInt(), h.toInt(), w.toInt(), h.toInt())
+                view.updateAppWidgetSize(extras, w.toInt(), h.toInt(), w.toInt(), h.toInt())
             }
         } catch (e: RuntimeException) {
             // The provider may be gone or updating; it gets the size on its next bind.
         }
+    }
+
+    private companion object {
+        /** Canyon UI's own option key: the dark mode the widget is shown in. */
+        const val NIGHT_OPTION = "io.github.jacomartins.canyonui.NIGHT"
     }
 
     /** Options for binding a new widget at [spanX] x [spanY]. */

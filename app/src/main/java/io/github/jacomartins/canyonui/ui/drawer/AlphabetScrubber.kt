@@ -118,8 +118,16 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
             // letter at the top of the list as it scrolls; a soft gradient a few dots each way.
             val shown by remember(sections) {
                 derivedStateOf {
-                    val first = grid.firstVisibleItemIndex
-                    sections.indexOfLast { it.index <= first }.coerceAtLeast(0)
+                    when {
+                        // At the ends the first and last letters, so the gradient reaches the
+                        // dots' ends (the last screen holds several letters).
+                        !grid.canScrollForward -> sections.size - 1
+                        !grid.canScrollBackward -> 0
+                        else -> {
+                            val first = grid.firstVisibleItemIndex
+                            sections.indexOfLast { it.index <= first }.coerceAtLeast(0)
+                        }
+                    }
                 }
             }
             sections.forEachIndexed { i, _ ->

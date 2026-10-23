@@ -91,13 +91,18 @@ class DrawerController(
     fun previewBack(backProgress: Float) {
         val p = 1f - 0.12f * backProgress
         drawer.translationY = (1f - p) * range
+        onOffset?.invoke(drawer.translationY)
     }
+
+    /** Called with the drawer's vertical offset whenever it moves (for its glass background). */
+    var onOffset: ((Float) -> Unit)? = null
 
     fun cancelBackPreview() = apply(progress)
 
     private fun apply(p: Float) {
         progress = p
         drawer.translationY = (1f - p) * range
+        onOffset?.invoke(drawer.translationY)
         home.alpha = 1f - p
         val scale = 1f - HOME_SCALE_DELTA * p
         home.scaleX = scale

@@ -65,6 +65,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.EnterExitState
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
@@ -157,21 +160,28 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             label = "folder",
         ) { f ->
             if (f != null) {
-                var origin by remember { mutableStateOf(TransformOrigin.Center) }
+                // 0 = shrunk into the folder icon, 1 = open. The panel's place is known only once
+                // laid out, so it is moved (not scaled about a guessed origin) from the icon.
+                val open by transition.animateFloat(
+                    transitionSpec = { tween(if (targetState == EnterExitState.Visible) OPEN_MS else CLOSE_MS, easing = FastOutSlowInEasing) },
+                    label = "folderOpen",
+                ) { if (it == EnterExitState.Visible) 1f else 0f }
+                var center by remember { mutableStateOf(Offset.Unspecified) }
                 FolderPopup(
                     f, state, actions,
                     modifier = Modifier
-                        .onGloballyPositioned { c ->
-                            val b = c.boundsInWindow()
+                        .onGloballyPositioned { c -> center = c.boundsInWindow().center }
+                        .graphicsLayer {
                             val a = state.folderAnchor
-                            if (b.width > 0f && b.height > 0f && a != Offset.Unspecified) {
-                                origin = TransformOrigin((a.x - b.left) / b.width, (a.y - b.top) / b.height)
+                            val s = FOLDER_START_SCALE + (1f - FOLDER_START_SCALE) * open
+                            scaleX = s
+                            scaleY = s
+                            alpha = (open * 1.6f).coerceIn(0f, 1f)
+                            if (a != Offset.Unspecified && center != Offset.Unspecified) {
+                                translationX = (a.x - center.x) * (1f - open)
+                                translationY = (a.y - center.y) * (1f - open)
                             }
-                        }
-                        .animateEnterExit(
-                            enter = scaleIn(tween(OPEN_MS), initialScale = 0.4f, transformOrigin = origin),
-                            exit = scaleOut(tween(CLOSE_MS), targetScale = 0.4f, transformOrigin = origin),
-                        ),
+                        },
                 )
             }
         }
@@ -186,8 +196,8 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
                 MenuLayer(
                     m.anchor, m.entries, { state.menu = null },
                     modifier = Modifier.animateEnterExit(
-                        enter = scaleIn(tween(MENU_MS), initialScale = 0.85f),
-                        exit = scaleOut(tween(MENU_MS), targetScale = 0.85f),
+                        enter = scaleIn(tween(MENU_MS, easing = FastOutSlowInEasing), initialScale = 0.6f),
+                        exit = scaleOut(tween(MENU_MS, easing = FastOutSlowInEasing), targetScale = 0.6f),
                     ),
                 )
             }
@@ -620,9 +630,12 @@ private const val SNACK_MS = 5000L
 
 /** The open folder's panel colour (before the Transparency effect thins it further). */
 private const val FOLDER_PANEL_ALPHA = 0.72f
-private const val OPEN_MS = 220
-private const val CLOSE_MS = 180
-private const val MENU_MS = 140
+private const val OPEN_MS = 320
+private const val CLOSE_MS = 260
+private const val MENU_MS = 180
+
+/** The folder panel's size when it starts out of (and ends back in) the folder icon. */
+private const val FOLDER_START_SCALE = 0.15f
 
 /** The first page is the home page (the house in the page indicator); it cannot be deleted. */
 private const val HOME_PAGE = 0

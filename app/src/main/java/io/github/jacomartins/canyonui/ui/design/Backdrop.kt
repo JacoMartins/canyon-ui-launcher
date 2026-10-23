@@ -50,16 +50,16 @@ val LocalBackdropHaze = staticCompositionLocalOf<HazeState?> { null }
  * sits under an invisible layer. Put it first in the overlay.
  */
 @Composable
-fun BackdropSource(state: HazeState) {
+fun BackdropSource(state: HazeState, offsetY: () -> Float = { 0f }) {
     val src by WallpaperBackdrop.source.collectAsState()
     val b = src ?: return
     val image = remember(b) { b.asImageBitmap() }
-    // Drawn at the view's own origin: the home overlay and the Apps screen fill the screen from
-    // its top-left at rest. (Following the view's live position recorded the copy off screen
-    // while the Apps screen was still slid away, so it had nothing to blur.)
+    // Drawn at the view's own origin, less [offsetY]: the home overlay fills the screen from its
+    // top-left, and the Apps screen passes how far it is slid down (read while drawing, so the
+    // copy moves the other way and the glass slides over a still wallpaper).
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0f }) {
         Canvas(Modifier.fillMaxSize().hazeSource(state, zIndex = 0f, key = WALLPAPER_SOURCE)) {
-            drawImage(image, dstOffset = IntOffset.Zero, dstSize = IntSize(b.width, b.height))
+            drawImage(image, dstOffset = IntOffset(0, -offsetY().toInt()), dstSize = IntSize(b.width, b.height))
         }
     }
 }

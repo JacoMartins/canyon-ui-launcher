@@ -162,6 +162,20 @@ object WidgetFrame {
         return r
     }
 
+    /**
+     * The frame's outline (its card, or the whole view) in [out], and its corner radius; -1
+     * when [view] has no frame. For stacks, whose widgets inside are plain.
+     */
+    fun framePath(view: View, out: Path): Float {
+        if (snapshotting) return -1f
+        val frame = view.outlineProvider as? Frame ?: return -1f
+        val c = if (frame.content.isEmpty) Rect(0, 0, view.width, view.height) else frame.content
+        val r = frame.radius()
+        out.reset()
+        out.addRoundRect(RectF(c), r, r, Path.Direction.CW)
+        return r
+    }
+
     private var snapshotting = false
 
     private const val SAMPLE = 4

@@ -273,13 +273,14 @@ private fun WallpaperScreen(onDone: () -> Unit) {
 @Composable
 private fun SetDialog(uri: Uri, onDone: () -> Unit, onDismiss: () -> Unit, clear: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     WhereDialog(
         onPick = { which ->
             clear()
-            scope.launch {
-                val ok = WallpaperBackdrop.setFromPhoto(context, uri, which)
-                Toast.makeText(context, if (ok) R.string.wallpaper_done else R.string.render_photo_failed, Toast.LENGTH_SHORT).show()
+            // In the app's scope, not this dialog's: closing the dialog cancelled the set half
+            // way (the wallpaper changed, but the blur was never rebuilt and home never came).
+            (context.applicationContext as LauncherApp).scope.launch {
+                val ok = WallpaperBackdrop.setFromPhoto(context.applicationContext, uri, which)
+                Toast.makeText(context.applicationContext, if (ok) R.string.wallpaper_done else R.string.render_photo_failed, Toast.LENGTH_SHORT).show()
                 if (ok) onDone()
             }
         },
