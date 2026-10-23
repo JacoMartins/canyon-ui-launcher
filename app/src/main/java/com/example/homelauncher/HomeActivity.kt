@@ -243,6 +243,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.onPageSettled = { ui.currentPage = it }
         home.onEmptyLongPress = ::enterEditMode
         home.onEmptyTap = { if (ui.editMode) exitEditMode() }
+        home.onAddPage = ::addPage
 
         drawerModel = DrawerModel(launcher.apps, launcher.settings, lifecycleScope)
 
@@ -394,7 +395,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             setHintVisible(!hintSeen && drawerEnabled)
         }
         home.setGrid(st.columns, st.rows, st.dockSlots)
-        home.setPageCount(st.pageCount + if (extraPage) 1 else 0)
+        syncPages()
         ui.pageCount = st.pageCount
         ui.currentPage = home.workspace.currentPage
 
@@ -678,8 +679,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val st = state
         if (st != null && st.entries.any { it.placed.container == Container.DESKTOP && it.placed.pageIndex == st.pageCount - 1 }) {
             extraPage = true
-            home.setPageCount(st.pageCount + 1)
         }
+        syncPages()
         updateBackCallbacks()
     }
 
@@ -727,7 +728,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
         // Keep the extra page if the item was dropped on it; the rebind brings the real page.
         val toNewPage = (result as? DropResult.OnGrid)?.action.let { it is DropAction.Move && it.container == Container.DESKTOP && st != null && it.pageIndex >= st.pageCount }
-        if (!toNewPage) st?.let { home.setPageCount(it.pageCount) }
+        if (!toNewPage) syncPages()
         updateBackCallbacks()
     }
 
@@ -945,6 +946,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun enterEditMode() {
         if (!drawer.isClosed || ui.editMode) return
         ui.editMode = true
+        syncPages()
         widgets.setEditMode(true)
         dismissResizeFrame()
         ui.currentPage = home.workspace.currentPage
@@ -959,6 +961,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun exitEditMode() {
         if (!ui.editMode) return
         ui.editMode = false
+        syncPages()
+        state?.let { st -> if (home.workspace.currentPage >= st.pageCount) home.workspace.snapToPage(st.pageCount - 1) }
         widgets.setEditMode(false)
         dismissResizeFrame()
         dragLayer.drawerEnabled = drawerEnabled
@@ -1019,6 +1023,22 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun openPage(index: Int) {
         closeOverview()
         home.workspace.snapToPage(index)
+    }
+
+    /**
+     * Pages on screen: the real ones, plus an empty one at the end while dragging (so items can
+     * go onto a new page) or in edit mode (the plus page that adds one when tapped).
+     */
+    private fun syncPages() {
+        val st = state ?: return
+        home.setPageCount(st.pageCount + if (extraPage || ui.editMode) 1 else 0)
+        home.setAddPage(ui.editMode && !drag.isDragging)
+    }
+
+    override fun makeHomePage(index: Int) {
+        if (index <= 0) return
+        edit(getString(R.string.snack_home_page)) { launcher.home.movePage(index, 0) }
+        dragLayer.postDelayed({ home.workspace.snapToPage(0) }, 250)
     }
 
     override fun addPage() {

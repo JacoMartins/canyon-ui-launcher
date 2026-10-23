@@ -45,6 +45,7 @@ interface OverlayActions {
     fun openPage(index: Int)
     fun addPage()
     fun deletePage(index: Int)
+    fun makeHomePage(index: Int)
     fun movePage(from: Int, to: Int)
 }
 

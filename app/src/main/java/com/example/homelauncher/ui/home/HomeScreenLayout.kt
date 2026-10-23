@@ -47,6 +47,22 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     /** Tap on an empty part of a page (closes edit mode). */
     var onEmptyTap: (() -> Unit)? = null
 
+    /** Tap on the plus page at the end in edit mode. */
+    var onAddPage: (() -> Unit)? = null
+
+    private var addPageShown = false
+
+    /** Edit mode: the last page is the "add a page" plus page. */
+    fun setAddPage(show: Boolean) {
+        addPageShown = show
+        applyAddPage()
+    }
+
+    private fun applyAddPage() {
+        val last = workspace.childCount - 1
+        for (i in 0..last) workspace.pageAt(i)?.addPagePlaceholder = addPageShown && i == last
+    }
+
     private var backdropColor = 0x26FFFFFF
     private var hintColor = 0x40FFFFFF
     private var backdrops = false
@@ -109,13 +125,14 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
                     onEmptyLongPress?.invoke()
                     onEmptyLongPress != null
                 }
-                setOnClickListener { onEmptyTap?.invoke() }
+                setOnClickListener { v -> if ((v as CellLayout).addPagePlaceholder) onAddPage?.invoke() else onEmptyTap?.invoke() }
                 setColors(hintColor, backdropColor)
                 showBackdrop = backdrops
             })
         }
         while (workspace.childCount > count) workspace.removeViewAt(workspace.childCount - 1)
         indicator.pageCount = count
+        applyAddPage()
     }
 
     fun setGrid(columns: Int, rows: Int, dockSlots: Int) {

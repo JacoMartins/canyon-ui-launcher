@@ -141,4 +141,7 @@
     <string name="pack_style">Pack style for other apps</string>
     <string name="pack_style_summary">Apps the icon pack does not include get its back plate and mask, if it has them.</string>
     <string name="widget_border">Widget outline</string>
+    <string name="make_home_page">Make this the home page</string>
+    <string name="home_page">Home page</string>
+    <string name="snack_home_page">Home page changed</string>
 </resources>

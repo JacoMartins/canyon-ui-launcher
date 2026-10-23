@@ -135,19 +135,54 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
 
 // ------------------------------------------------------------------------------- edit mode
 
+/**
+ * Over the focused page in edit mode: make it the home page (left; filled house when it already
+ * is) and delete it (right). Hidden on the plus page at the end.
+ */
 @Composable
 private fun EditTopBar(state: OverlayState, actions: OverlayActions) {
-    Row(
-        Modifier
+    val page = state.currentPage
+    if (page >= state.pageCount) return
+    val isHome = page == HOME_PAGE
+    Surface(
+        modifier = Modifier
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(top = Spacing.md),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            .padding(top = Spacing.sm)
+            .fillMaxWidth(EDIT_PAGE_FRACTION)
+            .surfaceRing(),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f),
     ) {
-        SecondaryButton(stringResource(R.string.delete_page), { actions.deletePage(state.currentPage) }, icon = R.drawable.ph_trash, enabled = state.pageCount > 1 && state.currentPage != HOME_PAGE)
-        SecondaryButton(stringResource(R.string.pages), actions::openOverview, icon = R.drawable.ph_pages)
-        SecondaryButton(stringResource(R.string.add_page), actions::addPage, icon = R.drawable.ph_plus)
+        Row(Modifier.padding(Spacing.xs), horizontalArrangement = Arrangement.SpaceBetween) {
+            PageIconButton(
+                icon = if (isHome) R.drawable.ph_house_fill else R.drawable.ph_house,
+                label = stringResource(if (isHome) R.string.home_page else R.string.make_home_page),
+                enabled = !isHome,
+            ) { actions.makeHomePage(page) }
+            PageIconButton(R.drawable.ph_trash, stringResource(R.string.delete_page), enabled = !isHome && state.pageCount > 1) {
+                actions.deletePage(page)
+            }
+        }
     }
 }
+
+@Composable
+private fun PageIconButton(@DrawableRes icon: Int, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f)
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+    }
+}
+
+/** About the width of a page at the edit mode zoom. */
+private const val EDIT_PAGE_FRACTION = 0.78f
 
 @Composable
 private fun EditBottomBar(actions: OverlayActions) {
@@ -163,6 +198,7 @@ private fun EditBottomBar(actions: OverlayActions) {
         Row(Modifier.padding(Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             ToolButton(R.drawable.ph_wallpaper, stringResource(R.string.wallpaper), actions::chooseWallpaper)
             ToolButton(R.drawable.ph_widgets, stringResource(R.string.widgets), actions::openWidgets)
+            ToolButton(R.drawable.ph_pages, stringResource(R.string.pages), actions::openOverview)
             ToolButton(R.drawable.ph_settings, stringResource(R.string.settings), actions::openSettings)
         }
     }
@@ -172,10 +208,10 @@ private fun EditBottomBar(actions: OverlayActions) {
 private fun ToolButton(@DrawableRes icon: Int, label: String, onClick: () -> Unit) {
     Column(
         Modifier
-            .widthIn(min = 88.dp)
+            .widthIn(min = 72.dp)
             .clip(RoundedCornerShape(24.dp))
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = Spacing.smMd, vertical = Spacing.sm),
+            .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.xsSm),
     ) {

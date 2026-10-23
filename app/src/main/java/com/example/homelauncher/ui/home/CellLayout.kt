@@ -36,6 +36,21 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
         setWillNotDraw(false)
     }
 
+    private val plusPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeCap = android.graphics.Paint.Cap.ROUND
+    }
+
+    /** Edit mode's last page: an empty page with a plus; tapping it adds a page. */
+    var addPagePlaceholder = false
+        set(value) {
+            if (field != value) {
+                field = value
+                contentDescription = if (value) resources.getString(com.example.homelauncher.R.string.add_page) else null
+                invalidate()
+            }
+        }
+
     /** Edit mode: a rounded translucent card behind the page shows its bounds. */
     var showBackdrop = false
         set(value) {
@@ -45,6 +60,8 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
     fun setColors(hint: Int, backdrop: Int) {
         hintPaint.color = hint
         backdropPaint.color = backdrop
+        // The plus in the hint's hue, fully opaque: white over dark wallpapers, black over light.
+        plusPaint.color = hint or 0xFF000000.toInt()
         invalidate()
     }
 
@@ -92,6 +109,14 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             val r = 28 * d
             hintRect.set(4 * d, 0f, width - 4 * d, height.toFloat())
             canvas.drawRoundRect(hintRect, r, r, backdropPaint)
+        }
+        if (addPagePlaceholder) {
+            val cx = width / 2f
+            val cy = height / 2f
+            val arm = 18 * d
+            plusPaint.strokeWidth = 4 * d
+            canvas.drawLine(cx - arm, cy, cx + arm, cy, plusPaint)
+            canvas.drawLine(cx, cy - arm, cx, cy + arm, plusPaint)
         }
         if (hintVisible) {
             val cw = cellWidth
