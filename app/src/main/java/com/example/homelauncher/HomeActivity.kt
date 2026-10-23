@@ -136,6 +136,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     private lateinit var widgets: HomeWidgets
     private var resizeFrame: ResizeFrame? = null
+    private var resizeAnyWidget = false
     /** Where the picker adds: null for the current page, else onto a widget or stack. */
     private var pickerTarget: DropAction? = null
     private var pickerSpan: Pair<Int, Int>? = null
@@ -199,7 +200,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
-        window.isNavigationBarContrastEnforced = false
+        clearBarScrims()
         launcherApps = getSystemService(LauncherApps::class.java)
         widgets = HomeWidgets(
             this,
@@ -264,6 +265,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launcher.settings.settings.collect { s ->
                     hintSeen = s.drawerHintSeen
+                    resizeAnyWidget = s.resizeAnyWidget
                     setHintVisible(!hintSeen && drawerEnabled)
                 }
             }
@@ -468,7 +470,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun widgetSizes(): WidgetSizes? {
         val page = home.workspace.pageAt(home.workspace.currentPage) ?: home.workspace.pageAt(0) ?: return null
         if (page.cellWidth <= 0 || page.cellHeight <= 0) return null
-        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density)
+        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density, resizeAnyWidget)
     }
 
     private fun newIconView() = AppIconView(this, homeStyle).apply {
@@ -1041,7 +1043,23 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
     }
 
+    /**
+     * Fully clear system bars over the wallpaper: no translucent-bar flags, no contrast scrim, no
+     * divider. Re-applied whenever the bar icons change colour, in case the system resets it.
+     */
+    @Suppress("DEPRECATION") // The translucent flags are deprecated but some device themes still set them.
+    private fun clearBarScrims() {
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION or android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.navigationBarColor = Color.TRANSPARENT
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarDividerColor = Color.TRANSPARENT
+        window.isNavigationBarContrastEnforced = false
+        window.isStatusBarContrastEnforced = false
+    }
+
     private fun updateSystemBars(drawerMostlyOpen: Boolean) {
+        clearBarScrims()
         // Light (dark-icon) bars over the light drawer, or over a light wallpaper in light mode.
         val lightBars = if (drawerMostlyOpen) !isNight else darkLabels
         WindowCompat.getInsetsController(window, window.decorView).apply {

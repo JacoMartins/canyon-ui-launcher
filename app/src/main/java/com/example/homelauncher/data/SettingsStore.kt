@@ -51,6 +51,8 @@ data class LauncherSettings(
     val drawerHintSeen: Boolean = false,
     /** Package of the chosen icon pack; null = system icons. Shared by both layout modes. */
     val iconPack: String? = null,
+    /** Lets any widget be resized to any size, ignoring the sizes its app declares. */
+    val resizeAnyWidget: Boolean = false,
 ) {
     /** Grid of the active mode. */
     val grid: GridSpec get() = grids.getValue(layoutMode)
@@ -76,6 +78,7 @@ class SettingsStore(private val context: Context) {
         val FIRST_RUN_DONE = booleanPreferencesKey("first_run_done")
         val DRAWER_HINT_SEEN = booleanPreferencesKey("drawer_hint_seen")
         val ICON_PACK = stringPreferencesKey("icon_pack")
+        val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
 
         fun columns(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_columns")
         fun rows(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_rows")
@@ -107,6 +110,7 @@ class SettingsStore(private val context: Context) {
             firstRunDone = p[Keys.FIRST_RUN_DONE] ?: false,
             drawerHintSeen = p[Keys.DRAWER_HINT_SEEN] ?: false,
             iconPack = p[Keys.ICON_PACK],
+            resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
         )
     }.distinctUntilChanged()
 
@@ -125,6 +129,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setIconPack(packageName: String?) {
         context.dataStore.edit { if (packageName == null) it.remove(Keys.ICON_PACK) else it[Keys.ICON_PACK] = packageName }
+    }
+
+    suspend fun setResizeAnyWidget(on: Boolean) {
+        context.dataStore.edit { it[Keys.RESIZE_ANY_WIDGET] = on }
     }
 
     suspend fun setIconSize(mode: LayoutMode, size: IconSize) {

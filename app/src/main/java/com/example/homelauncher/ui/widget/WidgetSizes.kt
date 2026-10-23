@@ -4,7 +4,6 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetProviderInfo
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.util.SizeF
 import kotlin.math.ceil
 import kotlin.math.max
@@ -20,7 +19,15 @@ data class SpanRange(val minX: Int, val minY: Int, val maxX: Int, val maxY: Int)
  * Converts between a provider's declared sizes (pixels, already scaled to this screen) and grid
  * cells of [cellWidth] x [cellHeight] pixels.
  */
-class WidgetSizes(private val cellWidth: Int, private val cellHeight: Int, private val columns: Int, private val rows: Int, private val density: Float) {
+class WidgetSizes(
+    private val cellWidth: Int,
+    private val cellHeight: Int,
+    private val columns: Int,
+    private val rows: Int,
+    private val density: Float,
+    /** The "Resize any widget" setting: every widget may take any size from 1x1 to the page. */
+    private val anySize: Boolean = false,
+) {
 
     private fun spansFor(px: Int, cell: Int, limit: Int) = ceil(px.toFloat() / cell.coerceAtLeast(1)).toInt().coerceIn(1, limit)
 
@@ -36,6 +43,7 @@ class WidgetSizes(private val cellWidth: Int, private val cellHeight: Int, priva
 
     /** How small and large the user may make it; fixed axes stay at the default size. */
     fun range(info: AppWidgetProviderInfo): SpanRange {
+        if (anySize) return SpanRange(1, 1, columns, rows)
         val (dx, dy) = defaultSpans(info)
         val horizontal = info.resizeMode and AppWidgetProviderInfo.RESIZE_HORIZONTAL != 0
         val vertical = info.resizeMode and AppWidgetProviderInfo.RESIZE_VERTICAL != 0
@@ -50,12 +58,6 @@ class WidgetSizes(private val cellWidth: Int, private val cellHeight: Int, priva
         // Rounding up kept widgets like a clock or a weather pill from going to 1 cell.
         val minX = if (horizontal) minSpans(info.minResizeWidth.takeIf { it > 0 } ?: info.minWidth, cellWidth).coerceAtMost(dx) else dx
         val minY = if (vertical) minSpans(info.minResizeHeight.takeIf { it > 0 } ?: info.minHeight, cellHeight).coerceAtMost(dy) else dy
-        Log.d(
-            "WidgetSizes",
-            "${info.provider.flattenToShortString()} mode=${info.resizeMode} min=${info.minWidth}x${info.minHeight} " +
-                "minResize=${info.minResizeWidth}x${info.minResizeHeight} default=${dx}x$dy cell=${cellWidth}x$cellHeight " +
-                "-> min ${minX}x$minY",
-        )
         return SpanRange(
             minX, minY,
             if (horizontal) maxOf(maxX, dx) else dx,

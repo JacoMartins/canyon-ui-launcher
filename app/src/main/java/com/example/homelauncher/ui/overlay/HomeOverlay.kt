@@ -19,6 +19,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -210,17 +211,24 @@ private fun ItemMenuLayer(menu: ItemMenu, onDismiss: () -> Unit) {
                         p.place(x, y)
                     }
                 }
-                .widthIn(min = 200.dp)
-                .shadow(Spacing.sm, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-                .surfaceRing(cornerRadius = 24.dp),
-            shape = RoundedCornerShape(24.dp),
+                .shadow(Spacing.sm, MenuShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
+                .surfaceRing(cornerRadius = MENU_RADIUS),
+            shape = MenuShape,
             color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f),
         ) {
-            Column(Modifier.padding(vertical = Spacing.xs)) {
+            // OneDepth list: an inset column of pill rows (20 x 12 padding, 12 between icon and
+            // text, 4 between rows). The panel's radius is the row's plus the inset, so a pressed
+            // row sits concentric with the panel.
+            Column(
+                Modifier.width(IntrinsicSize.Max).padding(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
                 for (e in menu.entries) {
                     Row(
                         Modifier
-                            .widthIn(min = 200.dp)
+                            .fillMaxWidth()
+                            .widthIn(min = 184.dp)
+                            .clip(CircleShape)
                             .clickable(role = Role.Button) { onDismiss(); e.action() }
                             .padding(horizontal = Spacing.mdLg, vertical = Spacing.smMd),
                         verticalAlignment = Alignment.CenterVertically,
@@ -234,6 +242,10 @@ private fun ItemMenuLayer(menu: ItemMenu, onDismiss: () -> Unit) {
         }
     }
 }
+
+/** A row is 44dp tall (pill radius 22) inside an 8dp inset. */
+private val MENU_RADIUS = 30.dp
+private val MenuShape = RoundedCornerShape(MENU_RADIUS)
 
 // ------------------------------------------------------------------------------- folder popup
 

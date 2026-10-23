@@ -114,4 +114,6 @@
     <string name="snack_widget_added">Widget added</string>
     <string name="snack_stack_created">Stack created</string>
     <string name="snack_unstacked">Stack split up</string>
+    <string name="resize_any_widget">Resize any widget</string>
+    <string name="resize_any_widget_summary">Lets widgets take any size, even ones their app does not offer. Some widgets may then look cropped or stretched.</string>
 </resources>

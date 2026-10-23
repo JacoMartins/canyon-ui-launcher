@@ -183,6 +183,15 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             Text(stringResource(R.string.labels_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
+        Card {
+            SwitchRow(
+                title = stringResource(R.string.resize_any_widget),
+                checked = s.resizeAnyWidget,
+                onChange = { scope.launch { store.setResizeAnyWidget(it) } },
+            )
+            Text(stringResource(R.string.resize_any_widget_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
         Card(onClick = { showHidden = true }) {
             Text(stringResource(R.string.hidden_apps), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.hidden_apps_per_layout), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
