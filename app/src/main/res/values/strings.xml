@@ -140,4 +140,5 @@
     <string name="themed_icons_summary">Apps that support it take the colours of your wallpaper.</string>
     <string name="pack_style">Pack style for other apps</string>
     <string name="pack_style_summary">Apps the icon pack does not include get its back plate and mask, if it has them.</string>
+    <string name="widget_border">Widget outline</string>
 </resources>

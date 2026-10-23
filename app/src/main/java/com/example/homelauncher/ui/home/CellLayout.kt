@@ -17,7 +17,8 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
     var rows = rows
         private set
 
-    class LayoutParams(var cellX: Int, var cellY: Int, var spanX: Int = 1, var spanY: Int = 1) :
+    /** [inset]: pixels kept free on every side inside the cells (widgets keep a gap between them). */
+    class LayoutParams(var cellX: Int, var cellY: Int, var spanX: Int = 1, var spanY: Int = 1, var inset: Int = 0) :
         ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
 
     private val d = resources.displayMetrics.density
@@ -132,8 +133,8 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             if (child.isGone) continue
             val lp = child.layoutParams as LayoutParams
             child.measure(
-                MeasureSpec.makeMeasureSpec(cw * lp.spanX, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(ch * lp.spanY, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec((cw * lp.spanX - 2 * lp.inset).coerceAtLeast(0), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec((ch * lp.spanY - 2 * lp.inset).coerceAtLeast(0), MeasureSpec.EXACTLY),
             )
         }
     }
@@ -147,8 +148,8 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             if (child.isGone) continue
             val lp = child.layoutParams as LayoutParams
             val col = if (rtl) columns - lp.cellX - lp.spanX else lp.cellX
-            val left = paddingLeft + col * cw
-            val top = paddingTop + lp.cellY * ch
+            val left = paddingLeft + col * cw + lp.inset
+            val top = paddingTop + lp.cellY * ch + lp.inset
             child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
         }
     }

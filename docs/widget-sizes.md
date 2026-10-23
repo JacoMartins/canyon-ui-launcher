@@ -33,3 +33,25 @@ closest layout or are scaled.
 - TikTok widgets are all mode 0 (fixed size).
 - Smaller cells than the guideline: a 2-column minimum of 225 px fits in 2 x 165 px, which is
   why rounding down was safe for most widgets.
+
+## One UI 8.5 home screen measurements (reference screenshot, 2026-10-23)
+
+Taken from a One UI 8.5 screenshot at 923 px wide (360 dp, so 1 dp = 2.56 px), with this
+launcher's screenshot on the A03 (720 px, 1 dp = 2 px) beside it. The screenshots themselves are
+not stored in the repository: they show personal calendar entries.
+
+| What | One UI 8.5 | This launcher (Stage 4) | Change made |
+|---|---|---|---|
+| Icon column pitch | ~83 dp (centres at 141/355/569/782 px) | ~82 dp | none |
+| Page side padding | ~13 dp | 16 dp | candidate for Stage 5 polish |
+| Widget inset inside its cells | ~10.5 dp per side (21 dp between widgets) | 0 (widgets filled their cells) | 10 dp inset (`WidgetFrame.INSET_DP`) |
+| Widget corners | ~26 dp; 1-row widgets are pills | whatever the widget draws (Samsung weather was square) | clipped to 26 dp / pill for every widget |
+| Row pitch | ~98 dp | ~104 dp | none yet (cell height follows the screen) |
+
+Notes:
+- The provider (Samsung Calendar, Clock) chooses its layout from the size the launcher reports.
+  With the inset, the reported size is now the widget's real size, which brings the choice closer
+  to One UI's (for example the compact clock pill instead of clock + date).
+- The Samsung Calendar widget's header overlapping the "+" button is drawn by the Calendar app.
+  If it still looks different after the size change, the Calendar app on the A03 may be an older
+  version than the one in the reference; updating it from the Galaxy Store is the user-side fix.

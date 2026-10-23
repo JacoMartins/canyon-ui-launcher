@@ -237,9 +237,10 @@ class IconCache(private val context: Context) {
     private fun themed(mono: Drawable): Bitmap {
         val size = iconSizePx
         val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-        // The same pairs the Android 13 launcher uses.
+        // A tinted glyph on a pale plate of the same hue (Android 13's own pair draws the glyph
+        // in a grey that reads as washed out over a colourful wallpaper).
         val bg = context.getColor(if (night) android.R.color.system_neutral1_800 else android.R.color.system_accent1_100)
-        val fg = context.getColor(if (night) android.R.color.system_accent1_100 else android.R.color.system_neutral2_700)
+        val fg = context.getColor(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_700)
         val layers = createBitmap(size, size)
         val c = Canvas(layers)
         c.drawColor(bg)

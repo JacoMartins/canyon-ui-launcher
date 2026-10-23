@@ -110,6 +110,9 @@ class HomeWidgets(
             val restorable = installedProvider(entry.provider, entry.userSerial) != null
             bind(appLabel(entry.provider.packageName), restorable)
         }
+        // The launcher keeps its own gap around widgets (the cell inset), so the platform's extra
+        // padding for older widgets would only shrink them further.
+        if (v is LauncherWidgetHostView) v.setPadding(0, 0, 0, 0)
         v.setTag(R.id.tag_widget_id, entry.appWidgetId)
         v.setTag(R.id.tag_item_id, entry.id)
         v.contentDescription = info?.loadLabel(activity.packageManager)

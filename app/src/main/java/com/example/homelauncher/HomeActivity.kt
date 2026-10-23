@@ -89,6 +89,7 @@ import com.example.homelauncher.ui.widget.LauncherWidgetHostView
 import com.example.homelauncher.ui.widget.PickerWidget
 import com.example.homelauncher.ui.widget.ResizeFrame
 import com.example.homelauncher.ui.widget.WidgetCatalog
+import com.example.homelauncher.ui.widget.WidgetFrame
 import com.example.homelauncher.ui.widget.WidgetPlaceholderView
 import com.example.homelauncher.ui.widget.WidgetSizes
 import com.example.homelauncher.ui.widget.WidgetStackView
@@ -142,6 +143,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private lateinit var widgets: HomeWidgets
     private var resizeFrame: ResizeFrame? = null
     private var resizeAnyWidget = false
+    private var widgetBorder = true
+    private val widgetInset by lazy { (WidgetFrame.INSET_DP * resources.displayMetrics.density).toInt() }
     /** Where the picker adds: null for the current page, else onto a widget or stack. */
     private var pickerTarget: DropAction? = null
     private var pickerSpan: Pair<Int, Int>? = null
@@ -295,6 +298,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 launcher.settings.settings.collect { s ->
                     hintSeen = s.drawerHintSeen
                     resizeAnyWidget = s.resizeAnyWidget
+                    if (widgetBorder != s.widgetBorder) {
+                        widgetBorder = s.widgetBorder
+                        state?.let(::bind)
+                    }
                     setHintVisible(!hintSeen && drawerEnabled)
                 }
             }
@@ -402,7 +409,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 is WidgetEntry -> widgetIds += entry.id
                 is StackEntry -> {
                     entry.widgets.forEach { widgetIds += it.id }
-                    (view as WidgetStackView).setPages(entry.widgets.map { widgetView(it) })
+                    // The stack carries the frame; its widgets are plain inside it.
+                    (view as WidgetStackView).setPages(entry.widgets.map { widgetView(it).also(WidgetFrame::clear) })
                 }
                 else -> Unit
             }
@@ -412,12 +420,15 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 is AppIconView -> { view.bind((entry as AppEntry).app); view.useStyle(style) }
                 is FolderIconView -> { view.bind(entry as FolderEntry); view.useStyle(style) }
             }
+            val isWidget = entry is WidgetEntry || entry is StackEntry
+            val inset = if (isWidget) widgetInset else 0
+            if (isWidget) WidgetFrame.apply(view, widgetBorder)
             val lp = view.layoutParams as? CellLayout.LayoutParams
             if (view.parent !== parent) {
                 (view.parent as? android.view.ViewGroup)?.removeView(view) // A page, the dock or a stack.
-                parent.addView(view, CellLayout.LayoutParams(p.x, p.y, p.spanX, p.spanY))
-            } else if (lp != null && (lp.cellX != p.x || lp.cellY != p.y || lp.spanX != p.spanX || lp.spanY != p.spanY)) {
-                lp.cellX = p.x; lp.cellY = p.y; lp.spanX = p.spanX; lp.spanY = p.spanY
+                parent.addView(view, CellLayout.LayoutParams(p.x, p.y, p.spanX, p.spanY, inset))
+            } else if (lp != null && (lp.cellX != p.x || lp.cellY != p.y || lp.spanX != p.spanX || lp.spanY != p.spanY || lp.inset != inset)) {
+                lp.cellX = p.x; lp.cellY = p.y; lp.spanX = p.spanX; lp.spanY = p.spanY; lp.inset = inset
                 view.requestLayout()
             }
             view.visibility = if (view === dragged) View.INVISIBLE else View.VISIBLE
@@ -500,7 +511,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private fun widgetSizes(): WidgetSizes? {
         val page = home.workspace.pageAt(home.workspace.currentPage) ?: home.workspace.pageAt(0) ?: return null
         if (page.cellWidth <= 0 || page.cellHeight <= 0) return null
-        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density, resizeAnyWidget)
+        return WidgetSizes(page.cellWidth, page.cellHeight, page.columns, page.rows, resources.displayMetrics.density, resizeAnyWidget, widgetInset)
     }
 
     private fun newIconView() = AppIconView(this, homeStyle).apply {

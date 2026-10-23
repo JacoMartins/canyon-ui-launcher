@@ -54,6 +54,8 @@ data class LauncherSettings(
     val iconPack: String? = null,
     /** Lets any widget be resized to any size, ignoring the sizes its app declares. */
     val resizeAnyWidget: Boolean = false,
+    /** OneDepth's translucent ring along widget edges. */
+    val widgetBorder: Boolean = true,
     val iconStyle: IconStyle = IconStyle(),
     /** Per-app label and icon choices, by [com.example.homelauncher.model.AppKey] string. */
     val iconOverrides: Map<String, IconOverride> = emptyMap(),
@@ -83,6 +85,7 @@ class SettingsStore(private val context: Context) {
         val DRAWER_HINT_SEEN = booleanPreferencesKey("drawer_hint_seen")
         val ICON_PACK = stringPreferencesKey("icon_pack")
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
+        val WIDGET_BORDER = booleanPreferencesKey("widget_border")
         val ICON_SHAPE = stringPreferencesKey("icon_shape")
         val THEMED_ICONS = booleanPreferencesKey("themed_icons")
         val PACK_STYLE = booleanPreferencesKey("pack_style")
@@ -119,6 +122,7 @@ class SettingsStore(private val context: Context) {
             drawerHintSeen = p[Keys.DRAWER_HINT_SEEN] ?: false,
             iconPack = p[Keys.ICON_PACK],
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
+            widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
             iconStyle = IconStyle(
                 shape = IconShape.fromKey(p[Keys.ICON_SHAPE]),
                 themed = p[Keys.THEMED_ICONS] ?: false,
@@ -194,6 +198,10 @@ class SettingsStore(private val context: Context) {
             })
         }
     }.toString()
+
+    suspend fun setWidgetBorder(on: Boolean) {
+        context.dataStore.edit { it[Keys.WIDGET_BORDER] = on }
+    }
 
     suspend fun setResizeAnyWidget(on: Boolean) {
         context.dataStore.edit { it[Keys.RESIZE_ANY_WIDGET] = on }

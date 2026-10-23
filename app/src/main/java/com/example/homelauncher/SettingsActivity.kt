@@ -225,6 +225,11 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                 onChange = { scope.launch { store.setResizeAnyWidget(it) } },
             )
             Text(stringResource(R.string.resize_any_widget_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SwitchRow(
+                title = stringResource(R.string.widget_border),
+                checked = s.widgetBorder,
+                onChange = { scope.launch { store.setWidgetBorder(it) } },
+            )
         }
 
         Card(onClick = { showHidden = true }) {

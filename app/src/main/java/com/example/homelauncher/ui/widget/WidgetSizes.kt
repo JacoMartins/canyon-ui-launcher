@@ -27,7 +27,12 @@ class WidgetSizes(
     private val density: Float,
     /** The "Resize any widget" setting: every widget may take any size from 1x1 to the page. */
     private val anySize: Boolean = false,
+    /** Space kept free around a widget inside its cells, per side. */
+    private val insetPx: Int = 0,
 ) {
+    private fun widthDp(spanX: Int) = (spanX * cellWidth - 2 * insetPx) / density
+    private fun heightDp(spanY: Int) = (spanY * cellHeight - 2 * insetPx) / density
+
 
     private fun spansFor(px: Int, cell: Int, limit: Int) = ceil(px.toFloat() / cell.coerceAtLeast(1)).toInt().coerceIn(1, limit)
 
@@ -67,8 +72,8 @@ class WidgetSizes(
 
     /** Tells the provider the size it is shown at, in dp, so it can pick a matching layout. */
     fun applySize(view: AppWidgetHostView, spanX: Int, spanY: Int) {
-        val w = spanX * cellWidth / density
-        val h = spanY * cellHeight / density
+        val w = widthDp(spanX)
+        val h = heightDp(spanY)
         try {
             if (Build.VERSION.SDK_INT >= 31) {
                 view.updateAppWidgetSize(Bundle(), listOf(SizeF(w, h)))
@@ -83,8 +88,8 @@ class WidgetSizes(
 
     /** Options for binding a new widget at [spanX] x [spanY]. */
     fun options(spanX: Int, spanY: Int): Bundle {
-        val w = (spanX * cellWidth / density).toInt()
-        val h = (spanY * cellHeight / density).toInt()
+        val w = widthDp(spanX).toInt()
+        val h = heightDp(spanY).toInt()
         return Bundle().apply {
             putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, w)
             putInt(android.appwidget.AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, h)

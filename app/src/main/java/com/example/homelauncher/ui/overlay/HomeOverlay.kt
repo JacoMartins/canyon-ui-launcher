@@ -217,12 +217,12 @@ private fun ItemMenuLayer(menu: ItemMenu, onDismiss: () -> Unit) {
             shape = MenuShape,
             color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f),
         ) {
-            // OneDepth list: an inset column of pill rows (20 x 12 padding, 12 between icon and
-            // text, 4 between rows). The panel's radius is the row's plus the inset, so a pressed
-            // row sits concentric with the panel.
+            // OneDepth list, compact: an inset column of pill rows (16 x 8 padding, 12 between
+            // icon and text, 2 between rows). The panel's radius is the row's plus the inset, so a
+            // pressed row sits concentric with the panel.
             Column(
-                Modifier.width(IntrinsicSize.Max).padding(Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                Modifier.width(IntrinsicSize.Max).padding(Spacing.xsSm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
             ) {
                 for (e in menu.entries) {
                     Row(
@@ -231,7 +231,7 @@ private fun ItemMenuLayer(menu: ItemMenu, onDismiss: () -> Unit) {
                             .widthIn(min = 184.dp)
                             .clip(CircleShape)
                             .clickable(role = Role.Button) { onDismiss(); e.action() }
-                            .padding(horizontal = Spacing.mdLg, vertical = Spacing.smMd),
+                            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.smMd),
                     ) {
@@ -244,8 +244,8 @@ private fun ItemMenuLayer(menu: ItemMenu, onDismiss: () -> Unit) {
     }
 }
 
-/** A row is 44dp tall (pill radius 22) inside an 8dp inset. */
-private val MENU_RADIUS = 30.dp
+/** A row is about 40dp tall (pill radius 20) inside a 6dp inset. */
+private val MENU_RADIUS = 26.dp
 private val MenuShape = RoundedCornerShape(MENU_RADIUS)
 
 // ------------------------------------------------------------------------------- folder popup
