@@ -13,19 +13,24 @@ import androidx.compose.ui.platform.LocalContext
 import io.github.jacomartins.canyonui.ui.design.LauncherTypography
 
 /**
- * Canyon UI's own palette: neutral greys only (no hue), one set for light mode and one for dark.
- * Dark mode is built on #010101 (background) and #171717 (panels). Used unless the user turns on
+ * Canyon UI's own palette: neutral greys (no tinted surfaces) with a blue primary, one set for
+ * light mode and one for dark. Dark mode is built on #010101 (background) and #171717 (panels);
+ * light mode uses a slightly darker blue so it holds up on white. Used unless the user turns on
  * "Use the phone's colour palette" (whether the phone's palette is switched on cannot be told
  * apart from its default through public APIs).
  */
 private fun grey(v: Int) = Color(0xFF000000.toInt() or (v shl 16) or (v shl 8) or v)
 
+/** The primary blue: [BLUE_DARK] in dark mode, the darker [BLUE_LIGHT] in light mode. */
+private val BLUE_DARK = Color(0xFF2F7BF5)
+private val BLUE_LIGHT = Color(0xFF1F63D6)
+
 private val CanyonLight = lightColorScheme(
-    primary = grey(0x17),
+    primary = BLUE_LIGHT,
     onPrimary = grey(0xFF),
-    primaryContainer = grey(0xE0),
-    onPrimaryContainer = grey(0x17),
-    inversePrimary = grey(0xF2),
+    primaryContainer = Color(0xFFD8E5FB),
+    onPrimaryContainer = Color(0xFF0B2F6B),
+    inversePrimary = BLUE_DARK,
     secondary = grey(0x40),
     onSecondary = grey(0xFF),
     secondaryContainer = grey(0xE8),
@@ -40,7 +45,7 @@ private val CanyonLight = lightColorScheme(
     onSurface = grey(0x17),
     surfaceVariant = grey(0xE8),
     onSurfaceVariant = grey(0x5C),
-    surfaceTint = grey(0x17),
+    surfaceTint = Color.Transparent,
     inverseSurface = grey(0x26),
     inverseOnSurface = grey(0xF5),
     outline = grey(0xA3),
@@ -56,11 +61,11 @@ private val CanyonLight = lightColorScheme(
 )
 
 private val CanyonDark = darkColorScheme(
-    primary = grey(0xF2),
-    onPrimary = grey(0x0A),
-    primaryContainer = grey(0x2E),
-    onPrimaryContainer = grey(0xF2),
-    inversePrimary = grey(0x17),
+    primary = BLUE_DARK,
+    onPrimary = grey(0xFF),
+    primaryContainer = Color(0xFF173A73),
+    onPrimaryContainer = Color(0xFFD8E5FB),
+    inversePrimary = BLUE_LIGHT,
     secondary = grey(0xD4),
     onSecondary = grey(0x0A),
     secondaryContainer = grey(0x26),
@@ -75,7 +80,7 @@ private val CanyonDark = darkColorScheme(
     onSurface = grey(0xF2),
     surfaceVariant = grey(0x26),
     onSurfaceVariant = grey(0xA3),
-    surfaceTint = grey(0xF2),
+    surfaceTint = Color.Transparent,
     inverseSurface = grey(0xE5),
     inverseOnSurface = grey(0x17),
     outline = grey(0x5C),

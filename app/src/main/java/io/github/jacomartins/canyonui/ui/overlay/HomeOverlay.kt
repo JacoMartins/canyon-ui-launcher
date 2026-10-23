@@ -100,6 +100,7 @@ import androidx.compose.ui.unit.sp
 import io.github.jacomartins.canyonui.R
 import io.github.jacomartins.canyonui.data.AppEntry
 import io.github.jacomartins.canyonui.data.FolderEntry
+import io.github.jacomartins.canyonui.ui.design.IconPillButton
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.MenuLayer
@@ -134,7 +135,7 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 // Category mode: file the loose apps on the pages after the home page.
                 if (state.categoryMode) {
-                    SecondaryButton(stringResource(R.string.categorize_apps), actions::categorizeApps, icon = R.drawable.ph_stack)
+                    PrimaryButton(stringResource(R.string.categorize_apps), actions::categorizeApps, icon = R.drawable.ph_stack)
                     Spacer(Modifier.height(Spacing.smMd))
                 }
                 EditBottomBar(actions)
@@ -188,31 +189,10 @@ private fun EditTopBar(state: OverlayState, actions: OverlayActions) {
     }
 }
 
-/** A round button with its own surface and ring (OneDepth secondary style), icon only. */
+/** A round secondary button, icon only. */
 @Composable
-private fun PageIconButton(@DrawableRes icon: Int, label: String, enabled: Boolean, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val tint = colors.onSecondaryContainer.copy(alpha = if (enabled) 1f else 0.38f)
-    // Material pads clickable surfaces out to a 48dp touch target, which sets the ring off the
-    // circle; the 44dp button is its own target here.
-    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-        Surface(
-            onClick = onClick,
-            enabled = enabled,
-            shape = CircleShape,
-            color = colors.secondaryContainer.copy(alpha = if (enabled) 1f else 0.7f),
-            modifier = Modifier
-                .size(44.dp)
-                .buttonRing()
-                .semantics { contentDescription = label },
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(painterResource(icon), contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-            }
-        }
-    }
-}
-
+private fun PageIconButton(@DrawableRes icon: Int, label: String, enabled: Boolean, onClick: () -> Unit) =
+    IconPillButton(icon, label, onClick, enabled = enabled)
 
 @Composable
 private fun EditBottomBar(actions: OverlayActions) {

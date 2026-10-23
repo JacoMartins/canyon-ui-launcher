@@ -1,6 +1,7 @@
 package io.github.jacomartins.canyonui.ui.design
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,7 +24,12 @@ object Spacing {
 
 /**
  * OneDepth's text hierarchy on the phone's own font (no bundled typeface): bold display and
- * page headlines (h1), semi-bold section headlines and titles (h2, h3), bold button labels.
+ * page headlines (h1), semi-bold section headlines (h2), medium item titles (h3), regular body
+ * text and bold button labels.
+ *
+ * Compose ignores the font weight of a family made from a single Typeface, so every weight gets
+ * its own family made from the phone's font at that weight (Typeface.create picks the font's own
+ * bold face, or emboldens it when there is none).
  */
 val LauncherTypography: Typography = Typography(
     // The phone's own font. Compose's default family resolves the stock sans-serif and skips a
@@ -31,7 +37,7 @@ val LauncherTypography: Typography = Typography(
     // home screen's View labels use) carries it.
 ).let { base ->
     val phone = FontFamily(android.graphics.Typeface.DEFAULT)
-    Typography(
+    base.copy(
         displayLarge = base.displayLarge.copy(fontFamily = phone),
         displayMedium = base.displayMedium.copy(fontFamily = phone),
         displaySmall = base.displaySmall.copy(fontFamily = phone),
@@ -49,18 +55,22 @@ val LauncherTypography: Typography = Typography(
         labelSmall = base.labelSmall.copy(fontFamily = phone),
     )
 }.let { t ->
+    fun TextStyle.weight(w: FontWeight) = copy(
+        fontWeight = w,
+        fontFamily = FontFamily(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, w.weight, false)),
+    )
     t.copy(
-        displayLarge = t.displayLarge.copy(fontWeight = FontWeight.Bold),
-        displayMedium = t.displayMedium.copy(fontWeight = FontWeight.Bold),
-        displaySmall = t.displaySmall.copy(fontWeight = FontWeight.Bold),
-        headlineLarge = t.headlineLarge.copy(fontWeight = FontWeight.Bold),
-        headlineMedium = t.headlineMedium.copy(fontWeight = FontWeight.Bold),
-        headlineSmall = t.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-        titleLarge = t.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-        titleMedium = t.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-        titleSmall = t.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-        labelLarge = t.labelLarge.copy(fontWeight = FontWeight.Bold),
-        labelMedium = t.labelMedium.copy(fontWeight = FontWeight.Medium),
-        labelSmall = t.labelSmall.copy(fontWeight = FontWeight.Medium),
+        displayLarge = t.displayLarge.weight(FontWeight.Bold),
+        displayMedium = t.displayMedium.weight(FontWeight.Bold),
+        displaySmall = t.displaySmall.weight(FontWeight.Bold),
+        headlineLarge = t.headlineLarge.weight(FontWeight.Bold),
+        headlineMedium = t.headlineMedium.weight(FontWeight.Bold),
+        headlineSmall = t.headlineSmall.weight(FontWeight.Bold),
+        titleLarge = t.titleLarge.weight(FontWeight.SemiBold),
+        titleMedium = t.titleMedium.weight(FontWeight.Medium),
+        titleSmall = t.titleSmall.weight(FontWeight.Medium),
+        labelLarge = t.labelLarge.weight(FontWeight.Bold),
+        labelMedium = t.labelMedium.weight(FontWeight.Medium),
+        labelSmall = t.labelSmall.weight(FontWeight.Medium),
     )
 }

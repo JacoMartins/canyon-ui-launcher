@@ -2,6 +2,11 @@ package io.github.jacomartins.canyonui.ui.design
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -23,7 +28,86 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-/** Filled pill in the primary colour with the depth ring and a bold label. */
+/** Which of the two button looks: blue [Primary] for the main action, grey [Secondary] for the rest. */
+enum class ButtonKind { Primary, Secondary }
+
+/**
+ * The one button of the interface: a pill (or a circle when it only holds an icon) with the depth
+ * ring and bold content. [ButtonKind.Primary] is filled with the primary blue,
+ * [ButtonKind.Secondary] with the neutral grey; any content can go inside.
+ */
+@Composable
+fun PillButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    kind: ButtonKind = ButtonKind.Primary,
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = Spacing.mdLg, vertical = Spacing.sm),
+    content: @Composable RowScope.() -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val (container, onContainer) = when (kind) {
+        ButtonKind.Primary -> colors.primary to colors.onPrimary
+        ButtonKind.Secondary -> colors.secondaryContainer to colors.onSecondaryContainer
+    }
+    // Material grows clickable surfaces to a 48dp touch target, which made the ring trace a larger
+    // box than the visible pill (a doubled outline). Turn that off and give the pill a 44dp
+    // minimum size instead, so the ring, the fill and the touch area are the same shape.
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+        Surface(
+            onClick = onClick,
+            enabled = enabled,
+            shape = CircleShape,
+            color = if (enabled) container else container.copy(alpha = 0.38f),
+            contentColor = if (enabled) onContainer else onContainer.copy(alpha = 0.6f),
+            modifier = modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).buttonRing(),
+        ) {
+            ProvideTextStyle(MaterialTheme.typography.labelLarge) {
+                Row(
+                    Modifier.padding(contentPadding),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xsSm, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = content,
+                )
+            }
+        }
+    }
+}
+
+/** A [PillButton] with a label and an optional trailing icon. */
+@Composable
+fun PillButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    kind: ButtonKind = ButtonKind.Primary,
+    @DrawableRes icon: Int? = null,
+    enabled: Boolean = true,
+) = PillButton(onClick, modifier, kind, enabled) {
+    Text(text, maxLines = 1)
+    if (icon != null) Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp))
+}
+
+/** A round [PillButton] holding only an icon; [label] is read out by accessibility services. */
+@Composable
+fun IconPillButton(
+    @DrawableRes icon: Int,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    kind: ButtonKind = ButtonKind.Secondary,
+    enabled: Boolean = true,
+    size: Dp = 44.dp,
+) = PillButton(
+    onClick,
+    modifier.size(size).semantics { contentDescription = label },
+    kind, enabled,
+    contentPadding = PaddingValues(0.dp),
+) {
+    Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(22.dp))
+}
+
+/** The main action: blue pill. */
 @Composable
 fun PrimaryButton(
     text: String,
@@ -31,9 +115,9 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null,
     enabled: Boolean = true,
-) = PillButton(text, onClick, modifier, icon, enabled, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+) = PillButton(text, onClick, modifier, ButtonKind.Primary, icon, enabled)
 
-/** Tonal pill for secondary actions: same shape, ring and label weight, quieter colour. */
+/** Every other action: grey pill, same shape, ring and label weight. */
 @Composable
 fun SecondaryButton(
     text: String,
@@ -41,48 +125,11 @@ fun SecondaryButton(
     modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null,
     enabled: Boolean = true,
-) = PillButton(
-    text, onClick, modifier, icon, enabled,
-    MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer,
-)
+) = PillButton(text, onClick, modifier, ButtonKind.Secondary, icon, enabled)
 
 /** A pill that is Primary when [selected] and Secondary otherwise (segmented choices). */
 @Composable
 fun ChoiceButton(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val m = modifier.semantics { this.selected = selected }
     if (selected) PrimaryButton(text, onClick, m) else SecondaryButton(text, onClick, m)
-}
-
-@Composable
-private fun PillButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier,
-    @DrawableRes icon: Int?,
-    enabled: Boolean,
-    container: Color,
-    content: Color,
-) {
-    // Material grows clickable surfaces to a 48dp touch target, which made the ring trace a larger
-    // box than the visible pill (a doubled outline). Turn that off and give the pill a 44dp
-    // minimum height instead, so the ring, the fill and the touch area are the same shape.
-    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        shape = CircleShape,
-        color = if (enabled) container else container.copy(alpha = 0.38f),
-        contentColor = if (enabled) content else content.copy(alpha = 0.6f),
-        modifier = modifier.heightIn(min = 44.dp).buttonRing(),
-    ) {
-        Row(
-            Modifier.padding(horizontal = Spacing.mdLg, vertical = Spacing.sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xsSm, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 1)
-            if (icon != null) Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp))
-        }
-    }
-    }
 }

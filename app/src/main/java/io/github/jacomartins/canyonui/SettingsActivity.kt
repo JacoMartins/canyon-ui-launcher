@@ -46,6 +46,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import io.github.jacomartins.canyonui.ui.design.Spacing
 import androidx.lifecycle.lifecycleScope
 import io.github.jacomartins.canyonui.data.AppInfo
 import io.github.jacomartins.canyonui.data.IconSize
@@ -97,15 +101,18 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        // Page title (h1): bold, lined up with the text inside the cards.
         Text(
             stringResource(R.string.home_settings),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(start = 8.dp, top = 24.dp, bottom = 12.dp),
+            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.md, bottom = Spacing.sm),
         )
+        // Radio buttons and switches without Material's extra 48dp touch padding, so they line
+        // up with the text; the whole row is the touch target.
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
 
         Card {
             SectionTitle(stringResource(R.string.layout_mode))
@@ -125,7 +132,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(selected = s.layoutMode == mode, onClick = null)
-                        Column(Modifier.padding(start = 12.dp)) {
+                        Column(Modifier.padding(start = Spacing.smMd)) {
                             Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
                             Text(stringResource(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -178,13 +185,13 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
 
         Card {
             SectionTitle(stringResource(R.string.home_grid))
-            Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (c in SettingsStore.MIN_COLUMNS..SettingsStore.MAX_COLUMNS) {
                     ChoiceButton("$c", s.columns == c, { scope.launch { store.setGrid(s.layoutMode, c, s.rows) } }, Modifier.weight(1f))
                 }
             }
-            Text(stringResource(R.string.grid_rows), style = MaterialTheme.typography.labelLarge)
+            Text(stringResource(R.string.grid_rows), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (r in SettingsStore.MIN_ROWS..SettingsStore.MAX_ROWS) {
                     ChoiceButton("$r", s.rows == r, { scope.launch { store.setGrid(s.layoutMode, s.columns, r) } }, Modifier.weight(1f))
@@ -309,6 +316,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         Card(onClick = { showLicenses = true }) {
             Text(stringResource(R.string.licenses), style = MaterialTheme.typography.titleMedium)
         }
+        }
     }
     if (showLicenses) {
         val text = remember { context.assets.open("licenses/phosphor-icons.txt").bufferedReader().use { it.readText() } }
@@ -417,7 +425,7 @@ private fun ShapeChoice(shape: IconShape, selected: Boolean, modifier: Modifier,
 
 @Composable
 private fun SectionTitle(text: String) {
-    // Section headlines (h2): semi-bold, a step above the item titles (h3).
+    // Section headlines (h2): semi-bold in the primary colour, above the medium item titles (h3).
     Text(text, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
 }
 
@@ -429,7 +437,7 @@ private fun Card(onClick: (() -> Unit)? = null, content: @Composable () -> Unit)
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(
-            (if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(20.dp),
+            (if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(Spacing.mdLg),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) { content() }
     }
