@@ -151,6 +151,8 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
         } catch (e: RuntimeException) {
             onCrash(e)
         }
+        // The widget's visible card may have moved or changed size.
+        WidgetFrame.refresh(this)
     }
 
     override fun dispatchDraw(canvas: Canvas) {

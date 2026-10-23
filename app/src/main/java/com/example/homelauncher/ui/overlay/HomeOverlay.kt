@@ -96,6 +96,7 @@ import com.example.homelauncher.data.AppEntry
 import com.example.homelauncher.data.FolderEntry
 import com.example.homelauncher.ui.design.PrimaryButton
 import com.example.homelauncher.ui.design.SecondaryButton
+import com.example.homelauncher.ui.design.MenuLayer
 import com.example.homelauncher.ui.design.Spacing
 import com.example.homelauncher.ui.design.surfaceRing
 import com.example.homelauncher.ui.home.AppIconView
@@ -227,62 +228,7 @@ private fun ToolButton(@DrawableRes icon: Int, label: String, onClick: () -> Uni
 // ------------------------------------------------------------------------------- long-press menu
 
 @Composable
-private fun ItemMenuLayer(menu: ItemMenu, onDismiss: () -> Unit) {
-    val density = LocalDensity.current
-    val margin = with(density) { 12.dp.roundToPx() }
-    Box(
-        Modifier
-            .fillMaxSize()
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
-    ) {
-        Surface(
-            modifier = Modifier
-                .layout { measurable, constraints ->
-                    val p = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                    layout(constraints.maxWidth, constraints.maxHeight) {
-                        val a = menu.anchor
-                        val x = (a.centerX() - p.width / 2).coerceIn(margin, constraints.maxWidth - p.width - margin)
-                        // Above the icon when there is room, otherwise below it.
-                        val above = a.top - p.height - margin
-                        val y = if (above > margin * 4) above else (a.bottom + margin).coerceAtMost(constraints.maxHeight - p.height - margin)
-                        p.place(x, y)
-                    }
-                }
-                .shadow(Spacing.sm, MenuShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-                .surfaceRing(cornerRadius = MENU_RADIUS),
-            shape = MenuShape,
-            color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f),
-        ) {
-            // OneDepth list, compact: an inset column of pill rows (16 x 8 padding, 12 between
-            // icon and text, 2 between rows). The panel's radius is the row's plus the inset, so a
-            // pressed row sits concentric with the panel.
-            Column(
-                Modifier.width(IntrinsicSize.Max).padding(Spacing.xsSm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
-            ) {
-                for (e in menu.entries) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .widthIn(min = 184.dp)
-                            .clip(CircleShape)
-                            .clickable(role = Role.Button) { onDismiss(); e.action() }
-                            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.smMd),
-                    ) {
-                        Icon(painterResource(e.icon), contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
-                        Text(e.label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** A row is about 40dp tall (pill radius 20) inside a 6dp inset. */
-private val MENU_RADIUS = 26.dp
-private val MenuShape = RoundedCornerShape(MENU_RADIUS)
+private fun ItemMenuLayer(menu: ItemMenu, onDismiss: () -> Unit) = MenuLayer(menu.anchor, menu.entries, onDismiss)
 
 // ------------------------------------------------------------------------------- folder popup
 

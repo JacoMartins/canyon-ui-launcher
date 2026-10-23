@@ -1,19 +1,18 @@
 package com.example.homelauncher.ui.overlay
 
 import android.graphics.Rect
-import androidx.annotation.DrawableRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
+import com.example.homelauncher.ui.design.MenuEntry
 import com.example.homelauncher.ui.widget.PickerWidget
 import com.example.homelauncher.data.AppEntry
 import com.example.homelauncher.data.AppInfo
 import com.example.homelauncher.data.FolderEntry
 import com.example.homelauncher.data.IconOverride
 
-class MenuEntry(@DrawableRes val icon: Int, val label: String, val action: () -> Unit)
 
 /** A long-press menu next to [anchor] (window coordinates). */
 class ItemMenu(val anchor: Rect, val entries: List<MenuEntry>)

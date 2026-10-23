@@ -78,7 +78,7 @@ import com.example.homelauncher.ui.home.ViewMap
 import com.example.homelauncher.ui.overlay.EditAppState
 import com.example.homelauncher.ui.overlay.HomeOverlay
 import com.example.homelauncher.ui.overlay.ItemMenu
-import com.example.homelauncher.ui.overlay.MenuEntry
+import com.example.homelauncher.ui.design.MenuEntry
 import com.example.homelauncher.ui.overlay.OverlayActions
 import com.example.homelauncher.ui.overlay.OverlayState
 import com.example.homelauncher.ui.overlay.PageThumb
@@ -423,7 +423,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             }
             val isWidget = entry is WidgetEntry || entry is StackEntry
             val inset = if (isWidget) widgetInset else 0
-            if (isWidget) WidgetFrame.apply(view, widgetBorder)
+            if (isWidget) WidgetFrame.apply(view, widgetBorder, pill = p.spanX == 1 || p.spanY == 1)
             val lp = view.layoutParams as? CellLayout.LayoutParams
             if (view.parent !== parent) {
                 (view.parent as? android.view.ViewGroup)?.removeView(view) // A page, the dock or a stack.
@@ -626,6 +626,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 val c = Canvas(b)
                 c.translate(-local.left, -local.top)
                 v.draw(c)
+                // Widgets: the same rounded shape they have on the page.
+                WidgetFrame.clipSnapshot(v, b, local)
             }
         }
         val touchX = (dragLayer.lastDownX - pt[0]).coerceIn(0f, w.toFloat())
@@ -660,6 +662,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun armDrag(app: AppInfo, bounds: Rect?) = drag.arm(newAppSource(DragItem.NewApp(app.key), app))
 
     /** Long-press inside the folder popup: the icon's menu, and a drag if the finger moves. */
+    /** A menu requested by the drawer (its items and its options button). */
+    override fun showMenu(anchor: Rect, entries: List<MenuEntry>) {
+        ui.menu = ItemMenu(anchor, entries)
+        updateBackCallbacks()
+    }
+
     override fun armDragFromFolder(app: AppEntry, folder: FolderEntry, bounds: Rect) {
         ui.menu = ItemMenu(bounds, menuFor(app))
         updateBackCallbacks()

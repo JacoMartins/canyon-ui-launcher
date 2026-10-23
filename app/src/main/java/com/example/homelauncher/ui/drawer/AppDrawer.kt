@@ -40,8 +40,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -81,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.homelauncher.ui.home.AppIconView
 import com.example.homelauncher.R
+import com.example.homelauncher.ui.design.MenuEntry
 import com.example.homelauncher.data.AppInfo
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -98,6 +97,9 @@ interface DrawerActions {
     fun appInfo(app: AppInfo, bounds: Rect?)
     fun uninstall(app: AppInfo)
     fun editApp(app: AppInfo)
+
+    /** Shows the shared long-press menu next to [anchor] (window coordinates). */
+    fun showMenu(anchor: Rect, entries: List<MenuEntry>)
     fun addToHome(app: AppInfo)
     fun openSettings()
 
@@ -130,7 +132,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
-            TopBar(onShowHidden = { showHidden = true }, onSettings = actions::openSettings)
+            TopBar(onShowHidden = { showHidden = true }, onSettings = actions::openSettings, showMenu = actions::showMenu)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 val bottom = bottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
                 if (results.isEmpty() && model.query.isNotBlank()) {
@@ -157,20 +159,23 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
 }
 
 @Composable
-private fun TopBar(onShowHidden: () -> Unit, onSettings: () -> Unit) {
-    var menu by remember { mutableStateOf(false) }
+private fun TopBar(onShowHidden: () -> Unit, onSettings: () -> Unit, showMenu: (Rect, List<MenuEntry>) -> Unit) {
+    val coords = remember { Coords() }
+    val hidden = stringResource(R.string.hidden_apps)
+    val settings = stringResource(R.string.home_settings)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.End,
     ) {
-        Box {
-            IconButton(onClick = { menu = true }) {
-                Icon(painterResource(R.drawable.ph_more), contentDescription = stringResource(R.string.drawer_options), tint = MaterialTheme.colorScheme.onSurface)
-            }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(20.dp)) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.hidden_apps)) }, onClick = { menu = false; onShowHidden() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.home_settings)) }, onClick = { menu = false; onSettings() })
-            }
+        IconButton(
+            onClick = {
+                coords.bounds()?.let {
+                    showMenu(it, listOf(MenuEntry(R.drawable.ph_eye, hidden, onShowHidden), MenuEntry(R.drawable.ph_settings, settings, onSettings)))
+                }
+            },
+            modifier = Modifier.onPlaced { coords.value = it },
+        ) {
+            Icon(painterResource(R.drawable.ph_more), contentDescription = stringResource(R.string.drawer_options), tint = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -265,6 +270,18 @@ private fun AppGrid(
 ) {
     val optionsLabel = stringResource(R.string.action_options)
     val haptics = LocalHapticFeedback.current
+    val addHome = stringResource(R.string.menu_add_to_home)
+    val info = stringResource(R.string.menu_app_info)
+    val editLabel = stringResource(R.string.menu_edit_app)
+    val hide = stringResource(R.string.menu_hide)
+    val uninstall = stringResource(R.string.menu_uninstall)
+    fun appMenu(app: AppInfo, bounds: Rect) = buildList {
+        add(MenuEntry(R.drawable.ph_plus, addHome) { actions.addToHome(app) })
+        add(MenuEntry(R.drawable.ph_info, info) { actions.appInfo(app, bounds) })
+        add(MenuEntry(R.drawable.ph_edit, editLabel) { actions.editApp(app) })
+        add(MenuEntry(R.drawable.ph_hide, hide) { model.setHidden(app, true) })
+        if (!app.isSystem) add(MenuEntry(R.drawable.ph_trash, uninstall) { actions.uninstall(app) })
+    }
     // Same rule as the home screen: a share of the column width, capped.
     val size by model.iconSize.collectAsState()
     val windowWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp().value }
@@ -280,7 +297,6 @@ private fun AppGrid(
     ) {
         items(apps, key = { it.key.toString() }, contentType = { 0 }) { app ->
             val coords = remember { Coords() }
-            var menu by remember(model.dragEpoch) { mutableStateOf(false) }
             Box {
                 Column(
                     Modifier
@@ -292,7 +308,7 @@ private fun AppGrid(
                             onLongClickLabel = optionsLabel,
                             onLongClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                menu = true
+                                coords.bounds()?.let { b -> actions.showMenu(b, appMenu(app, b)) }
                                 actions.armDrag(app, coords.bounds())
                             },
                             onClick = { actions.launch(app, coords.bounds()) },
@@ -319,15 +335,6 @@ private fun AppGrid(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(20.dp)) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.menu_add_to_home)) }, onClick = { menu = false; actions.addToHome(app) })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.menu_app_info)) }, onClick = { menu = false; actions.appInfo(app, coords.bounds()) })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.menu_edit_app)) }, onClick = { menu = false; actions.editApp(app) })
-                    DropdownMenuItem(text = { Text(stringResource(R.string.menu_hide)) }, onClick = { menu = false; model.setHidden(app, true) })
-                    if (!app.isSystem) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.menu_uninstall)) }, onClick = { menu = false; actions.uninstall(app) })
-                    }
                 }
             }
         }
