@@ -161,7 +161,8 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         // The glass lens follows the outline's real corners (a circle bends all round).
         val glassRadius = if (isLarge) box.width() * largeCornerShare() else box.width() * iconCornerShare()
         if (WallpaperBackdrop.draw(canvas, this, outlinePath, glassRadius)) {
-            bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShareFor(bgPaint.color)).toInt()
+            // Folders keep less of their tint than other surfaces: clearer glass, less frost.
+            bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShareFor(bgPaint.color) * FOLDER_TINT).toInt()
         }
         if (isLarge) {
             val radius = box.width() * largeCornerShare()
@@ -300,6 +301,9 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
 
     private companion object {
         const val SLOTS = 9
+
+        /** Share of the usual over-blur tint a folder keeps (less frosted than panels). */
+        const val FOLDER_TINT = 0.6f
 
         /** Gap between a large folder's backdrop and its cells, per side. */
         const val LARGE_MARGIN_DP = 8f

@@ -177,11 +177,12 @@ object WallpaperBackdrop {
     /**
      * Blurs [src] cheaply: shrink it (most of the blur), then three box-blur passes to smooth the
      * shrunk pixels. Frosted shrinks more and lifts saturation a little, like frosted glass;
-     * glass keeps more detail.
+     * glass keeps more detail (a third of the screen's resolution: smooth when stretched, far
+     * from full size).
      */
     private fun blur(src: Bitmap, mode: RenderMode): Bitmap {
-        val factor = if (mode == RenderMode.FROSTED) 12 else 5
-        val radius = if (mode == RenderMode.FROSTED) 3 else 2
+        val factor = if (mode == RenderMode.FROSTED) 12 else 3
+        val radius = if (mode == RenderMode.FROSTED) 3 else 3
         val w = (src.width / factor).coerceAtLeast(1)
         val h = (src.height / factor).coerceAtLeast(1)
         val small = createBitmap(w, h)

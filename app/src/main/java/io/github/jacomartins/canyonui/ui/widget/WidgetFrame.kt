@@ -37,7 +37,7 @@ object WidgetFrame {
     const val INSET_DP = 8.5f
 
     /** Pills (one cell wide or one row tall) are at most this thick (One UI 8.5: about 76dp). */
-    const val PILL_MAX_DP = 77f
+    const val PILL_MAX_DP = 74f
 
     /** [pill]: a fully rounded end (one cell wide or one row tall). */
     fun apply(view: View, ring: Boolean, pill: Boolean) {

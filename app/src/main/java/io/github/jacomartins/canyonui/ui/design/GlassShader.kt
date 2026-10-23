@@ -88,7 +88,7 @@ internal object GlassShader {
         // Runtime shaders draw only on the GPU; snapshots (drag images) are drawn in software.
         if (broken || !canvas.isHardwareAccelerated) return false
         val h = holders[view] ?: try {
-            Holder(RuntimeShader(SRC), Paint(Paint.ANTI_ALIAS_FLAG)).also { holders[view] = it }
+            Holder(RuntimeShader(SRC), Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)).also { holders[view] = it }
         } catch (e: IllegalArgumentException) {
             // The GPU's shader compiler refused it: fall back to the plain blur everywhere.
             android.util.Log.w("GlassShader", "Glass shader unavailable", e)
@@ -97,7 +97,11 @@ internal object GlassShader {
         }
         if (h.image !== bitmap) {
             h.image = bitmap
-            h.imageShader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+            // Smooth (bilinear) sampling: the small blurred copy is stretched to the screen and
+            // magnified at the rim, and nearest-pixel sampling showed it as blocks.
+            h.imageShader = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
+                filterMode = BitmapShader.FILTER_MODE_LINEAR
+            }
         }
         val image = h.imageShader ?: return false
         // Bitmap pixels -> screen -> this view's coordinates.
