@@ -85,8 +85,26 @@ object WallpaperBackdrop {
         rebuild()
     }
 
+    /**
+     * Makes sure the blur shows what was last set here: reloads the kept copy from disk when it
+     * is valid but not (or no longer) in memory, and rebuilds the blur. Home calls it when it
+     * comes back, and it runs after a wallpaper is set.
+     */
+    suspend fun refresh(context: Context) {
+        if (copy == null) load(context)
+        if (copy != null && (_active.value == null || _active.value?.mode != mode)) rebuild()
+    }
+
+    /** True while [setFromPhoto] runs: the wallpaper changes under it, but the copy is coming. */
+    @Volatile
+    var setting = false
+        private set
+
     /** Checks the copy still matches the wallpaper (when Android tells apps the wallpaper id). */
     suspend fun check(context: Context) {
+        // Our own change: the id is saved once the set finishes (checking before that read the
+        // previous id and threw the new copy away).
+        if (setting || SystemClock.elapsedRealtime() - setAt < OWN_CHANGE_MS) return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val saved = prefs.getInt(KEY_ID, -1)
         val now = wallpaperId(context) ?: return
@@ -99,6 +117,7 @@ object WallpaperBackdrop {
      * blur. Returns false when it could not be read or set.
      */
     suspend fun setFromPhoto(context: Context, uri: Uri, which: Int = WallpaperManager.FLAG_SYSTEM): Boolean = withContext(Dispatchers.IO) {
+        setting = true
         try {
             val (w, h) = screenSize(context)
             val source = ImageDecoder.createSource(context.contentResolver, uri)
@@ -127,6 +146,8 @@ object WallpaperBackdrop {
         } catch (e: Exception) {
             Log.w(TAG, "Could not set the wallpaper", e)
             false
+        } finally {
+            setting = false
         }
     }
 
@@ -177,12 +198,13 @@ object WallpaperBackdrop {
     /**
      * Blurs [src] cheaply: shrink it (most of the blur), then three box-blur passes to smooth the
      * shrunk pixels. Frosted shrinks more and lifts saturation a little, like frosted glass;
-     * glass keeps more detail (a third of the screen's resolution: smooth when stretched, far
-     * from full size).
+     * glass keeps more detail (half the screen's resolution: smooth when stretched, far from
+     * full size).
      */
     private fun blur(src: Bitmap, mode: RenderMode): Bitmap {
-        val factor = if (mode == RenderMode.FROSTED) 12 else 3
-        val radius = if (mode == RenderMode.FROSTED) 3 else 3
+        // Glass: half the screen's resolution and a light blur (the lens does the rest).
+        val factor = if (mode == RenderMode.FROSTED) 12 else 2
+        val radius = if (mode == RenderMode.FROSTED) 3 else 2
         val w = (src.width / factor).coerceAtLeast(1)
         val h = (src.height / factor).coerceAtLeast(1)
         val small = createBitmap(w, h)

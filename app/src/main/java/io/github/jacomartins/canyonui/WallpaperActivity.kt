@@ -88,7 +88,8 @@ import kotlinx.coroutines.withContext
  */
 class WallpaperActivity : ComponentActivity() {
 
-    private val colorsListener = WallpaperManager.OnColorsChangedListener { _, _ -> goHome() }
+    // A wallpaper set by an app opened from here; one set here goes home once it is done.
+    private val colorsListener = WallpaperManager.OnColorsChangedListener { _, _ -> if (!WallpaperBackdrop.setting) goHome() }
 
     /** Back to the home screen, to see the new wallpaper. */
     fun goHome() {

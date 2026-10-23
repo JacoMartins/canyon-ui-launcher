@@ -423,7 +423,8 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                     .oneDepthBorder(cornerRadius = 32.dp)
                     .backdrop(PanelShape),
                 shape = PanelShape,
-                color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f)),
+                // More see-through than the other panels: the apps float over the glass or blur.
+                color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = FOLDER_PANEL_ALPHA)),
             ) {
                 Column(Modifier.padding(vertical = Spacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
                     val pages = (folder.apps.size + FOLDER_PER_PAGE - 1) / FOLDER_PER_PAGE
@@ -616,6 +617,9 @@ private fun DeletePageDialog(page: Int, state: OverlayState, actions: OverlayAct
 }
 
 private const val SNACK_MS = 5000L
+
+/** The open folder's panel colour (before the Transparency effect thins it further). */
+private const val FOLDER_PANEL_ALPHA = 0.72f
 private const val OPEN_MS = 220
 private const val CLOSE_MS = 180
 private const val MENU_MS = 140

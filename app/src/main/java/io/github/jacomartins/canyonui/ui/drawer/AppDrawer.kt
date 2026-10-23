@@ -121,7 +121,7 @@ private const val COLUMNS = 4
 
 /**
  * The Apps screen's colour over what is behind it, by the Transparency setting: fairly solid
- * when translucent, a lighter tint over glass, and a fuller one over the frosted blur.
+ * when translucent, a light tint over glass, and a medium one over the frosted blur.
  */
 @Composable
 private fun drawerTint(): Color {
@@ -129,7 +129,7 @@ private fun drawerTint(): Color {
     val dark = io.github.jacomartins.canyonui.ui.design.isDarkSurface()
     val alpha = when (blur?.mode) {
         io.github.jacomartins.canyonui.data.RenderMode.GLASS -> if (dark) 0.32f else 0.2f
-        io.github.jacomartins.canyonui.data.RenderMode.FROSTED -> if (dark) 0.88f else 0.75f
+        io.github.jacomartins.canyonui.data.RenderMode.FROSTED -> if (dark) 0.62f else 0.5f
         else -> 0.9f
     }
     return MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = alpha)

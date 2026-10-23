@@ -76,9 +76,12 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
     val density = LocalDensity.current
     val dot = 6.dp
     Box(modifier.fillMaxHeight().width(36.dp)) {
+        // The whole height between the header and the search field (as far as a thumb reaches),
+        // the dots spread evenly along it.
         Column(
             Modifier
-                .align(Alignment.Center)
+                .fillMaxHeight()
+                .align(Alignment.TopCenter)
                 .padding(vertical = 8.dp)
                 .semantics { contentDescription = sections.joinToString(" ") { it.letter } }
                 .pointerInput(sections) {
@@ -108,7 +111,7 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
                         active = -1
                     }
                 },
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // The dots brighten towards the letter in use: the one under the finger, else the
@@ -136,14 +139,14 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
         if (active >= 0) {
             // The letter beside the finger, outside the dots.
             val bubble = 56.dp
-            // From the column's top edge (finger coordinates) to the box's centre line.
-            val topPx = with(density) { size(sections.size, dot) / 2f - 8.dp.toPx() }
+            // Centred on the finger (finger coordinates start below the column's top padding).
+            val topPx = with(density) { (bubble / 2 - 8.dp).toPx() }
             Surface(
                 shape = CircleShape,
                 color = colors.primary,
                 contentColor = colors.onPrimary,
                 modifier = Modifier
-                    .align(Alignment.Center)
+                    .align(Alignment.TopCenter)
                     .offset { IntOffset(with(density) { -(bubble + 8.dp).roundToPx() }, (fingerY - topPx).roundToInt()) }
                     .size(bubble),
             ) {
@@ -158,6 +161,3 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
 /** How many dots on each side of the current letter the brightness fades over. */
 private const val GRADIENT_DOTS = 4f
 
-/** Height in px of the dot column (8dp padding each end, 6dp dots, 5dp gaps). */
-private fun androidx.compose.ui.unit.Density.size(count: Int, dot: androidx.compose.ui.unit.Dp): Float =
-    (16.dp + dot * count + 5.dp * (count - 1)).toPx()

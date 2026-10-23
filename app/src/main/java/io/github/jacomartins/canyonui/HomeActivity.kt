@@ -407,7 +407,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun onResume() {
         super.onResume()
         // The wallpaper may have been changed elsewhere while away: drop a stale blur copy.
-        lifecycleScope.launch { WallpaperBackdrop.check(this@HomeActivity) }
+        lifecycleScope.launch {
+            WallpaperBackdrop.check(this@HomeActivity)
+            // A wallpaper set while away (in the chooser) shows its blur at once.
+            WallpaperBackdrop.refresh(this@HomeActivity)
+        }
         // Category folders follow use, slowly (an app moves up after five days of more use).
         lifecycleScope.launch { launcher.home.arrangeCategoryFolders(launcher.usage) }
         if (unlockPending) {

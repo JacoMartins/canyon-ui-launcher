@@ -19,6 +19,15 @@ import java.util.WeakHashMap
  * the glass bends what is behind it inward (the edge magnifies, like a thick pane). No light of
  * its own: the border is the same depth ring as everywhere else. Android 13+.
  */
+/**
+ * The glass's optics, shared by the views' lens ([GlassShader]) and the panels' Haze glass.
+ * Stronger than Haze's default (15dp over a quarter of the shorter side): more bending at the rim.
+ */
+object LiquidGlass {
+    const val BEND_DP = 26f
+    const val BAND_SHARE = 0.32f
+}
+
 @RequiresApi(33)
 internal object GlassShader {
 
@@ -117,8 +126,8 @@ internal object GlassShader {
         s.setFloatUniform("origin", bounds.left, bounds.top)
         s.setFloatUniform("size", bounds.width(), bounds.height())
         s.setFloatUniform("radius", if (radius >= 0f) radius else minOf(bounds.width(), bounds.height()) * 0.25f)
-        s.setFloatUniform("bend", BEND_DP * d)
-        s.setFloatUniform("band", minOf(bounds.width(), bounds.height()) * BAND_SHARE)
+        s.setFloatUniform("bend", LiquidGlass.BEND_DP * d)
+        s.setFloatUniform("band", minOf(bounds.width(), bounds.height()) * LiquidGlass.BAND_SHARE)
         h.paint.shader = s
         canvas.drawPath(clip, h.paint)
         return true
@@ -126,7 +135,5 @@ internal object GlassShader {
 
     private var broken = false
 
-    // Like Haze's default glass: a 15dp shift over a rim a quarter of the shorter side deep.
-    private const val BEND_DP = 15f
-    private const val BAND_SHARE = 0.25f
+
 }

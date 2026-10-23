@@ -78,19 +78,29 @@ fun Modifier.backdrop(shape: RoundedCornerShape, withContent: Boolean = false): 
     if (haze != null && Build.VERSION.SDK_INT >= 31) {
         // The wallpaper alone, or ([withContent]) with the content marked as a source too (the
         // Apps screen's icons under its search field).
-        val input = if (withContent) {
+        // The frosted blur over the apps came out dark (their source is see-through), so only
+        // glass takes the content.
+        val input = if (withContent && b.mode == RenderMode.GLASS) {
             HazeInput.Sources(haze, HazeSourceSelection.All)
         } else {
             HazeInput.Sources(haze, HazeSourceSelection.All.where { it.key == WALLPAPER_SOURCE })
         }
         return@composed if (b.mode == RenderMode.GLASS) {
             // No rim light or edge shadow of Haze's own: the border is the interface's depth
-            // ring, the same in every mode.
+            // ring, the same in every mode. More bending at the rim and less blur than Haze's
+            // defaults (which are 0.7, a quarter of the side, 15dp and 14dp), like the views'
+            // glass lens ([GlassShader]).
             val style = remember(shape) {
                 GlassStyle.regular.then {
                     shape(shape)
                     specularIntensity(0f)
                     edgeShadow(Color.Transparent)
+                    optics(
+                        refractionStrength = 1f,
+                        refractionHeightFraction = LiquidGlass.BAND_SHARE,
+                        refractionDisplacement = LiquidGlass.BEND_DP.dp,
+                        blurRadius = 6.dp,
+                    )
                 }
             }
             this.hazeGlass(input, style = style)
