@@ -35,6 +35,8 @@ class DragSource(
     /** Hidden while dragging; null for items coming from the drawer or a folder popup. */
     val view: View?,
     val app: AppInfo?,
+    /** Dragged out of this folder's open popup (0 = not from a folder). */
+    val fromFolder: Long = 0,
 )
 
 /** Where a drag ended. */
@@ -43,6 +45,9 @@ sealed interface DropResult {
 
     /** A whole page (edit mode) dropped while page [index] is in view. */
     data class OnPage(val index: Int) : DropResult
+
+    /** An app dropped back inside its open folder, at position [index]. */
+    data class InFolder(val index: Int) : DropResult
     data object Cancelled : DropResult
 }
 
@@ -75,6 +80,24 @@ class DragController(
         fun state(): HomeState?
         fun onDragStarted(source: DragSource)
         fun onDropped(source: DragSource, result: DropResult)
+
+        /** The position in the open folder under the point (root coordinates), or null outside it. */
+        fun folderTarget(x: Float, y: Float): Int?
+
+        /** The drag left the folder: close it and continue on home. */
+        fun leaveFolder()
+    }
+
+    // A drag from a folder stays in the folder (reordering) until the finger rests outside it.
+    private var inFolder = false
+    private var folderIndex = -1
+    private var leavePending = false
+    private val leave = Runnable {
+        leavePending = false
+        if (!isDragging || !inFolder) return@Runnable
+        inFolder = false
+        callbacks.leaveFolder()
+        update(lastX, lastY)
     }
 
     var armed: DragSource? = null
@@ -124,6 +147,8 @@ class DragController(
         val s = armed ?: return
         armed = null
         source = s
+        inFolder = s.fromFolder != 0L
+        folderIndex = -1
         callbacks.onDragStarted(s)
         s.view?.visibility = View.INVISIBLE
         val dv = DragView(root.context, s.image)
@@ -148,6 +173,7 @@ class DragController(
         val s = source ?: return
         update(x, y)
         val result = when {
+            inFolder -> if (folderIndex >= 0) DropResult.InFolder(folderIndex) else DropResult.Cancelled
             s.item is DragItem.Page -> DropResult.OnPage(home.workspace.currentPage)
             lastAction != null && lastAction != DropAction.Reject -> DropResult.OnGrid(lastAction!!)
             else -> DropResult.Cancelled
@@ -162,6 +188,9 @@ class DragController(
 
     private fun finish(s: DragSource, result: DropResult) {
         root.removeCallbacks(pageFlip)
+        root.removeCallbacks(leave)
+        leavePending = false
+        inFolder = false
         pageFlipPending = false
         lastHintCell?.clearDropHint()
         lastHintCell = null
@@ -193,6 +222,20 @@ class DragController(
 
         // A page being moved only flips pages at the screen edges; there is no cell to aim at.
         if (s.item is DragItem.Page) return
+        if (inFolder) {
+            val idx = callbacks.folderTarget(x, y)
+            if (idx != null) {
+                folderIndex = idx
+                if (leavePending) {
+                    root.removeCallbacks(leave)
+                    leavePending = false
+                }
+            } else if (!leavePending) {
+                leavePending = true
+                root.postDelayed(leave, LEAVE_FOLDER_MS)
+            }
+            return
+        }
         val st = callbacks.state() ?: return
         // Dock first, then the page in view.
         val overDock = isOver(home.hotseat, x, y)
@@ -269,6 +312,7 @@ class DragController(
     }
 
     private fun scheduleFlipIfAtEdge() {
+        if (inFolder) return
         val atEdge = lastX < edge || lastX > root.width - edge
         if (atEdge && !pageFlipPending) {
             pageFlipPending = true
@@ -282,5 +326,8 @@ class DragController(
     companion object {
         private const val DRAG_SCALE = 1.08f
         private const val PAGE_FLIP_DELAY_MS = 550L
+
+        /** How long the finger must stay outside an open folder before the app leaves it. */
+        private const val LEAVE_FOLDER_MS = 450L
     }
 }

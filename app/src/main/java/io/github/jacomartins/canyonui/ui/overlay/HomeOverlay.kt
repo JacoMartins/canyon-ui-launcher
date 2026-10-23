@@ -399,10 +399,27 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                     val rowsPerPage = FOLDER_PER_PAGE / FOLDER_COLUMNS
                     HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
                         val apps = folder.apps.drop(page * FOLDER_PER_PAGE).take(FOLDER_PER_PAGE)
-                        Column(Modifier.padding(horizontal = Spacing.sm).height(rowHeight * rowsPerPage), verticalArrangement = Arrangement.Top) {
+                        Column(
+                            Modifier
+                                .padding(horizontal = Spacing.sm)
+                                .height(rowHeight * rowsPerPage)
+                                // Where a dragged app lands when it is dropped back in the folder.
+                                .onGloballyPositioned { c ->
+                                    if (page == pager.currentPage) {
+                                        val b = c.boundsInWindow()
+                                        state.folderGrid.set(b.left, b.top, b.right, b.bottom)
+                                        state.folderPage = page
+                                    }
+                                },
+                            verticalArrangement = Arrangement.Top,
+                        ) {
                             for (row in apps.chunked(FOLDER_COLUMNS)) {
                                 Row(Modifier.fillMaxWidth().height(rowHeight)) {
-                                    for (app in row) FolderApp(app, folder, actions, iconSize, Modifier.weight(1f))
+                                    for (app in row) {
+                                        // The app being dragged leaves a gap where it was.
+                                        val m = Modifier.weight(1f).graphicsLayer { alpha = if (state.folderDragId == app.id) 0f else 1f }
+                                        FolderApp(app, folder, actions, iconSize, m)
+                                    }
                                     repeat(FOLDER_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
                             }

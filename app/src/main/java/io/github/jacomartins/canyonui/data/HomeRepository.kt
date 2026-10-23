@@ -524,6 +524,16 @@ class HomeRepository(
         }
     }
 
+    /** Moves an app to position [index] inside its folder (the others shift to make room). */
+    suspend fun moveInFolder(folderId: Long, appId: Long, index: Int) = edit { dao, _ ->
+        val kids = dao.children(folderId).toMutableList()
+        val from = kids.indexOfFirst { it.id == appId }
+        if (from < 0) return@edit
+        val app = kids.removeAt(from)
+        kids.add(index.coerceIn(0, kids.size), app)
+        dao.updateItems(kids.mapIndexed { i, k -> k.copy(cellX = i) })
+    }
+
     /** Removes an item from home (a folder with its apps). */
     suspend fun remove(id: Long) = edit { dao, _ ->
         val e = dao.item(id) ?: return@edit

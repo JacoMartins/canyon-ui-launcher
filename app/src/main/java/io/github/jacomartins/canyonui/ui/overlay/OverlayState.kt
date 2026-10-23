@@ -4,6 +4,7 @@ import android.graphics.Rect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
@@ -56,6 +57,11 @@ interface OverlayActions {
 class OverlayState {
     var menu by mutableStateOf<ItemMenu?>(null)
     var folder by mutableStateOf<FolderEntry?>(null)
+    /** The app being dragged inside the open folder (drawn as a gap), or 0. */
+    var folderDragId by mutableLongStateOf(0L)
+    /** The open folder's visible page of apps, in window coordinates, and its page number. */
+    val folderGrid = android.graphics.RectF()
+    var folderPage = 0
     var snack by mutableStateOf<Snack?>(null)
     var dragging by mutableStateOf(false)
     var editMode by mutableStateOf(false)

@@ -242,10 +242,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun onCreate(savedInstanceState: Bundle?) {
         // Fully transparent bars: the default style adds a contrast scrim behind the gesture bar
         // on some devices (a grey strip under the dock and drawer).
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
-        )
+        applyEdgeToEdge()
         super.onCreate(savedInstanceState)
         clearBarScrims()
         launcherApps = getSystemService(LauncherApps::class.java)
@@ -714,14 +711,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     /** A drag image the size of a home icon, centred under the finger. */
-    private fun newAppSource(item: DragItem, app: AppInfo): DragSource {
+    private fun newAppSource(item: DragItem, app: AppInfo, fromFolder: Long = 0): DragSource {
         val page = home.workspace.pageAt(home.workspace.currentPage)
         val cell = page?.cellWidth ?: 200
         val size = minOf((cell * homeStyle.iconCellFraction).toInt(), (homeStyle.maxIconDp * resources.displayMetrics.density).toInt())
         return DragSource(
             item = item, type = ItemType.APP, spanX = 1, spanY = 1,
             image = app.icon, width = size, height = size, touchX = size / 2f, touchY = size / 2f,
-            view = null, app = app,
+            view = null, app = app, fromFolder = fromFolder,
         )
     }
 
@@ -737,7 +734,21 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun armDragFromFolder(app: AppEntry, folder: FolderEntry, bounds: Rect) {
         ui.menu = ItemMenu(bounds, menuFor(app))
         updateBackCallbacks()
-        drag.arm(newAppSource(DragItem.Existing(app.id), app.app))
+        drag.arm(newAppSource(DragItem.Existing(app.id), app.app, fromFolder = folder.id))
+    }
+
+    override fun folderTarget(x: Float, y: Float): Int? {
+        val f = ui.folder ?: return null
+        val g = ui.folderGrid
+        if (g.isEmpty || !g.contains(x, y)) return null
+        val col = ((x - g.left) / (g.width() / 3f)).toInt().coerceIn(0, 2)
+        val row = ((y - g.top) / (g.height() / 3f)).toInt().coerceIn(0, 2)
+        return (ui.folderPage * 9 + row * 3 + col).coerceAtMost(f.apps.size - 1)
+    }
+
+    override fun leaveFolder() {
+        ui.folderDragId = 0L
+        closeFolder()
     }
 
     // --- DragController.Callbacks -------------------------------------------------------------
@@ -746,7 +757,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onDragStarted(source: DragSource) {
         ui.menu = null
-        ui.folder = null
+        // From a folder, the folder stays open so the app can be moved inside it.
+        if (source.fromFolder != 0L) {
+            ui.folderDragId = (source.item as? DragItem.Existing)?.id ?: 0L
+        } else {
+            ui.folder = null
+        }
         ui.picker = null
         dismissResizeFrame()
         drawerModel.dragEpoch++
@@ -768,7 +784,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val existingId = (source.item as? DragItem.Existing)?.id
         val newWidget = source.item as? DragItem.NewWidget
         val movedPage = source.item as? DragItem.Page
+        ui.folderDragId = 0L
         when (result) {
+            is DropResult.InFolder -> if (existingId != null && source.fromFolder != 0L) {
+                lifecycleScope.launch { launcher.home.moveInFolder(source.fromFolder, existingId, result.index) }
+            }
             is DropResult.OnPage -> if (movedPage != null && st != null) {
                 val to = result.index.coerceAtMost(st.pageCount - 1)
                 if (to != movedPage.index) {
@@ -1295,6 +1315,13 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         window.isStatusBarContrastEnforced = false
     }
 
+    private fun applyEdgeToEdge() {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
+    }
+
     private fun updateSystemBars(drawerMostlyOpen: Boolean) {
         clearBarScrims()
         // Light (dark-icon) bars over the light drawer, or over a light wallpaper in light mode.
@@ -1309,7 +1336,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         super.onConfigurationChanged(newConfig)
         // uiMode is handled here (no restart), so dark/light switches must recolour by hand.
         applyLabelColors()
+        // The system re-applies the window's bar settings for the new mode (bringing back the
+        // contrast scrim, a dark strip behind the gesture bar) a moment after this call; the
+        // transparent edge-to-edge bars are set again now and once the switch has settled.
+        applyEdgeToEdge()
         updateSystemBars(drawer.progress > 0.5f)
+        dragLayer.postDelayed({ clearBarScrims(); updateSystemBars(drawer.progress > 0.5f) }, BAR_RESET_DELAY_MS)
         // Widgets inflate their layout once, with the resources of that moment: on a light/dark
         // switch every widget view is made again so it draws in the new mode.
         if (isNight != lastNight) {
@@ -1521,6 +1553,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         private const val LABEL_SHADOW = 0x8A000000.toInt()
         private const val FADE_IN_MS = 180L
         private const val EDIT_SCALE = 0.74f
+        private const val BAR_RESET_DELAY_MS = 350L
         /** Above this overall lightness a wallpaper gets dark labels (light mode). */
         private const val LIGHT_WALLPAPER = 0.62f
         private const val RETURN_SCALE = 1.06f
