@@ -1,11 +1,12 @@
-# Publishes a GitHub release with the APK when a version tag (v1.2.3) is pushed.
-# Tags are only made on main, for builds the project owner approved after using them.
+# Publishes a GitHub release with the APK for every build that reaches main. Only builds the
+# project owner approved after using them are merged into main (docs/release-process.md), so
+# each push to main is a release. The tag (v + versionName) is created here by the workflow.
 name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -26,13 +27,20 @@ jobs:
       - name: Install the Android platform and build tools
         run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
+      - name: Read the version
+        id: version
+        run: echo "name=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)" >> "$GITHUB_OUTPUT"
+
       - name: Test and build
         run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
 
       - name: Name the APK after the release
-        run: cp app/build/outputs/apk/release/app-release.apk "canyon-ui-${GITHUB_REF_NAME}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "canyon-ui-${{ steps.version.outputs.name }}.apk"
 
       - uses: softprops/action-gh-release@v2.2.2
         with:
-          files: canyon-ui-${{ github.ref_name }}.apk
+          tag_name: v${{ steps.version.outputs.name }}
+          target_commitish: ${{ github.sha }}
+          name: Canyon UI ${{ steps.version.outputs.name }}
+          files: canyon-ui-${{ steps.version.outputs.name }}.apk
           generate_release_notes: true
