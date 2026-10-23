@@ -8,18 +8,18 @@ plugins {
 }
 
 android {
-    namespace = "com.example.homelauncher"
+    namespace = "io.github.jacomartins.canyonui"
     // compileSdk 37 is required by Haze 2.0.1's transitive AndroidX dependencies
     // (lifecycle-runtime-compose 2.11.0 declares minCompileSdk=37). It only affects
     // which APIs the compiler can see; runtime behaviour is set by targetSdk.
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.homelauncher"
+        applicationId = "io.github.jacomartins.canyonui"
         minSdk = 29
         targetSdk = 37
-        versionCode = 27
-        versionName = "0.4.6"
+        versionCode = 28
+        versionName = "0.4.7"
     }
 
     signingConfigs {

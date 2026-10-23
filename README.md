@@ -4,7 +4,7 @@
 that aims to give everyone premium-level design and usability. Written in Kotlin; developed and
 tested first on a Galaxy A03 (Android 13, arm64).
 
-- `applicationId`: `com.example.homelauncher`
+- `applicationId`: `io.github.jacomartins.canyonui`
 - minSdk 29 · targetSdk 37 · compileSdk 37 (compileSdk is required by Haze 2.0.1, see `docs/stage0-report.md`)
 - Kotlin 2.4.21, AGP 9.4.1, Gradle 9.8.2, Compose BOM 2026.09.00, Haze 2.0.1 (+ `haze-blur`, `haze-glass`)
 
