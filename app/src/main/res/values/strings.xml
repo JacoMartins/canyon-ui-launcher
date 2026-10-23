@@ -35,7 +35,6 @@
     <string name="wallpaper">Wallpaper</string>
     <string name="settings">Settings</string>
     <string name="choose_wallpaper">Choose wallpaper</string>
-    <string name="wallpaper_unavailable">No wallpaper picker found</string>
 
     <!-- Settings -->
     <string name="layout_mode">Layout</string>
@@ -76,9 +75,10 @@
     <string name="folder_no_room">Not enough room on this page for a large folder</string>
     <string name="delete_page">Delete page</string>
     <string name="add_page">Add page</string>
-    <string name="pages">Pages</string>
-    <string name="page_n">Page %1$d</string>
-    <string name="page_overview_hint">Tap to open, hold and drag to reorder</string>
+    <string name="delete_page_title">Delete this page?</string>
+    <string name="delete_page_message">The page and everything on it will be removed.</string>
+    <string name="delete">Delete</string>
+    <string name="dismiss">Dismiss</string>
     <string name="undo">Undo</string>
     <string name="snack_removed">Removed from Home screen</string>
     <string name="snack_hidden">%1$s hidden</string>
@@ -172,7 +172,21 @@
     <string name="render_frosted_summary">The wallpaper strongly blurred behind folders, panels and menus</string>
     <string name="render_glass">Glass</string>
     <string name="render_glass_summary">Lightly frosted, clearer glass with a soft sheen</string>
-    <string name="render_pick_photo">Choose wallpaper photo</string>
+    <string name="render_pick_photo">Choose wallpaper</string>
+    <string name="wallpaper_ours">Canyon UI wallpapers</string>
+    <string name="wallpaper_ours_none">None yet.</string>
+    <string name="wallpaper_gallery">Gallery</string>
+    <string name="wallpaper_add_gallery">Add from gallery</string>
+    <string name="wallpaper_show_recent">Show recent photos</string>
+    <string name="wallpaper_recent_denied">Allow photo access in the app\'s settings to see your recent photos here.</string>
+    <string name="wallpaper_live">Live wallpapers</string>
+    <string name="wallpaper_live_none">No live wallpapers installed.</string>
+    <string name="wallpaper_set_where">Set wallpaper on</string>
+    <string name="wallpaper_home">Home screen</string>
+    <string name="wallpaper_lock">Lock screen</string>
+    <string name="wallpaper_both">Home and lock screens</string>
+    <string name="wallpaper_done">Wallpaper set</string>
+    <string name="wallpaper_live_unavailable">This live wallpaper cannot be opened</string>
     <string name="render_needs_photo">Blur needs a wallpaper chosen here: Android does not let apps read a wallpaper set elsewhere. Until then, surfaces stay translucent.</string>
     <string name="render_has_photo">Blurring the wallpaper chosen here. Setting another wallpaper elsewhere turns the blur off until you choose one here again.</string>
     <string name="render_photo_failed">Could not set that photo as the wallpaper</string>
@@ -185,10 +199,6 @@
     <string name="swipe_up_search_apps">Search apps</string>
     <string name="swipe_up_all_apps">All apps</string>
     <string name="swipe_up_unavailable">That app couldn\'t be opened</string>
-    <string name="wallpaper_app">Wallpaper app</string>
-    <string name="wallpaper_app_ask">Ask each time</string>
-    <string name="wallpaper_apps">Wallpaper apps</string>
-    <string name="wallpaper_app_summary">The app the Wallpaper button opens.</string>
     <string name="folder_custom_color">Custom colour</string>
     <string name="color_hue">Hue</string>
     <string name="color_saturation">Saturation</string>

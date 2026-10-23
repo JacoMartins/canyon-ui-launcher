@@ -139,6 +139,10 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
                     EmptySearch(model.query)
                 } else {
                     AppGrid(results, gridState, bottom, actions, model)
+                    // The letter dots, for the full list (not search results).
+                    if (model.query.isBlank()) {
+                        AlphabetScrubber(results, gridState, touch, Modifier.align(Alignment.CenterEnd).padding(bottom = bottom))
+                    }
                 }
             }
         }
@@ -292,7 +296,8 @@ private fun AppGrid(
     LazyVerticalGrid(
         columns = GridCells.Fixed(COLUMNS),
         state = state,
-        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 8.dp, bottom = bottom),
+        // Room at the end for the letter dots.
+        contentPadding = PaddingValues(start = 8.dp, end = 24.dp, top = 8.dp, bottom = bottom),
         modifier = Modifier.fillMaxSize(),
     ) {
         items(apps, key = { it.key.toString() }, contentType = { 0 }) { app ->

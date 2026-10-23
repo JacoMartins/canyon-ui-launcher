@@ -12,6 +12,12 @@
          launcher has the image to blur (apps cannot read a wallpaper set elsewhere). -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.SET_WALLPAPER_HINTS" />
+    <!-- The wallpaper chooser shows the latest photos when the user allows it (optional). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <application
         android:name=".LauncherApp"
@@ -53,6 +59,13 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="@string/home_settings"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.HomeLauncher.Settings"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
+        <activity
+            android:name=".WallpaperActivity"
+            android:exported="false"
+            android:label="@string/choose_wallpaper"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.HomeLauncher.Settings"
             tools:ignore="DiscouragedApi,LockedOrientationActivity" />

@@ -36,8 +36,8 @@ object WidgetFrame {
     /** Gap kept around a widget inside its cells, per side (One UI 8.5 keeps about 10.5dp). */
     const val INSET_DP = 10f
 
-    /** Pills (one cell wide or one row tall) are at most this thick; One UI 8.5's are about 67dp (a little over that here, by request). */
-    const val PILL_MAX_DP = 72f
+    /** Pills (one cell wide or one row tall) are at most this thick; One UI 8.5's are about 67dp. */
+    const val PILL_MAX_DP = 64f
 
     /** [pill]: a fully rounded end (one cell wide or one row tall). */
     fun apply(view: View, ring: Boolean, pill: Boolean) {
@@ -115,6 +115,7 @@ object WidgetFrame {
         val fg = view.foreground
         try {
             view.foreground = null // The ring itself must not count.
+            snapshotting = true // Nor the blur drawn behind the card.
             val c = Canvas(bmp)
             c.scale(sw.toFloat() / w, sh.toFloat() / h)
             view.draw(c)
@@ -123,6 +124,7 @@ object WidgetFrame {
             return null
         } finally {
             view.foreground = fg
+            snapshotting = false
         }
         val px = IntArray(sw * sh)
         bmp.getPixels(px, 0, sw, 0, 0, sw, sh)
@@ -144,6 +146,23 @@ object WidgetFrame {
         if (area < sw * sh * CARD_MIN_SHARE) return null
         return Rect(l * w / sw, t * h / sh, (r + 1) * w / sw, (b + 1) * h / sh)
     }
+
+    /**
+     * The widget's own card (measured from what it draws) as a rounded outline in [out]; false
+     * when the widget draws no solid card (text or icons straight on the wallpaper).
+     */
+    fun cardPath(view: View, out: Path): Boolean {
+        if (snapshotting) return false
+        val frame = view.outlineProvider as? Frame ?: return false
+        val card = frame.measured ?: return false
+        if (frame.measuredW != view.width || frame.measuredH != view.height) return false
+        val r = frame.radius()
+        out.reset()
+        out.addRoundRect(RectF(card), r, r, Path.Direction.CW)
+        return true
+    }
+
+    private var snapshotting = false
 
     private const val SAMPLE = 4
     private const val ALPHA_MIN = 40

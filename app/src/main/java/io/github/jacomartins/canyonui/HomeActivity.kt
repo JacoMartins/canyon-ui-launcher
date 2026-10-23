@@ -90,7 +90,6 @@ import io.github.jacomartins.canyonui.ui.overlay.ItemMenu
 import io.github.jacomartins.canyonui.ui.design.MenuEntry
 import io.github.jacomartins.canyonui.ui.overlay.OverlayActions
 import io.github.jacomartins.canyonui.ui.overlay.OverlayState
-import io.github.jacomartins.canyonui.ui.overlay.PageThumb
 import io.github.jacomartins.canyonui.ui.overlay.Snack
 import io.github.jacomartins.canyonui.ui.overlay.WidgetPickerState
 import io.github.jacomartins.canyonui.ui.theme.HomeTheme
@@ -111,7 +110,7 @@ import java.lang.ref.WeakReference
 
 /**
  * The HOME activity. The home surface is View-based (pages, dock, icons, folders, drag and
- * drop); the app drawer and the overlay (menus, folder popup, edit mode, page overview, undo)
+ * drop); the app drawer and the overlay (menus, folder popup, edit mode, undo)
  * are one ComposeView each.
  */
 class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActions, OverlayActions,
@@ -156,7 +155,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private var swipeUpTarget: String? = null
     private var lastNight: Boolean? = null
     private var iconShape = io.github.jacomartins.canyonui.data.IconShape.SYSTEM
-    private var wallpaperTarget: String? = null
     /** Compose state: both ComposeViews recolour when the setting changes. */
     private var phonePalette by mutableStateOf(false)
     private var widgetBorder = true
@@ -225,7 +223,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         override fun handleOnBackPressed() = drawer.close()
     }
 
-    /** Closes, in order: menu, folder, page overview, edit mode. */
+    /** Closes, in order: menu, folder, delete confirmation, edit mode. */
     private val overlayBack = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() {
             when {
@@ -234,7 +232,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 ui.editApp != null -> closeEditApp()
                 ui.picker != null -> closePicker()
                 ui.folder != null -> closeFolder()
-                ui.overview != null -> closeOverview()
+                ui.confirmDeletePage != null -> ui.confirmDeletePage = null
                 ui.editMode -> exitEditMode()
             }
             updateBackCallbacks()
@@ -340,7 +338,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         views.values.forEach { (it as? FolderIconView)?.let(::styleFolder) }
                     }
                     swipeUpTarget = s.swipeUpTarget
-                    wallpaperTarget = s.wallpaperTarget
                     ui.categoryMode = s.autoCategories && s.layoutMode == LayoutMode.HOME_ONLY
                     if (s.pendingSearchWidget) addSearchWidget()
                     if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets) {
@@ -407,7 +404,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 closeEditApp()
                 closePicker()
                 closeFolder()
-                closeOverview()
+                ui.confirmDeletePage = null
                 if (ui.editMode) exitEditMode()
                 updateBackCallbacks()
                 return
@@ -446,7 +443,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         ui.pageCount = st.pageCount
         ui.currentPage = home.workspace.currentPage
 
-        val dragged = drag.source?.view
+        val dragged = drag.source?.view ?: drag.landing
         val seen = HashSet<Long>(st.entries.size)
         val widgetIds = HashSet<Long>()
         for (entry in st.entries) {
@@ -503,7 +500,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
         // Keep an open folder in step with changes (renamed, apps added or dragged out).
         ui.folder?.let { open -> ui.folder = st.entry(open.id) as? FolderEntry }
-        if (ui.overview != null) dragLayer.post { if (ui.overview != null) ui.overview = captureThumbs() }
 
         if (!boundOnce) {
             boundOnce = true
@@ -819,9 +815,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 is DropAction.Move -> {
                     val from = existingId?.let { st?.entry(it)?.placed }
                     val pageChanged = from != null && a.container == Container.DESKTOP && (from.container != Container.DESKTOP || from.pageIndex != a.pageIndex)
-                    // Move the view now so it does not flash at its old place before the rebind.
+                    // Move the views now so they do not flash at their old places before the rebind.
                     source.view?.let { v -> optimisticMove(v, a) }
+                    for (p in a.pushes) views[p.id]?.let { v -> optimisticMove(v, DropAction.Move(p.container, p.pageIndex, p.x, p.y)) }
                     edit(if (pageChanged) getString(R.string.snack_moved_page, a.pageIndex + 1) else null) {
+                        // Items pushed aside (or swapped) first, then the dropped item.
+                        for (p in a.pushes) launcher.home.place(DragItem.Existing(p.id), p.container, p.pageIndex, p.x, p.y)
                         launcher.home.place(source.item, a.container, a.pageIndex, a.x, a.y)
                     }
                 }
@@ -1027,6 +1026,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onOpenFolder(view: FolderIconView, folder: FolderEntry) {
         if (ui.editMode) { exitEditMode(); return }
+        val loc = IntArray(2).also { view.getLocationInWindow(it) }
+        val scale = ViewMap.scaleOf(dragLayer, view)
+        ui.folderAnchor = androidx.compose.ui.geometry.Offset(loc[0] + view.width * scale / 2f, loc[1] + view.height * scale / 2f)
         ui.folder = folder
         updateBackCallbacks()
     }
@@ -1076,6 +1078,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.clipChildren = false
         zoomHome(EDIT_SCALE)
         fade(home.hotseat, 0f)
+        // The edit bar names the page; the dots would only crowd it.
+        fade(home.indicator, 0f)
         updateBackCallbacks()
     }
 
@@ -1092,11 +1096,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.clipChildren = true
         zoomHome(1f)
         fade(home.hotseat, 1f)
+        fade(home.indicator, 1f)
         updateBackCallbacks()
     }
 
     private fun fade(v: View, to: Float) {
-        if (Motion.enabled()) v.animate().alpha(to).setDuration(200).start() else v.alpha = to
+        if (Motion.enabled()) v.animate().alpha(to).setDuration(200).withLayer().start() else v.alpha = to
     }
 
     private fun zoomHome(scale: Float) {
@@ -1109,47 +1114,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             v.pivotY = home.height / 2f - v.top
             v.pivotX = v.width / 2f
             if (Motion.enabled()) {
-                v.animate().scaleX(scale).scaleY(scale).setDuration(240).setInterpolator(decelerate).start()
+                v.animate().scaleX(scale).scaleY(scale).setDuration(240).setInterpolator(decelerate).withLayer().start()
             } else {
                 v.scaleX = scale
                 v.scaleY = scale
             }
         }
-    }
-
-    override fun openOverview() {
-        ui.overview = captureThumbs()
-        updateBackCallbacks()
-    }
-
-    override fun closeOverview() {
-        ui.overview = null
-        updateBackCallbacks()
-    }
-
-    /** Small images of each page for the overview (pages are drawn without their edit backdrop). */
-    private fun captureThumbs(): List<PageThumb> {
-        val out = ArrayList<PageThumb>()
-        val count = state?.pageCount ?: home.workspace.childCount
-        for (i in 0 until minOf(count, home.workspace.childCount)) {
-            val page = home.workspace.pageAt(i) ?: continue
-            if (page.width == 0 || page.height == 0) continue
-            val s = THUMB_SCALE
-            val b = createBitmap((page.width * s).toInt().coerceAtLeast(1), (page.height * s).toInt().coerceAtLeast(1))
-            val c = Canvas(b)
-            c.scale(s, s)
-            val backdrop = page.showBackdrop
-            page.showBackdrop = false
-            page.draw(c)
-            page.showBackdrop = backdrop
-            out += PageThumb(i, b.asImageBitmap())
-        }
-        return out
-    }
-
-    override fun openPage(index: Int) {
-        closeOverview()
-        home.workspace.snapToPage(index)
     }
 
     /**
@@ -1240,7 +1210,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun addPage() {
         lifecycleScope.launch {
             val index = launcher.home.addPage()
-            if (ui.overview == null) dragLayer.post { home.workspace.snapToPage(index) }
+            dragLayer.post { home.workspace.snapToPage(index) }
         }
     }
 
@@ -1249,13 +1219,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun movePage(from: Int, to: Int) = edit(getString(R.string.snack_page_moved)) { launcher.home.movePage(from, to) }
 
     override fun chooseWallpaper() {
-        // The wallpaper app chosen in settings, else Android's list of wallpaper apps.
-        wallpaperTarget?.let { if (openTarget(it)) return }
-        try {
-            startActivity(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), getString(R.string.choose_wallpaper)))
-        } catch (e: ActivityNotFoundException) {
-            toast(getString(R.string.wallpaper_unavailable))
-        }
+        startActivity(Intent(this, WallpaperActivity::class.java))
     }
 
     private fun updateBackCallbacks() {
@@ -1417,7 +1381,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             v.scaleX = RETURN_SCALE
             v.scaleY = RETURN_SCALE
             v.alpha = 0.6f
-            v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(280).setInterpolator(decelerate).start()
+            // On a hardware layer: scaling and fading the live pages (widgets included) redrew
+            // all of them every frame, which dropped frames on 120Hz screens.
+            v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(280).setInterpolator(decelerate).withLayer().start()
         }
         if (icon != null && icon.isAttachedToWindow && icon.parent != null) {
             icon.scaleX = 0.6f
@@ -1570,6 +1536,5 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** Above this overall lightness a wallpaper gets dark labels (light mode). */
         private const val LIGHT_WALLPAPER = 0.62f
         private const val RETURN_SCALE = 1.06f
-        private const val THUMB_SCALE = 0.4f
     }
 }

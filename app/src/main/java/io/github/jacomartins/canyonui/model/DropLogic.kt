@@ -2,7 +2,14 @@ package io.github.jacomartins.canyonui.model
 
 /** What releasing a dragged item over a page or the dock does. */
 sealed interface DropAction {
-    data class Move(val container: Int, val pageIndex: Int, val x: Int, val y: Int) : DropAction
+    /** Placed at ([x], [y]); items in the way move as listed in [pushes] (pushed aside or swapped). */
+    data class Move(
+        val container: Int,
+        val pageIndex: Int,
+        val x: Int,
+        val y: Int,
+        val pushes: List<ItemMove> = emptyList(),
+    ) : DropAction
 
     /** Dropped onto the centre of another app: both go into a new folder at that app's cell. */
     data class CreateFolder(val targetId: Long) : DropAction
@@ -20,6 +27,9 @@ sealed interface DropAction {
     data object Reject : DropAction
 }
 
+/** Another item moved to make room for a drop. */
+data class ItemMove(val id: Long, val container: Int, val pageIndex: Int, val x: Int, val y: Int)
+
 /** Drop and folder placement rules. Pure Kotlin so they can be unit-tested. */
 object DropLogic {
 
@@ -30,6 +40,8 @@ object DropLogic {
      * @param centerHit whether the finger is near the centre of [fingerCell] (folder intent)
      *   rather than near its edge (placement intent).
      * @param draggedId the dragged item's id, or null for a new item (from the drawer or a folder).
+     * @param origin where the dragged item was before the drag (any page or the dock), for a swap;
+     *   null for new items and apps taken out of a folder.
      */
     fun decide(
         container: Int,
@@ -46,6 +58,7 @@ object DropLogic {
         spanY: Int,
         /** Folders whose apps are chosen automatically: nothing can be dropped into them. */
         locked: Set<Long> = emptySet(),
+        origin: PlacedItem? = null,
     ): DropAction {
         if (container == Container.DOCK && (spanX != 1 || spanY != 1 || draggedType == ItemType.WIDGET || draggedType == ItemType.STACK)) {
             return DropAction.Reject
@@ -73,9 +86,48 @@ object DropLogic {
         for (o in others) grid.mark(o.x, o.y, o.spanX, o.spanY)
         val x = desired.x.coerceIn(0, (columns - spanX).coerceAtLeast(0))
         val y = desired.y.coerceIn(0, (rows - spanY).coerceAtLeast(0))
-        val cell = if (grid.isFree(x, y, spanX, spanY)) Cell(x, y) else grid.findNearestFree(x, y, spanX, spanY)
+        if (grid.isFree(x, y, spanX, spanY)) return DropAction.Move(container, pageIndex, x, y)
+
+        // Taken: push what is in the way to the nearest free cells, keeping the dropped item
+        // where it was aimed.
+        val inWay = others.filter { it.overlaps(x, y, spanX, spanY) }
+        push(columns, rows, others, inWay, x, y, spanX, spanY)?.let { moves ->
+            return DropAction.Move(container, pageIndex, x, y, moves.map { (o, c) -> ItemMove(o.id, container, pageIndex, c.x, c.y) })
+        }
+        // No room to push: swap with an item of the same size sitting exactly there.
+        val only = inWay.singleOrNull()
+        if (origin != null && only != null && only.x == x && only.y == y && only.spanX == spanX && only.spanY == spanY &&
+            !(origin.container == Container.DOCK && (only.type == ItemType.WIDGET || only.type == ItemType.STACK))
+        ) {
+            return DropAction.Move(container, pageIndex, x, y, listOf(ItemMove(only.id, origin.container, origin.pageIndex, origin.x, origin.y)))
+        }
+        val cell = grid.findNearestFree(x, y, spanX, spanY)
         return cell?.let { DropAction.Move(container, pageIndex, it.x, it.y) } ?: DropAction.Reject
     }
+
+    /** New cells for [inWay] once ([x], [y]) is taken, nearest to where each was; null if one has none. */
+    private fun push(
+        columns: Int,
+        rows: Int,
+        others: List<PlacedItem>,
+        inWay: List<PlacedItem>,
+        x: Int,
+        y: Int,
+        spanX: Int,
+        spanY: Int,
+    ): List<Pair<PlacedItem, Cell>>? {
+        val grid = GridOccupancy(columns, rows)
+        for (o in others) if (o !in inWay) grid.mark(o.x, o.y, o.spanX, o.spanY)
+        grid.mark(x, y, spanX, spanY)
+        return inWay.map { o ->
+            val c = grid.findNearestFree(o.x, o.y, o.spanX, o.spanY) ?: return null
+            grid.mark(c.x, c.y, o.spanX, o.spanY)
+            o to c
+        }
+    }
+
+    private fun PlacedItem.overlaps(ox: Int, oy: Int, sx: Int, sy: Int) =
+        x < ox + sx && ox < x + spanX && y < oy + sy && oy < y + spanY
 
     /**
      * Where a folder at ([x], [y]) can grow to 2x2 on its page: first the four 2x2 blocks that

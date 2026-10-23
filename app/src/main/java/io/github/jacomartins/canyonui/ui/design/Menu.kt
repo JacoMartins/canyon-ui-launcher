@@ -42,7 +42,7 @@ class MenuEntry(@DrawableRes val icon: Int, val label: String, val action: () ->
  * [anchor] (window coordinates), above it when there is room, else below. A tap outside closes it.
  */
 @Composable
-fun MenuLayer(anchor: Rect, entries: List<MenuEntry>, onDismiss: () -> Unit) {
+fun MenuLayer(anchor: Rect, entries: List<MenuEntry>, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     // Close to the item it belongs to.
     val margin = with(density) { 6.dp.roundToPx() }
@@ -64,6 +64,8 @@ fun MenuLayer(anchor: Rect, entries: List<MenuEntry>, onDismiss: () -> Unit) {
                         p.place(x, y)
                     }
                 }
+                // After the placement, so an animation scales the panel about its own centre.
+                .then(modifier)
                 .shadow(Spacing.sm, MenuShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
                 .surfaceRing(cornerRadius = MENU_RADIUS)
                 .backdrop(MenuShape),

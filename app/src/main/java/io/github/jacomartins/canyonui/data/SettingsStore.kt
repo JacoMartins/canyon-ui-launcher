@@ -68,8 +68,8 @@ data class LauncherSettings(
     val widgetBorder: Boolean = true,
     /** Interface colours from the phone's palette instead of Canyon UI's own. */
     val phonePalette: Boolean = false,
-    /** How see-through surfaces are drawn. */
-    val renderMode: RenderMode = RenderMode.TRANSLUCENT,
+    /** How see-through surfaces are drawn; glass by default. */
+    val renderMode: RenderMode = RenderMode.GLASS,
     /** Category mode just started and the home page has room for a Google search bar. */
     val pendingSearchWidget: Boolean = false,
     /**
@@ -77,8 +77,6 @@ data class LauncherSettings(
      * app found by its search action, or any app by MAIN); null = nothing.
      */
     val swipeUpTarget: String? = null,
-    /** What the Wallpaper button opens, "action|package/class"; null = Android's chooser. */
-    val wallpaperTarget: String? = null,
     /** Widget providers (flattened component names) drawn without the ring, chosen per widget. */
     val noOutlineWidgets: Set<String> = emptySet(),
     /** Home screen only mode: apps start in category folders; new apps join theirs. */
@@ -117,7 +115,6 @@ class SettingsStore(private val context: Context) {
         val RENDER_MODE = stringPreferencesKey("render_mode")
         val PENDING_SEARCH_WIDGET = booleanPreferencesKey("pending_search_widget")
         val SWIPE_UP_TARGET = stringPreferencesKey("swipe_up_target")
-        val WALLPAPER_TARGET = stringPreferencesKey("wallpaper_target")
         val NO_OUTLINE_WIDGETS = stringSetPreferencesKey("no_outline_widgets")
         val AUTO_CATEGORIES = booleanPreferencesKey("auto_categories")
         val ICON_SHAPE = stringPreferencesKey("icon_shape")
@@ -158,10 +155,9 @@ class SettingsStore(private val context: Context) {
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
             phonePalette = p[Keys.PHONE_PALETTE] ?: false,
-            renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.TRANSLUCENT,
+            renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.GLASS,
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
             swipeUpTarget = p[Keys.SWIPE_UP_TARGET],
-            wallpaperTarget = p[Keys.WALLPAPER_TARGET],
             noOutlineWidgets = p[Keys.NO_OUTLINE_WIDGETS] ?: emptySet(),
             autoCategories = p[Keys.AUTO_CATEGORIES] ?: false,
             iconStyle = IconStyle(
@@ -262,9 +258,6 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit { if (target == null) it.remove(Keys.SWIPE_UP_TARGET) else it[Keys.SWIPE_UP_TARGET] = target }
     }
 
-    suspend fun setWallpaperTarget(target: String?) {
-        context.dataStore.edit { if (target == null) it.remove(Keys.WALLPAPER_TARGET) else it[Keys.WALLPAPER_TARGET] = target }
-    }
 
     suspend fun setPhonePalette(on: Boolean) {
         context.dataStore.edit { it[Keys.PHONE_PALETTE] = on }

@@ -27,11 +27,21 @@ class DropLogicTest {
         assertEquals(DropAction.Move(Container.DESKTOP, 0, 2, 3), decide(listOf(app(1, 0, 0)), Cell(2, 3)))
     }
 
-    @Test fun occupiedCellEdgeDropSnapsToNearestFree() {
-        val items = listOf(app(1, 1, 1))
-        val result = decide(items, Cell(1, 1)) as DropAction.Move
-        // One of the four neighbours, never the occupied cell.
-        assertEquals(1, kotlin.math.abs(result.x - 1) + kotlin.math.abs(result.y - 1))
+    @Test fun occupiedCellEdgeDropPushesTheOccupantAside() {
+        val result = decide(listOf(app(1, 1, 1)), Cell(1, 1)) as DropAction.Move
+        assertEquals(1 to 1, result.x to result.y)
+        val push = result.pushes.single()
+        assertEquals(1L, push.id)
+        // To one of the four neighbours.
+        assertEquals(1, kotlin.math.abs(push.x - 1) + kotlin.math.abs(push.y - 1))
+    }
+
+    @Test fun fullPageSwapsWithAnItemOfTheSameSize() {
+        // 2x2 page, all taken; the dragged app (99) came from (1,1) on page 3.
+        val items = listOf(app(1, 0, 0), app(2, 1, 0), app(3, 0, 1))
+        val origin = PlacedItem(99, Container.DESKTOP, 3, 1, 1, 1, 1, AppKey("p", "c", 0))
+        val r = DropLogic.decide(Container.DESKTOP, 0, 2, 2, items + app(4, 1, 1), Cell(0, 0), Cell(0, 0), false, 99, ItemType.APP, 1, 1, origin = origin)
+        assertEquals(DropAction.Move(Container.DESKTOP, 0, 0, 0, listOf(ItemMove(1, Container.DESKTOP, 3, 1, 1))), r)
     }
 
     @Test fun centreDropOnAppCreatesFolder() {
@@ -92,9 +102,9 @@ class DropLogicTest {
         assertEquals(DropAction.AddToStack(5), decideWidget(listOf(widget(5, 2, 0, 2, 2, ItemType.STACK)), Cell(2, 0), 2, 2))
     }
 
-    @Test fun widgetOfAnotherSizeIsPlacedBesideInstead() {
+    @Test fun widgetOfAnotherSizePushesTheOtherAside() {
         val r = decideWidget(listOf(widget(1, 0, 0, 2, 2)), Cell(0, 0), 4, 1)
-        assertEquals(DropAction.Move(Container.DESKTOP, 0, 0, 2), r)
+        assertEquals(DropAction.Move(Container.DESKTOP, 0, 0, 0, listOf(ItemMove(1, Container.DESKTOP, 0, 0, 1))), r)
     }
 
     @Test fun widgetsDoNotGoInTheDock() {

@@ -52,6 +52,8 @@ import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import io.github.jacomartins.canyonui.ui.design.Spacing
 import io.github.jacomartins.canyonui.ui.design.isDarkSurface
 import io.github.jacomartins.canyonui.ui.design.SectionHeader
+import io.github.jacomartins.canyonui.ui.design.SettingsSection
+import io.github.jacomartins.canyonui.ui.design.settingsPageColor
 import androidx.lifecycle.lifecycleScope
 import io.github.jacomartins.canyonui.data.AppInfo
 import io.github.jacomartins.canyonui.data.IconSize
@@ -66,13 +68,9 @@ import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
 import io.github.jacomartins.canyonui.data.RenderMode
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import io.github.jacomartins.canyonui.ui.settings.IconPackPicker
 import io.github.jacomartins.canyonui.ui.settings.AppTargetPicker
 import io.github.jacomartins.canyonui.ui.settings.SEARCH_ACTIONS
-import io.github.jacomartins.canyonui.ui.settings.WALLPAPER_ACTIONS
 import io.github.jacomartins.canyonui.ui.theme.HomeTheme
 import kotlinx.coroutines.launch
 
@@ -87,7 +85,7 @@ class SettingsActivity : ComponentActivity() {
         setContent {
             val settings by app.settings.settings.collectAsState(initial = null)
             HomeTheme(phonePalette = settings?.phonePalette == true) {
-                Surface(Modifier.fillMaxSize(), color = pageColor()) {
+                Surface(Modifier.fillMaxSize(), color = settingsPageColor()) {
                     val apps by app.apps.apps.collectAsState()
                     settings?.let { SettingsScreen(it, app.settings, hiddenModel, apps.orEmpty(), app.home) }
                 }
@@ -102,7 +100,6 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
     var showHidden by remember { mutableStateOf(false) }
     var showPacks by remember { mutableStateOf(false) }
     var showSwipeUp by remember { mutableStateOf(false) }
-    var showWallpaperApp by remember { mutableStateOf(false) }
     var showLicenses by remember { mutableStateOf(false) }
     val context = LocalContext.current
     Column(
@@ -116,13 +113,13 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         Text(
             stringResource(R.string.home_settings),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.xl, bottom = Spacing.lg),
+            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
         )
         // Radio buttons and switches without Material's extra 48dp touch padding, so they line
         // up with the text; the whole row is the touch target.
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
 
-        Card(title = stringResource(R.string.layout_mode)) {
+        SettingsSection(title = stringResource(R.string.layout_mode)) {
             Column(Modifier.selectableGroup()) {
                 for (mode in LayoutMode.entries) {
                     val (title, summary) = when (mode) {
@@ -190,7 +187,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             )
         }
 
-        Card(title = stringResource(R.string.home_grid)) {
+        SettingsSection(title = stringResource(R.string.home_grid)) {
             Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (c in SettingsStore.MIN_COLUMNS..SettingsStore.MAX_COLUMNS) {
@@ -205,7 +202,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             }
         }
 
-        Card(onClick = { showPacks = true }) {
+        SettingsSection(onClick = { showPacks = true }) {
             Text(stringResource(R.string.icon_pack), style = MaterialTheme.typography.titleMedium)
             Text(
                 s.iconPack?.let { pkg ->
@@ -217,7 +214,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             )
         }
 
-        Card(title = stringResource(R.string.icon_size)) {
+        SettingsSection(title = stringResource(R.string.icon_size)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (size in IconSize.entries) {
                     val label = when (size) {
@@ -230,20 +227,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             }
         }
 
-        Card(onClick = { showWallpaperApp = true }) {
-            Text(stringResource(R.string.wallpaper_app), style = MaterialTheme.typography.titleMedium)
-            Text(
-                s.wallpaperTarget?.let { t ->
-                    val pkg = t.substringAfter('|').substringBefore('/')
-                    runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
-                } ?: stringResource(R.string.wallpaper_app_ask),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(stringResource(R.string.wallpaper_app_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        Card {
+        SettingsSection {
             SwitchRow(
                 title = stringResource(R.string.phone_palette),
                 checked = s.phonePalette,
@@ -252,11 +236,11 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             Text(stringResource(R.string.phone_palette_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        Card(title = stringResource(R.string.render_mode)) {
+        SettingsSection(title = stringResource(R.string.render_mode)) {
             RenderModeChoice(s.renderMode, onSelect = { scope.launch { store.setRenderMode(it) } })
         }
 
-        Card(title = stringResource(R.string.icon_shape)) {
+        SettingsSection(title = stringResource(R.string.icon_shape)) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (shape in IconShape.entries) {
                     ShapeChoice(shape, s.iconStyle.shape == shape, Modifier.weight(1f)) {
@@ -283,7 +267,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             }
         }
 
-        Card {
+        SettingsSection {
             SwitchRow(
                 title = stringResource(R.string.show_home_labels),
                 checked = s.grid.showHomeLabels,
@@ -297,7 +281,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             Text(stringResource(R.string.labels_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
-        Card {
+        SettingsSection {
             SwitchRow(
                 title = stringResource(R.string.resize_any_widget),
                 checked = s.resizeAnyWidget,
@@ -311,7 +295,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             )
         }
 
-        Card(onClick = { showHidden = true }) {
+        SettingsSection(onClick = { showHidden = true }) {
             Text(stringResource(R.string.hidden_apps), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.hidden_apps_per_layout), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
@@ -321,7 +305,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             )
         }
 
-        Card(onClick = { showLicenses = true }) {
+        SettingsSection(onClick = { showLicenses = true }) {
             Text(stringResource(R.string.licenses), style = MaterialTheme.typography.titleMedium)
         }
         }
@@ -354,18 +338,6 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             onDismiss = { showSwipeUp = false },
         )
     }
-    if (showWallpaperApp) {
-        AppTargetPicker(
-            title = stringResource(R.string.wallpaper_app),
-            noneLabel = stringResource(R.string.wallpaper_app_ask),
-            specialHeader = stringResource(R.string.wallpaper_apps),
-            actions = WALLPAPER_ACTIONS,
-            selected = s.wallpaperTarget,
-            apps = apps,
-            onSelect = { scope.launch { store.setWallpaperTarget(it) }; showWallpaperApp = false },
-            onDismiss = { showWallpaperApp = false },
-        )
-    }
     if (showPacks) {
         IconPackPicker(
             selected = s.iconPack,
@@ -380,15 +352,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
 @Composable
 private fun RenderModeChoice(mode: RenderMode, onSelect: (RenderMode) -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val hasCopy by WallpaperBackdrop.hasCopy.collectAsState()
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) scope.launch {
-            if (!WallpaperBackdrop.setFromPhoto(context, uri)) {
-                android.widget.Toast.makeText(context, R.string.render_photo_failed, android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
     Column(Modifier.selectableGroup()) {
         for (m in RenderMode.entries) {
             val (title, summary) = when (m) {
@@ -418,7 +382,7 @@ private fun RenderModeChoice(mode: RenderMode, onSelect: (RenderMode) -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val label = stringResource(R.string.render_pick_photo)
-        val onPick = { pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+        val onPick = { context.startActivity(android.content.Intent(context, WallpaperActivity::class.java)) }
         if (hasCopy) SecondaryButton(label, onPick, icon = R.drawable.ph_wallpaper) else PrimaryButton(label, onPick, icon = R.drawable.ph_wallpaper)
     }
 }
@@ -478,29 +442,3 @@ private fun ShapeChoice(shape: IconShape, selected: Boolean, modifier: Modifier,
     }
 }
 
-/** The page behind the sections: black in dark mode; light grey in light mode, under white containers. */
-@Composable
-private fun pageColor() = if (isDarkSurface()) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.surfaceContainer
-
-/**
- * A settings section: an optional [title] straight on the page (14sp bold, white in dark mode),
- * then its content in a rounded container a step lighter than the page.
- */
-@Composable
-private fun Card(title: String? = null, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = if (title != null) Spacing.md else Spacing.none)) {
-        if (title != null) {
-            SectionHeader(title, Modifier.padding(start = Spacing.mdLg, bottom = Spacing.sm))
-        }
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = if (isDarkSurface()) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLowest,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Column(
-                (if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = Spacing.mdLg, vertical = Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) { content() }
-        }
-    }
-}

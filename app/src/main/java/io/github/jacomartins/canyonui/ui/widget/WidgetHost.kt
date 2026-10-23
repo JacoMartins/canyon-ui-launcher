@@ -101,7 +101,10 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
     init {
         // The widget's corner radius and background come from the provider (Android 12+).
         clipChildren = true
+        io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.track(this)
     }
+
+    private val cardPath = android.graphics.Path()
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         when (ev.actionMasked) {
@@ -156,6 +159,11 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
     }
 
     override fun dispatchDraw(canvas: Canvas) {
+        // Frosted and glass: the blurred wallpaper behind the widget's own card, so a see-through
+        // widget background frosts like the launcher's surfaces.
+        if (WidgetFrame.cardPath(this, cardPath)) {
+            io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, cardPath)
+        }
         try {
             super.dispatchDraw(canvas)
         } catch (e: RuntimeException) {

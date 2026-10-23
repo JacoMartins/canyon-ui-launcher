@@ -50,9 +50,6 @@ class AppTarget(val key: String, val label: String, val icon: ImageBitmap?, val 
 /** Actions search apps answer to; a phone's own search (no app icon) is found this way. */
 val SEARCH_ACTIONS = listOf("android.search.action.GLOBAL_SEARCH", Intent.ACTION_WEB_SEARCH)
 
-/** Apps that set wallpapers, including ones without an app icon. */
-val WALLPAPER_ACTIONS = listOf(Intent.ACTION_SET_WALLPAPER, android.app.WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER)
-
 /** Apps answering [actions] first, then every app (main profile), without duplicates. */
 fun appTargets(context: Context, apps: List<AppInfo>, actions: List<String>): List<AppTarget> {
     val pm = context.packageManager

@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -64,6 +65,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -102,6 +107,9 @@ import io.github.jacomartins.canyonui.data.AppEntry
 import io.github.jacomartins.canyonui.data.FolderEntry
 import io.github.jacomartins.canyonui.ui.design.IconPillButton
 import io.github.jacomartins.canyonui.ui.design.backdrop
+import io.github.jacomartins.canyonui.ui.design.BackdropSource
+import io.github.jacomartins.canyonui.ui.design.LocalBackdropHaze
+import dev.chrisbanes.haze.HazeState
 import io.github.jacomartins.canyonui.ui.design.backdropColor
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
@@ -120,8 +128,12 @@ private val PanelShape = RoundedCornerShape(32.dp)
 
 @Composable
 fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
+    val haze = remember { HazeState() }
+    androidx.compose.runtime.CompositionLocalProvider(LocalBackdropHaze provides haze) {
     Box(Modifier.fillMaxSize()) {
-        val chrome = state.editMode && state.overview == null && state.folder == null && state.picker == null && !state.dragging
+        // Frosted and glass: the wallpaper copy the panels' Haze effects sample.
+        BackdropSource(haze)
+        val chrome = state.editMode && state.folder == null && state.picker == null && !state.dragging
         AnimatedVisibility(
             visible = chrome,
             enter = fadeIn() + slideInVertically { -it / 2 },
@@ -134,23 +146,56 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             exit = fadeOut() + slideOutVertically { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // Category mode: file the loose apps on the pages after the home page.
-                if (state.categoryMode) {
-                    PrimaryButton(stringResource(R.string.categorize_apps), actions::categorizeApps, icon = R.drawable.ph_stack)
-                    Spacer(Modifier.height(Spacing.smMd))
-                }
-                EditBottomBar(actions)
-            }
+            EditBottomBar(actions)
         }
 
         state.picker?.let { WidgetPicker(it, actions) }
-        state.folder?.let { FolderPopup(it, state, actions) }
+        // Folder: the dim fades, the panel grows out of the folder icon (and shrinks back into it).
+        AnimatedContent(
+            targetState = state.folder,
+            contentKey = { it?.id },
+            transitionSpec = { fadeIn(tween(OPEN_MS)) togetherWith fadeOut(tween(CLOSE_MS)) },
+            label = "folder",
+        ) { f ->
+            if (f != null) {
+                var origin by remember { mutableStateOf(TransformOrigin.Center) }
+                FolderPopup(
+                    f, state, actions,
+                    modifier = Modifier
+                        .onGloballyPositioned { c ->
+                            val b = c.boundsInWindow()
+                            val a = state.folderAnchor
+                            if (b.width > 0f && b.height > 0f && a != Offset.Unspecified) {
+                                origin = TransformOrigin((a.x - b.left) / b.width, (a.y - b.top) / b.height)
+                            }
+                        }
+                        .animateEnterExit(
+                            enter = scaleIn(tween(OPEN_MS), initialScale = 0.4f, transformOrigin = origin),
+                            exit = scaleOut(tween(CLOSE_MS), targetScale = 0.4f, transformOrigin = origin),
+                        ),
+                )
+            }
+        }
         // Above an open folder: the app being edited may be inside it.
         state.editApp?.let { EditAppSheet(it, actions) }
-        state.menu?.let { ItemMenuLayer(it) { state.menu = null } }
-        state.overview?.let { PageOverview(it, state, actions) }
+        AnimatedContent(
+            targetState = state.menu,
+            transitionSpec = { fadeIn(tween(MENU_MS)) togetherWith fadeOut(tween(MENU_MS)) },
+            label = "menu",
+        ) { m ->
+            if (m != null) {
+                MenuLayer(
+                    m.anchor, m.entries, { state.menu = null },
+                    modifier = Modifier.animateEnterExit(
+                        enter = scaleIn(tween(MENU_MS), initialScale = 0.85f),
+                        exit = scaleOut(tween(MENU_MS), targetScale = 0.85f),
+                    ),
+                )
+            }
+        }
+        state.confirmDeletePage?.let { DeletePageDialog(it, state, actions) }
         SnackHost(state, Modifier.align(Alignment.BottomCenter))
+    }
     }
 }
 
@@ -179,14 +224,20 @@ private fun EditTopBar(state: OverlayState, actions: OverlayActions) {
                 layout(p.width, y + p.height) { p.place(0, y) }
             },
         horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         PageIconButton(
             icon = if (isHome) R.drawable.ph_house_fill else R.drawable.ph_house,
             label = stringResource(if (isHome) R.string.home_page else R.string.make_home_page),
             enabled = !isHome,
         ) { actions.makeHomePage(page) }
+        // Category mode: file the loose apps on the pages after the home page. Styled like
+        // the two page buttons beside it.
+        if (state.categoryMode) {
+            SecondaryButton(stringResource(R.string.categorize_apps), actions::categorizeApps, icon = R.drawable.ph_stack)
+        }
         PageIconButton(R.drawable.ph_trash, stringResource(R.string.delete_page), enabled = !isHome && state.pageCount > 1) {
-            actions.deletePage(page)
+            state.confirmDeletePage = page
         }
     }
 }
@@ -211,7 +262,6 @@ private fun EditBottomBar(actions: OverlayActions) {
         Row(Modifier.padding(Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             ToolButton(R.drawable.ph_wallpaper, stringResource(R.string.wallpaper), actions::chooseWallpaper)
             ToolButton(R.drawable.ph_widgets, stringResource(R.string.widgets), actions::openWidgets)
-            ToolButton(R.drawable.ph_pages, stringResource(R.string.pages), actions::openOverview)
             ToolButton(R.drawable.ph_settings, stringResource(R.string.settings), actions::openSettings)
         }
     }
@@ -239,8 +289,7 @@ private fun ToolButton(@DrawableRes icon: Int, label: String, onClick: () -> Uni
 
 // ------------------------------------------------------------------------------- long-press menu
 
-@Composable
-private fun ItemMenuLayer(menu: ItemMenu, onDismiss: () -> Unit) = MenuLayer(menu.anchor, menu.entries, onDismiss)
+
 
 // ------------------------------------------------------------------------------- folder popup
 
@@ -260,7 +309,7 @@ private const val FOLDER_PER_PAGE = 9
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: OverlayActions) {
+private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: OverlayActions, modifier: Modifier = Modifier) {
     var title by remember(folder.id) { mutableStateOf(folder.title) }
     var showColors by remember(folder.id) { mutableStateOf(false) }
     var showPicker by remember(folder.id) { mutableStateOf(false) }
@@ -279,7 +328,7 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
     ) {
         // The name and colour choice float above the panel, over the dimmed home screen; the
         // panel holds only the apps.
-        Column(Modifier.padding(horizontal = Spacing.md).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(modifier.padding(horizontal = Spacing.md).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.padding(horizontal = Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
                 val nameLabel = stringResource(R.string.folder_name)
                 BasicTextField(
@@ -411,14 +460,21 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                         }
                     }
                     if (pages > 1) {
-                        Row(Modifier.padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(Spacing.xsSm)) {
+                        // Like the home screen's: filled circles, the page in view opaque, the
+                        // others faint, following the swipe.
+                        Row(Modifier.padding(top = Spacing.sm), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                             repeat(pages) { i ->
-                                val active = pager.currentPage == i
-                                Box(
-                                    Modifier
-                                        .size(width = if (active) 16.dp else 6.dp, height = 6.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = if (active) 0.9f else 0.35f)),
+                                Icon(
+                                    painterResource(R.drawable.ph_circle_fill),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                        .size(9.dp)
+                                        .graphicsLayer {
+                                            val pos = pager.currentPage + pager.currentPageOffsetFraction
+                                            val t = (1f - kotlin.math.abs(pos - i)).coerceIn(0f, 1f)
+                                            alpha = 0.35f + 0.65f * t
+                                        },
                                 )
                             }
                         }
@@ -471,117 +527,6 @@ private fun FolderApp(app: AppEntry, folder: FolderEntry, actions: OverlayAction
     }
 }
 
-// ------------------------------------------------------------------------------- page overview
-
-@Composable
-private fun PageOverview(thumbs: List<PageThumb>, state: OverlayState, actions: OverlayActions) {
-    val haptics = LocalHapticFeedback.current
-    val bounds = remember { HashMap<Int, androidx.compose.ui.geometry.Rect>() }
-    var dragging by remember { mutableIntStateOf(-1) }
-    var dragOffset by remember { mutableStateOf(Offset.Zero) }
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.55f))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = actions::closeOverview)
-            .windowInsetsPadding(WindowInsets.safeDrawing),
-    ) {
-        Column(Modifier.fillMaxSize().padding(horizontal = Spacing.md)) {
-            Text(
-                stringResource(R.string.pages),
-                style = MaterialTheme.typography.headlineMedium,
-                color = Color.White,
-                modifier = Modifier.padding(top = Spacing.lg, start = Spacing.xs),
-            )
-            Text(
-                stringResource(R.string.page_overview_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.padding(start = Spacing.xs, bottom = Spacing.md),
-            )
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                modifier = Modifier.weight(1f),
-            ) {
-                itemsIndexed(thumbs, key = { _, t -> t.index }) { i, thumb ->
-                    val isDragged = dragging == i
-                    Box(
-                        Modifier
-                            .onGloballyPositioned { bounds[i] = it.boundsInWindow() }
-                            .graphicsLayer {
-                                if (isDragged) {
-                                    translationX = dragOffset.x; translationY = dragOffset.y
-                                    scaleX = 1.05f; scaleY = 1.05f
-                                }
-                            }
-                            .pointerInput(thumbs.size) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); dragging = i; dragOffset = Offset.Zero },
-                                    onDrag = { change, amount -> change.consume(); dragOffset += amount },
-                                    onDragEnd = {
-                                        val from = dragging
-                                        val center = bounds[from]?.center?.plus(dragOffset)
-                                        val to = center?.let { c -> bounds.entries.firstOrNull { it.value.contains(c) }?.key } ?: from
-                                        dragging = -1
-                                        dragOffset = Offset.Zero
-                                        if (to != from) actions.movePage(from, to)
-                                    },
-                                    onDragCancel = { dragging = -1; dragOffset = Offset.Zero },
-                                )
-                            },
-                    ) {
-                        PageCard(thumb, current = state.currentPage == thumb.index, canDelete = thumbs.size > 1 && thumb.index != HOME_PAGE, actions)
-                    }
-                }
-                item(key = "add") {
-                    Surface(
-                        onClick = actions::addPage,
-                        shape = RoundedCornerShape(24.dp),
-                        color = Color.White.copy(alpha = 0.12f),
-                        modifier = Modifier.aspectRatio(0.56f).surfaceRing(cornerRadius = 24.dp),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(painterResource(R.drawable.ph_plus), contentDescription = stringResource(R.string.add_page), tint = Color.White, modifier = Modifier.size(36.dp))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PageCard(thumb: PageThumb, current: Boolean, canDelete: Boolean, actions: OverlayActions) {
-    val label = stringResource(R.string.page_n, thumb.index + 1)
-    Column {
-        Surface(
-            onClick = { actions.openPage(thumb.index) },
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White.copy(alpha = if (current) 0.22f else 0.12f),
-            modifier = Modifier
-                .aspectRatio(0.56f)
-                .border(if (current) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp))
-                .surfaceRing(cornerRadius = 24.dp)
-                .semantics { contentDescription = label },
-        ) {
-            Image(thumb.image, contentDescription = null, modifier = Modifier.fillMaxSize().padding(Spacing.sm))
-        }
-        Row(Modifier.fillMaxWidth().padding(top = Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.labelLarge, color = Color.White, modifier = Modifier.weight(1f).padding(start = Spacing.xs))
-            if (canDelete) {
-                Box(
-                    Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button) { actions.deletePage(thumb.index) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(painterResource(R.drawable.ph_trash), contentDescription = stringResource(R.string.delete_page), tint = Color.White, modifier = Modifier.size(20.dp))
-                }
-            }
-        }
-    }
-}
-
 // ------------------------------------------------------------------------------- snackbar
 
 @Composable
@@ -600,8 +545,21 @@ private fun SnackHost(state: OverlayState, modifier: Modifier) {
         modifier = modifier,
     ) {
         val s = snack ?: return@AnimatedVisibility
+        // Swiped sideways far enough, the message goes away early.
+        var dx by remember(s.id) { mutableFloatStateOf(0f) }
+        val dismissPx = with(LocalDensity.current) { 96.dp.toPx() }
         Surface(
             modifier = Modifier
+                .graphicsLayer {
+                    translationX = dx
+                    alpha = (1f - kotlin.math.abs(dx) / (dismissPx * 1.5f)).coerceIn(0f, 1f)
+                }
+                .pointerInput(s.id) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = { if (kotlin.math.abs(dx) > dismissPx) state.snack = null else dx = 0f },
+                        onDragCancel = { dx = 0f },
+                    ) { change, amount -> change.consume(); dx += amount }
+                }
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(bottom = 128.dp, start = Spacing.md, end = Spacing.md)
                 .shadow(Spacing.sm, PanelShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
@@ -615,12 +573,34 @@ private fun SnackHost(state: OverlayState, modifier: Modifier) {
                 Text(s.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(end = Spacing.md))
                 val undo = s.onUndo
                 if (undo != null) PrimaryButton(stringResource(R.string.undo), { state.snack = null; undo() })
+                IconPillButton(R.drawable.ph_close, stringResource(R.string.dismiss), { state.snack = null }, Modifier.padding(start = Spacing.xs), size = 40.dp)
             }
         }
     }
 }
 
+/** Asks before a page is deleted (with everything on it). */
+@Composable
+private fun DeletePageDialog(page: Int, state: OverlayState, actions: OverlayActions) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { state.confirmDeletePage = null },
+        title = { Text(stringResource(R.string.delete_page_title)) },
+        text = { Text(stringResource(R.string.delete_page_message)) },
+        confirmButton = {
+            PrimaryButton(stringResource(R.string.delete), {
+                state.confirmDeletePage = null
+                actions.deletePage(page)
+            })
+        },
+        dismissButton = { SecondaryButton(stringResource(R.string.cancel), { state.confirmDeletePage = null }) },
+        shape = RoundedCornerShape(28.dp),
+    )
+}
+
 private const val SNACK_MS = 5000L
+private const val OPEN_MS = 220
+private const val CLOSE_MS = 180
+private const val MENU_MS = 140
 
 /** The first page is the home page (the house in the page indicator); it cannot be deleted. */
 private const val HOME_PAGE = 0

@@ -23,8 +23,6 @@ class Snack(val message: String, val onUndo: (() -> Unit)?) {
     val id = System.nanoTime()
 }
 
-class PageThumb(val index: Int, val image: ImageBitmap)
-
 /** What the overlay asks the activity to do. */
 interface OverlayActions {
     fun launchFromFolder(app: AppEntry, bounds: Rect?)
@@ -41,9 +39,6 @@ interface OverlayActions {
     fun addWidget(widget: PickerWidget)
     fun armWidgetDrag(widget: PickerWidget, preview: ImageBitmap?, bounds: Rect)
     fun openSettings()
-    fun openOverview()
-    fun closeOverview()
-    fun openPage(index: Int)
     fun addPage()
     fun deletePage(index: Int)
     fun makeHomePage(index: Int)
@@ -57,6 +52,8 @@ interface OverlayActions {
 class OverlayState {
     var menu by mutableStateOf<ItemMenu?>(null)
     var folder by mutableStateOf<FolderEntry?>(null)
+    /** Centre of the folder icon that opened [folder] (window px): the panel grows out of it. */
+    var folderAnchor = androidx.compose.ui.geometry.Offset.Unspecified
     /** The app being dragged inside the open folder (drawn as a gap), or 0. */
     var folderDragId by mutableLongStateOf(0L)
     /** The open folder's visible page of apps, in window coordinates, and its page number. */
@@ -72,12 +69,13 @@ class OverlayState {
     /** Edit mode: the zoomed page's top edge (window px) and its zoom, for the bar above it. */
     var editPageTop by mutableIntStateOf(0)
     var editScale by mutableFloatStateOf(1f)
-    var overview by mutableStateOf<List<PageThumb>?>(null)
+    /** Edit mode: the page whose delete is waiting for confirmation, or null. */
+    var confirmDeletePage by mutableStateOf<Int?>(null)
     var picker by mutableStateOf<WidgetPickerState?>(null)
     var editApp by mutableStateOf<EditAppState?>(null)
     var currentPage by mutableIntStateOf(0)
     var pageCount by mutableIntStateOf(1)
 
-    /** True while something modal (menu, folder, overview, widget picker) covers the home screen. */
-    val isModal get() = menu != null || folder != null || overview != null || picker != null || editApp != null
+    /** True while something modal (menu, folder, widget picker, a dialog) covers the home screen. */
+    val isModal get() = menu != null || folder != null || confirmDeletePage != null || picker != null || editApp != null
 }

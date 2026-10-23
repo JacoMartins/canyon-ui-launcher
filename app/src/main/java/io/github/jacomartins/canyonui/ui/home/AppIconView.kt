@@ -105,6 +105,8 @@ class AppIconView(context: Context, private var style: LabelStyle) : View(contex
         iconBounds(iconRect)
         val iconPx = iconRect.width()
         val top = iconRect.top
+        // Pressed: a touch brighter, with the press scale.
+        bitmapPaint.colorFilter = if (isPressed) PRESSED_FILTER else null
         canvas.drawBitmap(bmp, null, iconRect, bitmapPaint)
         if (style.showLabel) {
             val baseline = top + iconPx + gapPx - textPaint.ascent() // ascent() does not allocate
@@ -114,12 +116,17 @@ class AppIconView(context: Context, private var style: LabelStyle) : View(contex
 
     companion object {
         const val LABEL_SP = 11f
+
+        private val PRESSED_FILTER = android.graphics.ColorMatrixColorFilter(
+            android.graphics.ColorMatrix().apply { setScale(1.12f, 1.12f, 1.12f, 1f) },
+        )
         const val LABEL_GAP_DP = 3f
     }
 
     override fun setPressed(pressed: Boolean) {
         if (pressed == isPressed) return
         super.setPressed(pressed)
+        invalidate()
         val target = if (pressed) Motion.PRESS_SCALE else 1f
         if (Motion.enabled()) {
             animate().scaleX(target).scaleY(target).setDuration(Motion.PRESS_DURATION_MS)

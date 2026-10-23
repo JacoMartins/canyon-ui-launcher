@@ -7,6 +7,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import android.os.Build
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.blur.HazeBlurStyle
+import dev.chrisbanes.haze.blur.hazeBlur
+import dev.chrisbanes.haze.glass.GlassStyle
+import dev.chrisbanes.haze.glass.hazeGlass
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -14,7 +30,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -25,14 +40,49 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import io.github.jacomartins.canyonui.data.RenderMode
 
+/** The Haze state the overlay's wallpaper copy feeds; null where there is no copy to sample. */
+val LocalBackdropHaze = staticCompositionLocalOf<HazeState?> { null }
+
 /**
- * Frosted and glass modes: draws the blurred wallpaper behind this element, inside [shape],
- * lined up with the real wallpaper. Glass adds a faint sheen at the top. Does nothing in the
- * translucent mode. Put it before the element's own (see-through) background.
+ * The wallpaper copy as Haze's source, full screen and lined up with the real wallpaper. It is
+ * recorded for the effects but never shown (the real wallpaper and home are what is seen), so it
+ * sits under an invisible layer. Put it first in the overlay.
  */
-fun Modifier.backdrop(shape: Shape): Modifier = composed {
+@Composable
+fun BackdropSource(state: HazeState) {
+    val src by WallpaperBackdrop.source.collectAsState()
+    val b = src ?: return
+    val image = remember(b) { b.asImageBitmap() }
+    val view = LocalView.current
+    val loc = remember { IntArray(2) }
+    Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0f }) {
+        Canvas(Modifier.fillMaxSize().hazeSource(state)) {
+            view.getLocationOnScreen(loc)
+            drawImage(image, dstOffset = IntOffset(-loc[0], -loc[1]), dstSize = IntSize(b.width, b.height))
+        }
+    }
+}
+
+/**
+ * Frosted and glass modes: the wallpaper behind this element, inside [shape]. In the home
+ * overlay (with a [BackdropSource]) Haze draws it, as Haze's glass in the glass mode and as
+ * Haze's blur in the frosted mode; elsewhere a pre-blurred copy lined up with the wallpaper is
+ * drawn instead. Does nothing in the translucent mode. Put it before the element's own
+ * (see-through) background.
+ */
+fun Modifier.backdrop(shape: RoundedCornerShape): Modifier = composed {
     val blur by WallpaperBackdrop.active.collectAsState()
     val b = blur ?: return@composed this
+    val haze = LocalBackdropHaze.current
+    if (haze != null && Build.VERSION.SDK_INT >= 31) {
+        val input = HazeInput.Sources(haze)
+        return@composed if (b.mode == RenderMode.GLASS) {
+            val style = remember(shape) { GlassStyle.regular.then { shape(shape) } }
+            this.hazeGlass(input, style = style)
+        } else {
+            this.clip(shape).hazeBlur(input, style = FrostedStyle)
+        }
+    }
     val view = LocalView.current
     val image = remember(b) { b.bitmap.asImageBitmap() }
     var origin by remember { mutableStateOf(Offset.Zero) }
@@ -58,6 +108,11 @@ fun Modifier.backdrop(shape: Shape): Modifier = composed {
                 }
             }
         }
+}
+
+private val FrostedStyle = HazeBlurStyle {
+    blurRadius(28.dp)
+    noiseFactor(0.1f)
 }
 
 /** [color] with less of its opacity when a blur shows through (frosted keeps more than glass). */

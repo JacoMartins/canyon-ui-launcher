@@ -67,6 +67,11 @@ object WallpaperBackdrop {
     /** True while the launcher's copy matches the wallpaper on screen. */
     val hasCopy: StateFlow<Boolean> = _hasCopy.asStateFlow()
 
+    private val _source = MutableStateFlow<Bitmap?>(null)
+
+    /** The sharp wallpaper copy while a blur mode is on (what Haze blurs itself); else null. */
+    val source: StateFlow<Bitmap?> = _source.asStateFlow()
+
     private val _active = MutableStateFlow<Blur?>(null)
 
     /** The blur to draw behind surfaces now; null = plain translucent surfaces. */
@@ -89,10 +94,11 @@ object WallpaperBackdrop {
     }
 
     /**
-     * Makes [uri] (a photo the user picked) the home wallpaper, cropped to the screen, and keeps
-     * it as the copy to blur. Returns false when it could not be read or set.
+     * Makes [uri] (a photo the user picked) the wallpaper of [which] (home, lock or both:
+     * WallpaperManager flags), cropped to the screen. A home wallpaper is kept as the copy to
+     * blur. Returns false when it could not be read or set.
      */
-    suspend fun setFromPhoto(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+    suspend fun setFromPhoto(context: Context, uri: Uri, which: Int = WallpaperManager.FLAG_SYSTEM): Boolean = withContext(Dispatchers.IO) {
         try {
             val (w, h) = screenSize(context)
             val source = ImageDecoder.createSource(context.contentResolver, uri)
@@ -107,7 +113,8 @@ object WallpaperBackdrop {
             // Screen-sized wallpaper, so what is on screen is exactly the copy (no scrolling).
             runCatching { wm.suggestDesiredDimensions(w, h) }
             setAt = SystemClock.elapsedRealtime()
-            val id = wm.setBitmap(cropped, null, true, WallpaperManager.FLAG_SYSTEM)
+            val id = wm.setBitmap(cropped, null, true, which)
+            if (which and WallpaperManager.FLAG_SYSTEM == 0) return@withContext true
             File(context.filesDir, FILE).outputStream().use { cropped.compress(Bitmap.CompressFormat.PNG, 100, it) }
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
                 putBoolean(KEY_VALID, true)
@@ -141,6 +148,7 @@ object WallpaperBackdrop {
         copy = null
         _hasCopy.value = false
         _active.value = null
+        _source.value = null
     }
 
     /** The wallpaper changing elsewhere (not by us, just now) makes the copy stale. */
@@ -159,8 +167,10 @@ object WallpaperBackdrop {
         val m = mode
         if (src == null || m == RenderMode.TRANSLUCENT) {
             _active.value = null
+            _source.value = null
             return
         }
+        _source.value = src
         _active.value = withContext(Dispatchers.Default) { Blur(blur(src, m), src.width, src.height, m) }
     }
 

@@ -102,6 +102,10 @@ class DragController(
 
     var armed: DragSource? = null
         private set
+
+    /** The dropped item's view while the drag image flies into its cell (kept hidden until then). */
+    var landing: View? = null
+        private set
     var source: DragSource? = null
         private set
     val isDragging get() = source != null
@@ -199,16 +203,56 @@ class DragController(
         source = null
         lastAction = null
         lastKey = Long.MIN_VALUE
-        if (dv != null) {
-            if (Motion.enabled()) {
-                dv.animate().alpha(0f).scaleX(1f).scaleY(1f).setDuration(140).setInterpolator(decelerate)
-                    .withEndAction { root.removeView(dv) }.start()
-            } else {
-                root.removeView(dv)
-            }
-        }
+        val target = if (dv != null && Motion.enabled()) landingPoint(s, result) else null
         root.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         callbacks.onDropped(s, result)
+        if (dv == null) return
+        if (target != null) {
+            // The image flies from the finger into its cell; the real view shows when it lands.
+            val view = s.view
+            landing = view
+            view?.visibility = View.INVISIBLE
+            dv.animate().translationX(target[0]).translationY(target[1]).scaleX(1f).scaleY(1f)
+                .setDuration(LAND_MS).setInterpolator(decelerate)
+                .withEndAction {
+                    if (landing === view) landing = null
+                    if (!isDragging) view?.visibility = View.VISIBLE
+                    root.removeView(dv)
+                }.start()
+        } else if (Motion.enabled()) {
+            dv.animate().alpha(0f).scaleX(1f).scaleY(1f).setDuration(140).setInterpolator(decelerate)
+                .withEndAction { root.removeView(dv) }.start()
+        } else {
+            root.removeView(dv)
+        }
+    }
+
+    /** Where the drag image's top-left lands for a move onto the page in view or the dock (root px). */
+    private fun landingPoint(s: DragSource, result: DropResult): FloatArray? {
+        val a = (result as? DropResult.OnGrid)?.action as? DropAction.Move ?: return null
+        val layout = if (a.container == Container.DOCK) {
+            home.hotseat
+        } else {
+            if (a.pageIndex != home.workspace.currentPage) return null
+            home.workspace.pageAt(a.pageIndex) ?: return null
+        }
+        val inset = (s.view?.layoutParams as? CellLayout.LayoutParams)?.inset ?: 0
+        val out = floatArrayOf((layout.cellLeft(a.x, s.spanX) + inset).toFloat(), (layout.cellTop(a.y) + inset).toFloat())
+        ViewMap.localToRoot(root, layout, out)
+        return out
+    }
+
+    /** Over a folder (or an app that would become one) the image shrinks, as if going in. */
+    private fun shrinkForFolder(into: Boolean) {
+        val dv = dragView ?: return
+        val target = if (into) FOLDER_SCALE else DRAG_SCALE
+        if (dv.scaleX == target) return
+        if (Motion.enabled()) {
+            dv.animate().scaleX(target).scaleY(target).setDuration(150).setInterpolator(decelerate).start()
+        } else {
+            dv.scaleX = target
+            dv.scaleY = target
+        }
     }
 
     private fun update(x: Float, y: Float) {
@@ -278,12 +322,15 @@ class DragController(
         val columns = if (overDock) st.dockSlots else st.columns
         val rows = if (overDock) 1 else st.rows
         val draggedId = (s.item as? DragItem.Existing)?.id
+        // Where it came from, for a swap (not for apps taken out of a folder).
+        val origin = if (s.fromFolder == 0L) draggedId?.let { st.entry(it)?.placed } else null
         val action = DropLogic.decide(
             container, pageIndex, columns, rows, st.placedIn(container, pageIndex),
-            desired, finger, centerHit, draggedId, s.type, s.spanX, s.spanY,
+            desired, finger, centerHit, draggedId, s.type, s.spanX, s.spanY, origin = origin,
         )
         if (action != lastAction) {
             lastAction = action
+            shrinkForFolder(action is DropAction.CreateFolder || action is DropAction.AddToFolder)
             if (lastHintCell !== cellLayout) lastHintCell?.clearDropHint()
             lastHintCell = cellLayout
             when (action) {
@@ -325,6 +372,12 @@ class DragController(
 
     companion object {
         private const val DRAG_SCALE = 1.08f
+
+        /** The drag image over a folder target. */
+        private const val FOLDER_SCALE = 0.8f
+
+        /** The drag image's flight into its cell after a drop. */
+        private const val LAND_MS = 200L
         private const val PAGE_FLIP_DELAY_MS = 550L
 
         /** How long the finger must stay outside an open folder before the app leaves it. */

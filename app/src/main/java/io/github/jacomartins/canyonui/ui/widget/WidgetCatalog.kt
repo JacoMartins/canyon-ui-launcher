@@ -80,6 +80,20 @@ object WidgetCatalog {
         }
     }
 
+    /**
+     * The preview the widget generated for the home screen (Android 15+), or null when it has
+     * none or Android does not hand it to this app.
+     */
+    fun generatedPreview(context: Context, info: AppWidgetProviderInfo): android.widget.RemoteViews? {
+        if (Build.VERSION.SDK_INT < 35) return null
+        if (info.generatedPreviewCategories and AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN == 0) return null
+        return try {
+            AppWidgetManager.getInstance(context).getWidgetPreview(info.provider, info.profile, AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
+        } catch (e: RuntimeException) {
+            null
+        }
+    }
+
     /** True when the provider has a real preview image (not just its icon). */
     fun hasPreviewImage(info: AppWidgetProviderInfo) = info.previewImage != 0
 
