@@ -66,6 +66,7 @@ import io.github.jacomartins.canyonui.ui.drawer.HiddenAppsDialog
 import io.github.jacomartins.canyonui.ui.design.ChoiceButton
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
+import io.github.jacomartins.canyonui.gesture.LauncherAccessibilityService
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
 import io.github.jacomartins.canyonui.data.RenderMode
 import io.github.jacomartins.canyonui.ui.settings.IconPackPicker
@@ -245,6 +246,14 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             Text(stringResource(R.string.wallpaper_app_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
+        SettingsSection(title = stringResource(R.string.badges)) {
+            BadgeSettings(s, store)
+        }
+
+        SettingsSection(title = stringResource(R.string.gestures)) {
+            GestureSettings(s, store)
+        }
+
         SettingsSection(title = stringResource(R.string.render_mode)) {
             RenderModeChoice(s.renderMode, onSelect = { scope.launch { store.setRenderMode(it) } })
         }
@@ -320,6 +329,10 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             )
         }
 
+        SettingsSection(title = stringResource(R.string.backup)) {
+            BackupSettings()
+        }
+
         SettingsSection(onClick = { showLicenses = true }) {
             Text(stringResource(R.string.licenses), style = MaterialTheme.typography.titleMedium)
         }
@@ -372,6 +385,107 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             onSelect = { scope.launch { store.setIconPack(it) } },
             onDismiss = { showPacks = false },
         )
+    }
+}
+
+/** Back up the launcher to a file, or restore one (after asking). */
+@Composable
+private fun BackupSettings() {
+    val context = LocalContext.current
+    val app = context.applicationContext as LauncherApp
+    val scope = rememberCoroutineScope()
+    var restoreUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val save = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri ->
+        if (uri != null) scope.launch {
+            val ok = io.github.jacomartins.canyonui.data.Backup.export(app, uri)
+            android.widget.Toast.makeText(context, if (ok) R.string.backup_done else R.string.backup_failed, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    val open = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri -> restoreUri = uri }
+    Text(stringResource(R.string.backup_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SecondaryButton(stringResource(R.string.backup_save), { save.launch("canyon-ui-backup.zip") }, Modifier.weight(1f))
+        SecondaryButton(stringResource(R.string.backup_restore), { open.launch(arrayOf("application/zip", "application/octet-stream")) }, Modifier.weight(1f))
+    }
+    restoreUri?.let { uri ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { restoreUri = null },
+            title = { Text(stringResource(R.string.backup_restore_title)) },
+            text = { Text(stringResource(R.string.backup_restore_message)) },
+            confirmButton = {
+                PrimaryButton(stringResource(R.string.backup_restore), {
+                    restoreUri = null
+                    scope.launch {
+                        if (!io.github.jacomartins.canyonui.data.Backup.restore(app, uri)) {
+                            android.widget.Toast.makeText(context, R.string.backup_not_valid, android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                })
+            },
+            dismissButton = { SecondaryButton(stringResource(R.string.cancel), { restoreUri = null }) },
+            shape = RoundedCornerShape(28.dp),
+        )
+    }
+}
+
+/** Badges off, as dots or as numbers, and the notification access they need. */
+@Composable
+private fun BadgeSettings(s: LauncherSettings, store: SettingsStore) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var access by remember { mutableStateOf(io.github.jacomartins.canyonui.badges.Badges.hasAccess(context)) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) access = io.github.jacomartins.canyonui.badges.Badges.hasAccess(context)
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for ((mode, label) in listOf("off" to R.string.badges_off, "dots" to R.string.badges_dots, "numbers" to R.string.badges_numbers)) {
+            ChoiceButton(stringResource(label), s.badges == mode, { scope.launch { store.setBadges(mode) } }, Modifier.weight(1f))
+        }
+    }
+    if (s.badges != "off" && !access) {
+        Text(stringResource(R.string.badges_need_access), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        PrimaryButton(stringResource(R.string.badges_allow), { io.github.jacomartins.canyonui.badges.Badges.openAccessSettings(context) }, icon = R.drawable.ph_settings)
+    }
+}
+
+/** Tap to lock (off, double, triple) and swipe down for notifications, with the service they need. */
+@Composable
+private fun GestureSettings(s: LauncherSettings, store: SettingsStore) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Read again whenever settings come back to the front (the user may have just turned it on).
+    var serviceOn by remember { mutableStateOf(LauncherAccessibilityService.isOn) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) serviceOn = LauncherAccessibilityService.isOn
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    Text(stringResource(R.string.gesture_lock), style = MaterialTheme.typography.titleMedium)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for ((taps, label) in listOf(0 to R.string.gesture_lock_off, 2 to R.string.gesture_lock_double, 3 to R.string.gesture_lock_triple)) {
+            ChoiceButton(stringResource(label), s.lockTaps == taps, { scope.launch { store.setLockTaps(taps) } }, Modifier.weight(1f))
+        }
+    }
+    SwitchRow(
+        title = stringResource(R.string.gesture_notifications),
+        checked = s.swipeDownNotifications,
+        onChange = { scope.launch { store.setSwipeDownNotifications(it) } },
+    )
+    if ((s.lockTaps >= 2 || s.swipeDownNotifications) && !serviceOn) {
+        Text(stringResource(R.string.gesture_needs_service), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        PrimaryButton(stringResource(R.string.gesture_open_settings), { LauncherAccessibilityService.openSettings(context) }, icon = R.drawable.ph_settings)
     }
 }
 

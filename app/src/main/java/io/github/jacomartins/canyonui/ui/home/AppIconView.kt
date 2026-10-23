@@ -46,6 +46,13 @@ class AppIconView(context: Context, private var style: LabelStyle) : View(contex
         textAlign = Paint.Align.CENTER
     }
     private val pressInterpolator = DecelerateInterpolator()
+    private val badgePainter = BadgePainter()
+
+    /** Notifications waiting for this app (0 = no badge); [badgeNumbers] false shows a dot. */
+    var badge = 0
+        set(value) { if (field != value) { field = value; invalidate() } }
+    var badgeNumbers = true
+        set(value) { if (field != value) { field = value; invalidate() } }
 
     init {
         isClickable = true
@@ -108,6 +115,7 @@ class AppIconView(context: Context, private var style: LabelStyle) : View(contex
         // Pressed: a touch brighter, with the press scale.
         bitmapPaint.colorFilter = if (isPressed) PRESSED_FILTER else null
         canvas.drawBitmap(bmp, null, iconRect, bitmapPaint)
+        badgePainter.draw(canvas, iconRect, badge, badgeNumbers)
         if (style.showLabel) {
             val baseline = top + iconPx + gapPx - textPaint.ascent() // ascent() does not allocate
             canvas.drawText(shownLabel, width / 2f, baseline, textPaint)

@@ -38,10 +38,13 @@ class LauncherApp : Application() {
         private set
     lateinit var usage: AppUsage
         private set
+    /** The layout databases, one per layout mode (for backups). */
+    lateinit var dbs: Map<LayoutMode, LauncherDatabase>
+        private set
 
     override fun onCreate() {
         super.onCreate()
-        val dbs = LayoutMode.entries.associateWith { LauncherDatabase.create(this, it) }
+        dbs = LayoutMode.entries.associateWith { LauncherDatabase.create(this, it) }
         settings = SettingsStore(this)
         usage = AppUsage(this)
         apps = AppRepository(this, scope, IconCache(this))

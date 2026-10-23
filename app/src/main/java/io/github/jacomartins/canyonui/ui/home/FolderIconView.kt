@@ -55,6 +55,14 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
 
     private val ring = DepthRingPainter(resources.displayMetrics.density)
     private val shapePath = Path()
+    private val badgePainter = BadgePainter()
+    private val badgeRect = Rect()
+
+    /** Notifications waiting for this folder's apps, together (0 = no badge). */
+    var badge = 0
+        set(value) { if (field != value) { field = value; invalidate() } }
+    var badgeNumbers = true
+        set(value) { if (field != value) { field = value; invalidate() } }
     private val largePath = Path()
     private var pathSize = -1f
     private var pathLeft = 0f
@@ -176,18 +184,36 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
 
         val apps = f.apps
         val slots = SLOTS
-        // From nine apps on, the last cell opens the folder, so it is drawn as a stack.
-        val stacked = apps.size >= slots
-        val direct = if (stacked) slots - 1 else apps.size
+        // Large folders: from nine apps on, the last cell opens the folder, so it is drawn as a
+        // stack. Normal folders just preview their first nine apps.
+        val stacked = isLarge && apps.size >= slots
+        val direct = if (stacked) slots - 1 else minOf(apps.size, slots)
         for (i in 0 until direct) {
             cellRect(i, cell)
             canvas.drawBitmap(apps[i].app.icon, null, cell, bitmapPaint)
         }
         if (stacked) drawStack(canvas, apps[direct], apps.getOrNull(direct + 1))
+        // A normal folder carries its apps' badge at its own corner; a large folder's apps
+        // are visible, so each shows its own.
+        if (isLarge) {
+            for (i in 0 until direct) {
+                cellRect(i, cell)
+                badgePainter.draw(canvas, cell, appBadge(apps[i]), badgeNumbers)
+            }
+        } else {
+            badgeRect.set(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt())
+            badgePainter.draw(canvas, badgeRect, badge, badgeNumbers)
+        }
         if (style.showLabel && shownLabel.isNotEmpty()) {
             canvas.drawText(shownLabel, width / 2f, box.bottom + gapPx - textPaint.ascent(), textPaint)
         }
     }
+
+    /** Per-app counts, for a large folder's icons (set with [badge]). */
+    var appBadges: Map<String, Int> = emptyMap()
+        set(value) { if (field != value) { field = value; invalidate() } }
+
+    private fun appBadge(app: AppEntry) = appBadges[app.app.key.packageName] ?: 0
 
     /**
      * The last cell of a full large folder: [front], smaller, in front of [back] (the next app)

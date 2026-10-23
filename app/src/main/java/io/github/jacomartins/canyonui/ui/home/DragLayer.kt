@@ -132,8 +132,13 @@ class DragLayer(context: Context) : FrameLayout(context) {
     var onSwipeUp: (() -> Unit)? = null
     private var swipeFired = false
 
+    /** A downward swipe on home (drawer closed) calls this when set; it returns true if used. */
+    var onSwipeDown: (() -> Boolean)? = null
+    private var downFired = false
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         if (drag?.armed != null) return false
+        if (swipeDown(ev)) return true
         if (!drawerEnabled && drawer.isClosed) return swipeUp(ev)
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -188,6 +193,27 @@ class DragLayer(context: Context) : FrameLayout(context) {
             }
         }
         return true
+    }
+
+    /** Watches for a clearly downward swipe on the closed drawer's home and fires once. */
+    private fun swipeDown(ev: MotionEvent): Boolean {
+        val callback = onSwipeDown ?: return false
+        if (!drawer.isClosed) return false
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = ev.x; downY = ev.y
+                downFired = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = ev.x - downX
+                val dy = ev.y - downY
+                if (!downFired && dy > slop * 3 && abs(dy) > abs(dx) * 1.5f) {
+                    downFired = true
+                    return callback()
+                }
+            }
+        }
+        return false
     }
 
     /** Watches for a clearly upward swipe and takes the gesture once it fires. */

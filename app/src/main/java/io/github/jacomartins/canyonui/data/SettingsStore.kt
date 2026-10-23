@@ -73,6 +73,12 @@ data class LauncherSettings(
     val widgetBorder: Boolean = true,
     /** Interface colours from the phone's palette instead of Canyon UI's own. */
     val phonePalette: Boolean = false,
+    /** Notification badges on icons: "off", "dots" or "numbers". */
+    val badges: String = "numbers",
+    /** Taps on empty home space that lock the phone: 0 (off), 2 or 3. */
+    val lockTaps: Int = 0,
+    /** A downward swipe on home pulls down the notifications. */
+    val swipeDownNotifications: Boolean = false,
     /** How see-through surfaces are drawn; glass by default. */
     val renderMode: RenderMode = RenderMode.GLASS,
     /** Category mode just started and the home page has room for a Google search bar. */
@@ -123,6 +129,9 @@ class SettingsStore(private val context: Context) {
         val FULL_CELL_WIDGET_SIZES = booleanPreferencesKey("full_cell_widget_sizes")
         val PHONE_PALETTE = booleanPreferencesKey("phone_palette")
         val RENDER_MODE = stringPreferencesKey("render_mode")
+        val LOCK_TAPS = intPreferencesKey("lock_taps")
+        val BADGES = stringPreferencesKey("badges")
+        val SWIPE_DOWN_NOTIFICATIONS = booleanPreferencesKey("swipe_down_notifications")
         val PENDING_SEARCH_WIDGET = booleanPreferencesKey("pending_search_widget")
         val SWIPE_UP_TARGET = stringPreferencesKey("swipe_up_target")
         val WALLPAPER_TARGET = stringPreferencesKey("wallpaper_target")
@@ -168,6 +177,9 @@ class SettingsStore(private val context: Context) {
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
             fullCellWidgetSizes = p[Keys.FULL_CELL_WIDGET_SIZES] ?: true,
             phonePalette = p[Keys.PHONE_PALETTE] ?: false,
+            lockTaps = p[Keys.LOCK_TAPS] ?: 0,
+            badges = p[Keys.BADGES] ?: "numbers",
+            swipeDownNotifications = p[Keys.SWIPE_DOWN_NOTIFICATIONS] ?: false,
             renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.GLASS,
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
             swipeUpTarget = p[Keys.SWIPE_UP_TARGET],
@@ -287,6 +299,18 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setPhonePalette(on: Boolean) {
         context.dataStore.edit { it[Keys.PHONE_PALETTE] = on }
+    }
+
+    suspend fun setBadges(mode: String) {
+        context.dataStore.edit { it[Keys.BADGES] = mode }
+    }
+
+    suspend fun setLockTaps(taps: Int) {
+        context.dataStore.edit { it[Keys.LOCK_TAPS] = taps }
+    }
+
+    suspend fun setSwipeDownNotifications(on: Boolean) {
+        context.dataStore.edit { it[Keys.SWIPE_DOWN_NOTIFICATIONS] = on }
     }
 
     suspend fun setRenderMode(mode: RenderMode) {

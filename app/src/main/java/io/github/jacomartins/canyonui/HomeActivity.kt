@@ -56,6 +56,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
+import io.github.jacomartins.canyonui.gesture.LauncherAccessibilityService
 import io.github.jacomartins.canyonui.ui.settings.targetIntent
 import io.github.jacomartins.canyonui.ui.settings.WALLPAPER_ACTIONS
 import io.github.jacomartins.canyonui.ui.settings.SEARCH_ACTIONS
@@ -179,6 +180,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private var resizeAnyWidget = false
     private var fullCellWidgetSizes = true
     private var wallpaperTarget: String? = null
+    private var lockTaps = 0
+    private var badgeMode = "numbers"
+    private var tapCount = 0
+    private var lastTapAt = 0L
     private var swipeUpTarget: String? = null
     private var lastNight: Boolean? = null
     private var iconShape = io.github.jacomartins.canyonui.data.IconShape.SYSTEM
@@ -301,7 +306,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.onScroll = home.indicator::setPosition
         home.workspace.onPageSettled = { ui.currentPage = it }
         home.onEmptyLongPress = { if (ui.editMode) armPageDrag() else enterEditMode() }
-        home.onEmptyTap = { if (ui.editMode) exitEditMode() }
+        home.onEmptyTap = { if (ui.editMode) exitEditMode() else countLockTap() }
         home.onAddPage = ::addPage
 
         drawerModel = DrawerModel(launcher.apps, launcher.settings, lifecycleScope)
@@ -354,6 +359,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 }
             }
         }
+        // Notification counts changed: update the badges.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                io.github.jacomartins.canyonui.badges.Badges.counts.collect { applyBadges() }
+            }
+        }
         // Frosted/glass blur switched or replaced: repaint the folders and edit pages under it.
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -381,6 +392,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     }
                     swipeUpTarget = s.swipeUpTarget
                     wallpaperTarget = s.wallpaperTarget
+                    lockTaps = s.lockTaps
+                    if (badgeMode != s.badges) {
+                        badgeMode = s.badges
+                        applyBadges()
+                    }
+                    dragLayer.onSwipeDown = if (s.swipeDownNotifications) ::openNotifications else null
                     ui.categoryMode = s.autoCategories && s.layoutMode == LayoutMode.HOME_ONLY
                     if (s.pendingSearchWidget) addSearchWidget()
                     if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets || slideshows != s.slideshowStacks) {
@@ -451,6 +468,44 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 v.scaleX = scale; v.scaleY = scale; v.alpha = alpha
             }
         }
+    }
+
+    /** The badges as set ("off", "dots", "numbers"), on every icon and folder on home. */
+    private fun applyBadges() = views.values.forEach(::badgeView)
+
+    private fun badgeView(v: View) {
+        val counts = if (badgeMode == "off") emptyMap() else io.github.jacomartins.canyonui.badges.Badges.counts.value
+        val numbers = badgeMode == "numbers"
+        when (v) {
+            is AppIconView -> {
+                v.badgeNumbers = numbers
+                v.badge = v.app?.let { counts[it.key.packageName] } ?: 0
+            }
+            is FolderIconView -> {
+                v.badgeNumbers = numbers
+                v.appBadges = counts
+                v.badge = v.folder?.apps?.sumOf { counts[it.app.key.packageName] ?: 0 } ?: 0
+            }
+        }
+    }
+
+    /** Double or triple tap on empty home space (as set): lock the phone. */
+    private fun countLockTap() {
+        if (lockTaps < 2) return
+        val now = android.os.SystemClock.uptimeMillis()
+        tapCount = if (now - lastTapAt <= TAP_GAP_MS) tapCount + 1 else 1
+        lastTapAt = now
+        if (tapCount >= lockTaps) {
+            tapCount = 0
+            if (!LauncherAccessibilityService.lock()) toast(getString(R.string.gesture_service_off))
+        }
+    }
+
+    /** Swipe down on home: the notifications (when the gestures service is on). */
+    private fun openNotifications(): Boolean {
+        if (ui.editMode || ui.isModal) return false
+        if (!LauncherAccessibilityService.notifications()) toast(getString(R.string.gesture_service_off))
+        return true
     }
 
     private fun prepareUnlock() {
@@ -587,8 +642,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             val parent: CellLayout = if (p.container == Container.DOCK) home.hotseat else home.workspace.pageAt(p.pageIndex) ?: continue
             val style = if (p.container == Container.DOCK) dockStyle else homeStyle
             when (view) {
-                is AppIconView -> { view.bind((entry as AppEntry).app); view.useStyle(style) }
-                is FolderIconView -> { view.bind(entry as FolderEntry); view.useStyle(style) }
+                is AppIconView -> { view.bind((entry as AppEntry).app); view.useStyle(style); badgeView(view) }
+                is FolderIconView -> { view.bind(entry as FolderEntry); view.useStyle(style); badgeView(view) }
             }
             val isWidget = entry is WidgetEntry || entry is StackEntry
             val inset = if (isWidget) widgetInset else 0
@@ -1677,6 +1732,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** Above this overall lightness a wallpaper gets dark labels (light mode). */
         private const val LIGHT_WALLPAPER = 0.62f
         private const val ENTRY_SCALE = 0.66f
+
+        /** The longest pause between the taps of a double or triple tap. */
+        private const val TAP_GAP_MS = 350L
         private const val ENTRY_MS = 480L
         private const val STEP_BACK_SCALE = 0.92f
         private const val STEP_BACK_MS = 220L
