@@ -165,4 +165,17 @@
     <string name="menu_show_outline">Show outline</string>
     <string name="phone_palette">Use the phone\'s colour palette</string>
     <string name="phone_palette_summary">Off: Canyon UI\'s own light and dark colours. On: menus, buttons and panels take the colours of the phone\'s palette (Color palette in the phone\'s settings).</string>
+    <string name="menu_category">Category</string>
+    <string name="categorize_apps">Categorize apps</string>
+    <string name="snack_categorized">Apps put into their categories</string>
+    <string name="swipe_up">Swipe up on home opens</string>
+    <string name="swipe_up_none">Nothing</string>
+    <string name="swipe_up_summary">With the Apps screen off, a swipe up on home can open a search app or any other app.</string>
+    <string name="swipe_up_search_apps">Search apps</string>
+    <string name="swipe_up_all_apps">All apps</string>
+    <string name="swipe_up_unavailable">That app couldn\'t be opened</string>
+    <string name="wallpaper_app">Wallpaper app</string>
+    <string name="wallpaper_app_ask">Ask each time</string>
+    <string name="wallpaper_apps">Wallpaper apps</string>
+    <string name="wallpaper_app_summary">The app the Wallpaper button opens.</string>
 </resources>

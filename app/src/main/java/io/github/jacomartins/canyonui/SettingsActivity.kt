@@ -58,6 +58,9 @@ import io.github.jacomartins.canyonui.ui.drawer.HiddenAppsDialog
 import io.github.jacomartins.canyonui.ui.design.ChoiceButton
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.settings.IconPackPicker
+import io.github.jacomartins.canyonui.ui.settings.AppTargetPicker
+import io.github.jacomartins.canyonui.ui.settings.SEARCH_ACTIONS
+import io.github.jacomartins.canyonui.ui.settings.WALLPAPER_ACTIONS
 import io.github.jacomartins.canyonui.ui.theme.HomeTheme
 import kotlinx.coroutines.launch
 
@@ -86,6 +89,8 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
     val scope = rememberCoroutineScope()
     var showHidden by remember { mutableStateOf(false) }
     var showPacks by remember { mutableStateOf(false) }
+    var showSwipeUp by remember { mutableStateOf(false) }
+    var showWallpaperApp by remember { mutableStateOf(false) }
     var showLicenses by remember { mutableStateOf(false) }
     val context = LocalContext.current
     Column(
@@ -134,12 +139,34 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     onChange = { on ->
                         scope.launch {
                             // Folders first, then the switch, so new apps never see a half-built layout.
-                            if (on) home.organizeByCategory() else home.unlockCategories()
+                            if (on) {
+                                // The home page gets a Google search bar when there is room for one.
+                                if (home.organizeByCategory()) store.setPendingSearchWidget(true)
+                            } else {
+                                home.unlockCategories()
+                            }
                             store.setAutoCategories(on)
                         }
                     },
                 )
                 Text(stringResource(R.string.auto_categories_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // The Apps screen is off in this mode, so its swipe is free for an app of choice.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { showSwipeUp = true }
+                        .padding(vertical = 8.dp),
+                ) {
+                    Text(stringResource(R.string.swipe_up), style = MaterialTheme.typography.bodyLarge)
+                    val target = s.swipeUpTarget
+                    val current = target?.let { t ->
+                        val pkg = t.substringAfter('|').substringBefore('/')
+                        runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+                    } ?: stringResource(R.string.swipe_up_none)
+                    Text(current, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.swipe_up_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Text(
                 stringResource(R.string.layout_separate_note),
@@ -189,6 +216,19 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     ChoiceButton(stringResource(label), s.grid.iconSize == size, { scope.launch { store.setIconSize(s.layoutMode, size) } }, Modifier.weight(1f))
                 }
             }
+        }
+
+        Card(onClick = { showWallpaperApp = true }) {
+            Text(stringResource(R.string.wallpaper_app), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                s.wallpaperTarget?.let { t ->
+                    val pkg = t.substringAfter('|').substringBefore('/')
+                    runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
+                } ?: stringResource(R.string.wallpaper_app_ask),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(stringResource(R.string.wallpaper_app_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         Card {
@@ -286,6 +326,30 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         )
     }
     if (showHidden) HiddenAppsDialog(hiddenModel, onDismiss = { showHidden = false })
+    if (showSwipeUp) {
+        AppTargetPicker(
+            title = stringResource(R.string.swipe_up),
+            noneLabel = stringResource(R.string.swipe_up_none),
+            specialHeader = stringResource(R.string.swipe_up_search_apps),
+            actions = SEARCH_ACTIONS,
+            selected = s.swipeUpTarget,
+            apps = apps,
+            onSelect = { scope.launch { store.setSwipeUpTarget(it) }; showSwipeUp = false },
+            onDismiss = { showSwipeUp = false },
+        )
+    }
+    if (showWallpaperApp) {
+        AppTargetPicker(
+            title = stringResource(R.string.wallpaper_app),
+            noneLabel = stringResource(R.string.wallpaper_app_ask),
+            specialHeader = stringResource(R.string.wallpaper_apps),
+            actions = WALLPAPER_ACTIONS,
+            selected = s.wallpaperTarget,
+            apps = apps,
+            onSelect = { scope.launch { store.setWallpaperTarget(it) }; showWallpaperApp = false },
+            onDismiss = { showWallpaperApp = false },
+        )
+    }
     if (showPacks) {
         IconPackPicker(
             selected = s.iconPack,

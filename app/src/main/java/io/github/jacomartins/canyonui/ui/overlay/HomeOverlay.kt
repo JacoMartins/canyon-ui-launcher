@@ -128,7 +128,16 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             enter = fadeIn() + slideInVertically { it / 2 },
             exit = fadeOut() + slideOutVertically { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter),
-        ) { EditBottomBar(actions) }
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Category mode: file the loose apps on the pages after the home page.
+                if (state.categoryMode) {
+                    SecondaryButton(stringResource(R.string.categorize_apps), actions::categorizeApps, icon = R.drawable.ph_stack)
+                    Spacer(Modifier.height(Spacing.smMd))
+                }
+                EditBottomBar(actions)
+            }
+        }
 
         state.picker?.let { WidgetPicker(it, actions) }
         state.editApp?.let { EditAppSheet(it, actions) }

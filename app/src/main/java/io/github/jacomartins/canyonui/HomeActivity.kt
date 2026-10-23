@@ -5,6 +5,9 @@ import android.app.WallpaperColors
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import io.github.jacomartins.canyonui.data.titleRes
+import io.github.jacomartins.canyonui.data.HomeRepository
+import android.content.ComponentName
 import android.content.pm.LauncherApps
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -148,6 +151,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private lateinit var widgets: HomeWidgets
     private var resizeFrame: ResizeFrame? = null
     private var resizeAnyWidget = false
+    private var swipeUpTarget: String? = null
+    private var wallpaperTarget: String? = null
+    /** Where the last item menu opened, for a follow-up menu in the same place. */
+    private var menuAnchor = Rect()
     /** Compose state: both ComposeViews recolour when the setting changes. */
     private var phonePalette by mutableStateOf(false)
     private var widgetBorder = true
@@ -283,6 +290,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         drag = DragController(dragLayer, home, this)
         dragLayer.drag = drag
         dragLayer.onPinchIn = { if (!ui.isModal) enterEditMode() }
+        dragLayer.onSwipeUp = { if (!ui.editMode && !ui.isModal) openSwipeTarget() }
         dragLayer.onPinchOut = { if (ui.editMode && !ui.isModal) exitEditMode() }
         setContentView(dragLayer)
         // TalkBack and switch access users get the drawer without the swipe.
@@ -318,6 +326,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     hintSeen = s.drawerHintSeen
                     resizeAnyWidget = s.resizeAnyWidget
                     phonePalette = s.phonePalette
+                    swipeUpTarget = s.swipeUpTarget
+                    wallpaperTarget = s.wallpaperTarget
+                    ui.categoryMode = s.autoCategories && s.layoutMode == LayoutMode.HOME_ONLY
+                    if (s.pendingSearchWidget) addSearchWidget()
                     if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets) {
                         widgetBorder = s.widgetBorder
                         noOutline = s.noOutlineWidgets
@@ -562,7 +574,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val entry = entryOf(v) ?: return false
         v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         dismissResizeFrame()
-        ui.menu = ItemMenu(v.windowBounds(), menuFor(entry, v))
+        menuAnchor = v.windowBounds()
+        ui.menu = ItemMenu(menuAnchor, menuFor(entry, v))
         if (entry is WidgetEntry || entry is StackEntry) showResizeFrame(v, entry)
         updateBackCallbacks()
         drag.arm(sourceFor(v, entry))
@@ -610,6 +623,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 val app = entry.app
                 out += MenuEntry(R.drawable.ph_info, getString(R.string.menu_app_info)) { appInfo(app, null) }
                 out += MenuEntry(R.drawable.ph_edit, getString(R.string.menu_edit_app)) { editApp(app) }
+                if (ui.categoryMode) out += MenuEntry(R.drawable.ph_stack, getString(R.string.menu_category)) { showCategoryMenu(app) }
                 if (drawerEnabled) {
                     out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove)) { removeWithUndo(entry.id) }
                 } else {
@@ -697,6 +711,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun armDragFromFolder(app: AppEntry, folder: FolderEntry, bounds: Rect) {
+        menuAnchor = bounds
         ui.menu = ItemMenu(bounds, menuFor(app))
         updateBackCallbacks()
         drag.arm(newAppSource(DragItem.Existing(app.id), app.app))
@@ -1114,6 +1129,67 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         )
     }
 
+    // --- Category mode ------------------------------------------------------------------------
+
+    /** The categories, as a menu in the place of the app's menu; the choice moves the app. */
+    private fun showCategoryMenu(app: AppInfo) {
+        val entries = AppCategories.Category.entries.map { c ->
+            val current = app.category ?: AppCategories.Category.OTHERS
+            MenuEntry(if (c == current) R.drawable.ph_check else R.drawable.ph_stack, getString(c.titleRes())) { setAppCategory(app, c) }
+        }
+        ui.menu = ItemMenu(menuAnchor, entries)
+        updateBackCallbacks()
+    }
+
+    private fun setAppCategory(app: AppInfo, category: AppCategories.Category) {
+        lifecycleScope.launch {
+            val key = app.key.toString()
+            val old = launcher.settings.current().iconOverrides[key] ?: IconOverride()
+            launcher.settings.setIconOverride(key, old.copy(category = category.key))
+            launcher.home.moveToCategory(app.key, category)
+        }
+    }
+
+    override fun categorizeApps() = edit(getString(R.string.snack_categorized)) { launcher.home.categorizeLooseApps() }
+
+    /** Category mode just started: Google's search bar across the first free row of the home page. */
+    private fun addSearchWidget() {
+        val st = state ?: return
+        lifecycleScope.launch {
+            launcher.settings.setPendingSearchWidget(false)
+            val info = widgets.installedProvider(HomeRepository.SEARCH_WIDGET, widgets.serialOf(android.os.Process.myUserHandle())) ?: return@launch
+            val sizes = widgetSizes() ?: return@launch
+            val grid = GridOccupancy(st.columns, st.rows)
+            for (o in st.placedIn(Container.DESKTOP, 0)) grid.mark(o.x, o.y, o.spanX, o.spanY)
+            val cell = grid.findFirstFree(st.columns, 1) ?: return@launch
+            widgets.startAdd(info, st.columns, 1, DropAction.Move(Container.DESKTOP, 0, cell.x, cell.y), sizes.options(st.columns, 1))
+        }
+    }
+
+    /** Home screen only mode: a swipe up opens the app chosen in settings (e.g. a search app). */
+    private fun openSwipeTarget() {
+        openTarget(swipeUpTarget ?: return, R.anim.swipe_up_enter)
+    }
+
+    /** Opens a chosen "action|package/class" target; false if it is gone. */
+    private fun openTarget(target: String, enterAnim: Int = 0): Boolean {
+        val action = target.substringBefore('|')
+        val cn = ComponentName.unflattenFromString(target.substringAfter('|')) ?: return false
+        val intent = Intent(action).setComponent(cn).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (action == Intent.ACTION_MAIN) intent.addCategory(Intent.CATEGORY_LAUNCHER)
+        val opts = if (enterAnim != 0) ActivityOptions.makeCustomAnimation(this, enterAnim, 0).toBundle() else null
+        return try {
+            startActivity(intent, opts)
+            true
+        } catch (e: ActivityNotFoundException) {
+            toast(getString(R.string.swipe_up_unavailable))
+            false
+        } catch (e: SecurityException) {
+            toast(getString(R.string.swipe_up_unavailable))
+            false
+        }
+    }
+
     override fun makeHomePage(index: Int) {
         if (index <= 0) return
         edit(getString(R.string.snack_home_page)) { launcher.home.movePage(index, 0) }
@@ -1132,6 +1208,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun movePage(from: Int, to: Int) = edit(getString(R.string.snack_page_moved)) { launcher.home.movePage(from, to) }
 
     override fun chooseWallpaper() {
+        // The wallpaper app chosen in settings, else Android's list of wallpaper apps.
+        wallpaperTarget?.let { if (openTarget(it)) return }
         try {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), getString(R.string.choose_wallpaper)))
         } catch (e: ActivityNotFoundException) {

@@ -658,30 +658,98 @@ class HomeRepository(
     }
 
     /**
-     * Home screen only mode, "Organize apps by category" turned on: every app that is not in the
-     * dock goes into a 2x2 category folder (largest categories first, filling pages from the
-     * first); apps without a category go into an Others folder, last.
-     * Widgets stay where they are. Undoable like any edit.
+     * Home screen only mode, "Organize apps by category" turned on: the home page (the first
+     * page) and the dock stay as they are, and every other app goes into a 2x2 category folder
+     * on the pages after it (largest categories first; apps without a category in Others, last).
+     * Widgets stay put. Returns true when the home page has no Google search bar yet and a full
+     * row is free for one (the top row's loose apps are filed away to make that room).
      */
-    suspend fun organizeByCategory() = edit { dao, st ->
-        if (st.mode != LayoutMode.HOME_ONLY) return@edit
-        val appList = apps.apps.value ?: return@edit
+    suspend fun organizeByCategory(): Boolean = edit { dao, st ->
+        if (st.mode != LayoutMode.HOME_ONLY) return@edit false
+        val appList = apps.apps.value ?: return@edit false
         val hidden = settings.current().hiddenByMode.getValue(LayoutMode.HOME_ONLY)
         val items = dao.itemsNow()
-        val dockFolders = items.filter { it.container == Container.DOCK && it.type == ItemEntity.TYPE_FOLDER }.mapTo(HashSet()) { it.id }
-        val inDock = items.filter { it.container == Container.DOCK || (it.container == Container.FOLDER && it.parentId in dockFolders) }
-            .mapNotNullTo(HashSet()) { keyOf(it) }
-        // Everything on the pages except widgets and stacks (and what is in them) is rebuilt.
-        val keepTypes = setOf(ItemEntity.TYPE_WIDGET, ItemEntity.TYPE_STACK)
-        val gone = items.filter { e ->
-            when (e.container) {
-                Container.DESKTOP -> e.type !in keepTypes
-                Container.FOLDER -> e.parentId !in dockFolders
-                else -> false
+        val homeId = dao.ensurePages(1).first()
+        val widgetTypes = setOf(ItemEntity.TYPE_WIDGET, ItemEntity.TYPE_STACK)
+
+        val onHome = items.filter { it.container == Container.DESKTOP && it.pageId == homeId }.toMutableList()
+        // Room for a search bar on the home page: a free full row, else the top row's loose apps go.
+        val hasSearch = onHome.any { it.type == ItemEntity.TYPE_WIDGET && it.packageName == SEARCH_WIDGET.packageName }
+        var wantSearch = false
+        if (!hasSearch) {
+            val g = GridOccupancy(st.columns, st.rows)
+            onHome.forEach { g.mark(it.cellX, it.cellY, it.spanX, it.spanY) }
+            if (g.findFirstFree(st.columns, 1) != null) {
+                wantSearch = true
+            } else {
+                val topRow = onHome.filter { it.type == ItemEntity.TYPE_APP && it.cellY == 0 }
+                val blocked = onHome.any { it.cellY == 0 && it.type != ItemEntity.TYPE_APP }
+                if (!blocked && topRow.isNotEmpty()) {
+                    onHome.removeAll(topRow)
+                    wantSearch = true
+                }
             }
         }
-        dao.deleteItems(gone.map { it.id })
+        val keptFolders = items.filter {
+            it.type == ItemEntity.TYPE_FOLDER && (it.container == Container.DOCK || it in onHome)
+        }.mapTo(HashSet()) { it.id }
+        val kept = items.filter { e ->
+            e.container == Container.DOCK || e in onHome || e.container == Container.STACK ||
+                (e.container == Container.DESKTOP && e.type in widgetTypes) ||
+                (e.container == Container.FOLDER && e.parentId in keptFolders)
+        }
+        val keptKeys = kept.mapNotNullTo(HashSet()) { keyOf(it) }
+        dao.deleteItems(items.filter { it !in kept }.map { it.id })
 
+        val candidates = appList.filter { it.key !in keptKeys && it.key.toString() !in hidden }
+        fileIntoNewFolders(dao, st, kept, candidates.groupBy { it.category ?: AppCategories.Category.OTHERS })
+        wantSearch
+    } ?: false
+
+    /**
+     * Edit mode in category mode: every loose app on the pages after the home page goes into its
+     * category's folder (a new folder where the category has none). The home page and the dock
+     * are left alone.
+     */
+    suspend fun categorizeLooseApps() = edit { dao, st ->
+        val appList = apps.apps.value ?: return@edit
+        val byKey = appList.associateBy { it.key }
+        val items = dao.itemsNow()
+        val homeId = dao.ensurePages(1).first()
+        val loose = items.filter { it.container == Container.DESKTOP && it.type == ItemEntity.TYPE_APP && it.pageId != homeId }
+        if (loose.isEmpty()) return@edit
+        val folders = items.filter { it.type == ItemEntity.TYPE_FOLDER && it.category != null && it.container == Container.DESKTOP }
+            .associateBy { it.category }
+        val toNew = HashMap<AppCategories.Category, MutableList<AppInfo>>()
+        for (e in loose) {
+            val key = keyOf(e) ?: continue
+            val cat = byKey[key]?.category ?: AppCategories.Category.OTHERS
+            val folder = folders[cat.key]
+            if (folder != null) {
+                val rank = (dao.children(folder.id).maxOfOrNull { it.cellX } ?: -1) + 1
+                dao.updateItem(e.inFolder(folder.id, rank))
+            } else {
+                byKey[key]?.let { toNew.getOrPut(cat) { ArrayList() } += it }
+            }
+        }
+        if (toNew.isEmpty()) return@edit
+        val leaving = loose.filter { e -> toNew.values.any { list -> list.any { it.key == keyOf(e) } } }
+        dao.deleteItems(leaving.map { it.id })
+        val remaining = items.filter { it !in loose && it.container == Container.DESKTOP }
+        fileIntoNewFolders(dao, st, remaining, toNew)
+    }
+
+    /**
+     * Makes a 2x2 category folder for each group, largest first and Others last, in the first
+     * free spots from the second page on ([occupied] are the desktop items already placed).
+     */
+    private suspend fun fileIntoNewFolders(
+        dao: LauncherDao,
+        st: HomeState,
+        occupied: List<ItemEntity>,
+        groups: Map<AppCategories.Category, List<AppInfo>>,
+    ) {
+        if (groups.isEmpty()) return
         val pageIds = dao.pagesNow().map { it.id }
         val pageIndex = pageIds.withIndex().associate { (i, id) -> id to i }
         val grids = ArrayList<GridOccupancy>()
@@ -689,30 +757,24 @@ class HomeRepository(
             while (grids.size <= i) grids += GridOccupancy(st.columns, st.rows)
             return grids[i]
         }
-        repeat(maxOf(pageIds.size, 1)) { grid(it) }
-        for (w in items) if (w.container == Container.DESKTOP && w.type in keepTypes) pageIndex[w.pageId]?.let { grid(it).mark(w.cellX, w.cellY, w.spanX, w.spanY) }
-
-        val candidates = appList.filter { it.key !in inDock && it.key.toString() !in hidden }
+        repeat(maxOf(pageIds.size, 2)) { grid(it) }
+        for (e in occupied) if (e.container == Container.DESKTOP) pageIndex[e.pageId]?.let { grid(it).mark(e.cellX, e.cellY, e.spanX, e.spanY) }
         val others = AppCategories.Category.OTHERS
-        val byCategory = candidates.groupBy { it.category ?: others }
-        // Largest categories first; Others always last.
-        val categories = byCategory.keys.filter { it != others }.sortedByDescending { byCategory.getValue(it).size } +
-            listOfNotNull(others.takeIf { it in byCategory })
-        val placedFolders = ArrayList<Triple<AppCategories.Category, Int, Cell>>()
-        for (cat in categories) {
-            var p = 0
+        val order = groups.keys.filter { it != others }.sortedByDescending { groups.getValue(it).size } +
+            listOfNotNull(others.takeIf { it in groups })
+        val placed = ArrayList<Triple<AppCategories.Category, Int, Cell>>()
+        for (cat in order) {
+            var p = 1 // The home page stays as the user arranged it.
             var cell: Cell? = null
             while (cell == null) {
                 cell = grid(p).findFirstFree(2, 2)
                 if (cell == null) p++
             }
             grid(p).mark(cell.x, cell.y, 2, 2)
-            placedFolders += Triple(cat, p, cell)
+            placed += Triple(cat, p, cell)
         }
         val ids = dao.ensurePages(grids.size)
-        for ((cat, page, cell) in placedFolders) {
-            insertCategoryFolder(dao, cat, ids[page], cell, byCategory.getValue(cat).map { it.key })
-        }
+        for ((cat, page, cell) in placed) insertCategoryFolder(dao, cat, ids[page], cell, groups.getValue(cat).map { it.key })
     }
 
     /**
@@ -800,4 +862,12 @@ class HomeRepository(
         dao.insertItem(entity(app.key, Container.DESKTOP, pageId(dao, Container.DESKTOP, page), cell.x, cell.y))
         page
     } ?: -1
+
+    companion object {
+        /** Google's search bar, put on the home page when category mode starts (if installed). */
+        val SEARCH_WIDGET = ComponentName(
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.apps.gsa.staticplugins.searchwidget.GoogleSearchWidgetProvider",
+        )
+    }
 }

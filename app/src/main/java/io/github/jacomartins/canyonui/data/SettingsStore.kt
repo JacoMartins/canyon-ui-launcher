@@ -58,6 +58,15 @@ data class LauncherSettings(
     val widgetBorder: Boolean = true,
     /** Interface colours from the phone's palette instead of Canyon UI's own. */
     val phonePalette: Boolean = false,
+    /** Category mode just started and the home page has room for a Google search bar. */
+    val pendingSearchWidget: Boolean = false,
+    /**
+     * Home screen only mode: what a swipe up on home opens, as "action|package/class" (a search
+     * app found by its search action, or any app by MAIN); null = nothing.
+     */
+    val swipeUpTarget: String? = null,
+    /** What the Wallpaper button opens, "action|package/class"; null = Android's chooser. */
+    val wallpaperTarget: String? = null,
     /** Widget providers (flattened component names) drawn without the ring, chosen per widget. */
     val noOutlineWidgets: Set<String> = emptySet(),
     /** Home screen only mode: apps start in category folders; new apps join theirs. */
@@ -93,6 +102,9 @@ class SettingsStore(private val context: Context) {
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
         val WIDGET_BORDER = booleanPreferencesKey("widget_border")
         val PHONE_PALETTE = booleanPreferencesKey("phone_palette")
+        val PENDING_SEARCH_WIDGET = booleanPreferencesKey("pending_search_widget")
+        val SWIPE_UP_TARGET = stringPreferencesKey("swipe_up_target")
+        val WALLPAPER_TARGET = stringPreferencesKey("wallpaper_target")
         val NO_OUTLINE_WIDGETS = stringSetPreferencesKey("no_outline_widgets")
         val AUTO_CATEGORIES = booleanPreferencesKey("auto_categories")
         val ICON_SHAPE = stringPreferencesKey("icon_shape")
@@ -133,6 +145,9 @@ class SettingsStore(private val context: Context) {
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
             phonePalette = p[Keys.PHONE_PALETTE] ?: false,
+            pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
+            swipeUpTarget = p[Keys.SWIPE_UP_TARGET],
+            wallpaperTarget = p[Keys.WALLPAPER_TARGET],
             noOutlineWidgets = p[Keys.NO_OUTLINE_WIDGETS] ?: emptySet(),
             autoCategories = p[Keys.AUTO_CATEGORIES] ?: false,
             iconStyle = IconStyle(
@@ -223,6 +238,18 @@ class SettingsStore(private val context: Context) {
             val set = it[Keys.NO_OUTLINE_WIDGETS].orEmpty()
             it[Keys.NO_OUTLINE_WIDGETS] = if (on) set - provider else set + provider
         }
+    }
+
+    suspend fun setPendingSearchWidget(on: Boolean) {
+        context.dataStore.edit { it[Keys.PENDING_SEARCH_WIDGET] = on }
+    }
+
+    suspend fun setSwipeUpTarget(target: String?) {
+        context.dataStore.edit { if (target == null) it.remove(Keys.SWIPE_UP_TARGET) else it[Keys.SWIPE_UP_TARGET] = target }
+    }
+
+    suspend fun setWallpaperTarget(target: String?) {
+        context.dataStore.edit { if (target == null) it.remove(Keys.WALLPAPER_TARGET) else it[Keys.WALLPAPER_TARGET] = target }
     }
 
     suspend fun setPhonePalette(on: Boolean) {

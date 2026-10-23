@@ -128,9 +128,13 @@ class DragLayer(context: Context) : FrameLayout(context) {
         return handled
     }
 
+    /** Home screen only mode: an upward swipe on home (where the drawer would open) calls this. */
+    var onSwipeUp: (() -> Unit)? = null
+    private var swipeFired = false
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         if (drag?.armed != null) return false
-        if (!drawerEnabled && drawer.isClosed) return false
+        if (!drawerEnabled && drawer.isClosed) return swipeUp(ev)
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x; downY = ev.y; lastY = ev.y
@@ -184,6 +188,27 @@ class DragLayer(context: Context) : FrameLayout(context) {
             }
         }
         return true
+    }
+
+    /** Watches for a clearly upward swipe and takes the gesture once it fires. */
+    private fun swipeUp(ev: MotionEvent): Boolean {
+        val callback = onSwipeUp ?: return false
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = ev.x; downY = ev.y
+                swipeFired = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = ev.x - downX
+                val dy = ev.y - downY
+                if (!swipeFired && dy < -slop * 3 && abs(dy) > abs(dx) * 1.5f) {
+                    swipeFired = true
+                    callback()
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     private fun begin(ev: MotionEvent) {

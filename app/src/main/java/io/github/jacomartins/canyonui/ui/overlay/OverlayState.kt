@@ -46,6 +46,7 @@ interface OverlayActions {
     fun addPage()
     fun deletePage(index: Int)
     fun makeHomePage(index: Int)
+    fun categorizeApps()
     fun movePage(from: Int, to: Int)
 }
 
@@ -58,6 +59,8 @@ class OverlayState {
     var snack by mutableStateOf<Snack?>(null)
     var dragging by mutableStateOf(false)
     var editMode by mutableStateOf(false)
+    /** "Organize apps by category" is on (home screen only mode). */
+    var categoryMode by mutableStateOf(false)
     /** Edit mode: the zoomed page's top edge (window px) and its zoom, for the bar above it. */
     var editPageTop by mutableIntStateOf(0)
     var editScale by mutableFloatStateOf(1f)
