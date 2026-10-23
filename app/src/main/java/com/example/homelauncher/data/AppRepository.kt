@@ -42,84 +42,12 @@ class AppInfo(
     val label: String,
     val icon: Bitmap,
     val isSystem: Boolean,
+    /** A dynamic clock: [icon] is redrawn in place every minute (see [AppRepository.clockTicks]). */
+    val isClock: Boolean = false,
 ) {
     /** Compose wrapper around [icon]; created once, no copy. */
     val image: ImageBitmap = icon.asImageBitmap()
     val isMainProfile: Boolean get() = user == Process.myUserHandle()
-}
-
-/**
- * Rendered app icons, keyed by [AppKey]. Bounded by bytes; entries for a package are dropped
- * when the package changes so updated icons are picked up. When an icon [pack] is set, its
- * drawable is used for every app it covers; other apps keep the system icon.
- */
-class IconCache(context: Context) {
-    private val resources = context.resources
-    val iconSizePx: Int = (ICON_DP * context.resources.displayMetrics.density).toInt()
-    private val density = context.resources.displayMetrics.densityDpi
-
-    private val cache = object : LruCache<AppKey, Bitmap>(MAX_BYTES) {
-        override fun sizeOf(key: AppKey, value: Bitmap) = value.allocationByteCount
-    }
-
-    @Volatile
-    var pack: IconPack? = null
-        private set
-
-    /** Switches packs and drops every rendered icon. */
-    fun setPack(newPack: IconPack?) {
-        pack = newPack
-        cache.evictAll()
-    }
-
-    /** Calendar icons from the pack change with the date. */
-    fun invalidateCalendars() {
-        val p = pack ?: return
-        cache.snapshot().keys.filter { p.isCalendar(it.packageName, it.className) }.forEach { cache.remove(it) }
-    }
-
-    fun get(info: LauncherActivityInfo, key: AppKey, pm: android.content.pm.PackageManager): Bitmap =
-        cache.get(key) ?: render(info, key, pm).also { cache.put(key, it) }
-
-    private fun render(info: LauncherActivityInfo, key: AppKey, pm: android.content.pm.PackageManager): Bitmap {
-        // Pack artwork comes straight from the pack's resources, so it carries none of the effects
-        // a device's theme engine bakes into the icons it hands to launchers.
-        val raw = pack?.drawableFor(key.packageName, key.className, density) ?: info.getIcon(density)
-        val bmp = if (raw is AdaptiveIconDrawable) renderAdaptive(raw) else raw.toBitmap(iconSizePx, iconSizePx, Bitmap.Config.ARGB_8888)
-        if (info.user == Process.myUserHandle()) return bmp
-        val badged = pm.getUserBadgedIcon(bmp.toDrawable(resources), info.user)
-        return badged.toBitmap(iconSizePx, iconSizePx, Bitmap.Config.ARGB_8888)
-    }
-
-    /**
-     * Builds the icon from an adaptive icon's own layers and mask instead of drawing the drawable
-     * as a whole, so effects a device wraps around the drawable (such as a drop shadow) are left
-     * out. Layers are 1.5x the visible size and centred, per the adaptive icon spec.
-     */
-    private fun renderAdaptive(d: AdaptiveIconDrawable): Bitmap {
-        val size = iconSizePx
-        val bmp = createBitmap(size, size)
-        val canvas = Canvas(bmp)
-        d.setBounds(0, 0, size, size)
-        canvas.clipPath(d.iconMask)
-        val inset = size / 4
-        for (layer in listOf(d.background, d.foreground)) {
-            layer ?: continue
-            layer.setBounds(-inset, -inset, size + inset, size + inset)
-            layer.draw(canvas)
-        }
-        return bmp
-    }
-
-    fun invalidatePackage(packageName: String) {
-        cache.snapshot().keys.filter { it.packageName == packageName }.forEach { cache.remove(it) }
-    }
-
-    companion object {
-        /** Largest on-screen size (IconSize.LARGE cap), so icons are only ever scaled down. */
-        const val ICON_DP = 80
-        private const val MAX_BYTES = 24 * 1024 * 1024
-    }
 }
 
 /**
@@ -159,6 +87,7 @@ class AppRepository(
 
     private var packPackage: String? = null
     private val packReady = CompletableDeferred<Unit>()
+    private val styleReady = CompletableDeferred<Unit>()
 
     /**
      * Loads [packageName]'s icon pack (null = system icons) off the main thread and re-renders.
@@ -175,6 +104,33 @@ class AppRepository(
         }
     }
 
+    private val _clockTicks = MutableStateFlow(0)
+
+    /** Bumped every minute after clock icons were redrawn; views showing them redraw. */
+    val clockTicks: StateFlow<Int> = _clockTicks.asStateFlow()
+
+    /** Called every minute on the main thread. */
+    fun timeTick() {
+        if (icons.tickClocks()) _clockTicks.value++
+    }
+
+    /** New icon shape, theming or per-app choices: re-render every icon. */
+    fun setIconStyle(style: IconStyle, overrides: Map<String, IconOverride>) {
+        styleReady.complete(Unit)
+        if (style == icons.style && overrides == lastOverrides) return
+        lastOverrides = overrides
+        icons.setStyle(style, overrides)
+        reloads.trySend(Unit)
+    }
+
+    private var lastOverrides: Map<String, IconOverride> = emptyMap()
+
+    /** Light/dark mode or the wallpaper palette changed (themed icons follow them). */
+    fun onConfigurationChanged() {
+        icons.onConfigurationChanged()
+        reloads.trySend(Unit)
+    }
+
     /** Midnight or a clock change: pack calendar icons show the new day. */
     fun dateChanged() {
         icons.invalidateCalendars()
@@ -184,7 +140,9 @@ class AppRepository(
     fun start() {
         launcherApps.registerCallback(callback, Handler(Looper.getMainLooper()))
         scope.launch {
+            // Both the pack and the icon style are known before the first render: no icon flash.
             packReady.await()
+            styleReady.await()
             for (unused in reloads) {
                 _apps.value = withContext(Dispatchers.Default) { load() }
                 delay(RELOAD_COALESCE_MS)
@@ -216,8 +174,9 @@ class AppRepository(
                     key = key,
                     component = cn,
                     user = profile,
-                    label = info.label.toString().trim().ifEmpty { cn.packageName },
+                    label = icons.labelOverride(key) ?: info.label.toString().trim().ifEmpty { cn.packageName },
                     icon = icons.get(info, key, pm),
+                    isClock = icons.isClock(key),
                     isSystem = flags and ApplicationInfo.FLAG_SYSTEM != 0 &&
                         flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP == 0,
                 )

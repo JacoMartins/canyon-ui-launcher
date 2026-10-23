@@ -9,7 +9,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import com.example.homelauncher.ui.widget.PickerWidget
 import com.example.homelauncher.data.AppEntry
+import com.example.homelauncher.data.AppInfo
 import com.example.homelauncher.data.FolderEntry
+import com.example.homelauncher.data.IconOverride
 
 class MenuEntry(@DrawableRes val icon: Int, val label: String, val action: () -> Unit)
 
@@ -31,6 +33,9 @@ interface OverlayActions {
     fun closeFolder()
     fun chooseWallpaper()
     fun openWidgets()
+    fun closeEditApp()
+    fun saveEditApp(app: AppInfo, override: IconOverride)
+    fun pickIconImage()
     fun closePicker()
     fun addWidget(widget: PickerWidget)
     fun armWidgetDrag(widget: PickerWidget, preview: ImageBitmap?, bounds: Rect)
@@ -54,9 +59,10 @@ class OverlayState {
     var editMode by mutableStateOf(false)
     var overview by mutableStateOf<List<PageThumb>?>(null)
     var picker by mutableStateOf<WidgetPickerState?>(null)
+    var editApp by mutableStateOf<EditAppState?>(null)
     var currentPage by mutableIntStateOf(0)
     var pageCount by mutableIntStateOf(1)
 
     /** True while something modal (menu, folder, overview, widget picker) covers the home screen. */
-    val isModal get() = menu != null || folder != null || overview != null || picker != null
+    val isModal get() = menu != null || folder != null || overview != null || picker != null || editApp != null
 }

@@ -125,6 +125,7 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
         ) { EditBottomBar(actions) }
 
         state.picker?.let { WidgetPicker(it, actions) }
+        state.editApp?.let { EditAppSheet(it, actions) }
         state.folder?.let { FolderPopup(it, actions) }
         state.menu?.let { ItemMenuLayer(it) { state.menu = null } }
         state.overview?.let { PageOverview(it, state, actions) }

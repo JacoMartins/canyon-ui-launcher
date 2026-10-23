@@ -6,6 +6,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.core.graphics.drawable.toDrawable
+import androidx.compose.foundation.layout.size
+import com.example.homelauncher.data.IconShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.foundation.Canvas
+import android.os.Build
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -170,6 +177,34 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         Card {
+            SectionTitle(stringResource(R.string.icon_shape))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (shape in IconShape.entries) {
+                    ShapeChoice(shape, s.iconStyle.shape == shape, Modifier.weight(1f)) {
+                        scope.launch { store.setIconShape(shape) }
+                    }
+                }
+            }
+            Text(stringResource(R.string.icon_shape_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (Build.VERSION.SDK_INT >= 33) {
+                SwitchRow(
+                    title = stringResource(R.string.themed_icons),
+                    checked = s.iconStyle.themed,
+                    onChange = { scope.launch { store.setThemedIcons(it) } },
+                )
+                Text(stringResource(R.string.themed_icons_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (s.iconPack != null) {
+                SwitchRow(
+                    title = stringResource(R.string.pack_style),
+                    checked = s.iconStyle.packStyle,
+                    onChange = { scope.launch { store.setPackStyle(it) } },
+                )
+                Text(stringResource(R.string.pack_style_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        Card {
             SwitchRow(
                 title = stringResource(R.string.show_home_labels),
                 checked = s.grid.showHomeLabels,
@@ -247,6 +282,43 @@ private fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Un
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/** A shape preview with its name; the selected one is filled with the primary colour. */
+@Composable
+private fun ShapeChoice(shape: IconShape, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val label = stringResource(
+        when (shape) {
+            IconShape.SYSTEM -> R.string.shape_system
+            IconShape.CIRCLE -> R.string.shape_circle
+            IconShape.SQUIRCLE -> R.string.shape_squircle
+            IconShape.ROUNDED -> R.string.shape_rounded
+            IconShape.SQUARE -> R.string.shape_square
+        },
+    )
+    val colors = MaterialTheme.colorScheme
+    val fill = if (selected) colors.primary else colors.onSurfaceVariant.copy(alpha = 0.35f)
+    Column(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Canvas(Modifier.size(40.dp)) {
+            val p = shape.path(size.minDimension)
+            if (p != null) {
+                drawPath(p.asComposePath(), fill)
+            } else {
+                // The phone's own mask.
+                val probe = android.graphics.drawable.AdaptiveIconDrawable(0.toDrawable(), 0.toDrawable())
+                probe.setBounds(0, 0, size.minDimension.toInt(), size.minDimension.toInt())
+                drawPath(probe.iconMask.asComposePath(), fill)
+            }
+        }
+        Text(label, style = MaterialTheme.typography.labelMedium, color = if (selected) colors.primary else colors.onSurfaceVariant, maxLines = 1)
     }
 }
 

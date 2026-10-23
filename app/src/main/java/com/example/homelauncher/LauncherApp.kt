@@ -42,6 +42,20 @@ class LauncherApp : Application() {
         scope.launch {
             settings.settings.map { it.iconPack }.distinctUntilChanged().collect { apps.setIconPack(it) }
         }
+        scope.launch {
+            settings.settings.map { it.iconStyle to it.iconOverrides }.distinctUntilChanged().collect { (style, overrides) ->
+                apps.setIconStyle(style, overrides)
+            }
+        }
+        // Dynamic clock icons move once a minute.
+        ContextCompat.registerReceiver(
+            this,
+            object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) = apps.timeTick()
+            },
+            IntentFilter(Intent.ACTION_TIME_TICK),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         val dateFilter = IntentFilter().apply {
             addAction(Intent.ACTION_DATE_CHANGED)
             addAction(Intent.ACTION_TIME_CHANGED)
@@ -59,6 +73,6 @@ class LauncherApp : Application() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        apps.reload() // Labels follow the locale.
+        apps.onConfigurationChanged() // Labels follow the locale; themed icons the palette.
     }
 }

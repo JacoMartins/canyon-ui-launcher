@@ -27,7 +27,15 @@ class IconPack private constructor(
     private val byPackage: Map<String, String>,
     private val calendarByComponent: Map<Pair<String, String>, String>,
     private val calendarByPackage: Map<String, String>,
+    /** The pack's style for apps it does not cover; null when it defines none. */
+    val style: PackStyle?,
 ) {
+    /**
+     * Drawn under, through and over an icon the pack does not cover: a back plate, a mask that
+     * cuts away (opaque = removed), an overlay, and the scale the original icon is drawn at.
+     */
+    class PackStyle(val back: List<String>, val mask: String?, val upon: String?, val scale: Float)
+
     private val ids = HashMap<String, Int>()
 
     val entryCount get() = byComponent.size
@@ -48,6 +56,50 @@ class IconPack private constructor(
         } catch (e: OutOfMemoryError) {
             null
         }
+    }
+
+    /** A drawable of the pack by name (style parts, the per-app icon chooser). */
+    fun drawableNamed(name: String, densityDpi: Int): Drawable? {
+        val id = idFor(name)
+        if (id == 0) return null
+        return try {
+            res.getDrawableForDensity(id, densityDpi, null)
+        } catch (e: Resources.NotFoundException) {
+            null
+        } catch (e: OutOfMemoryError) {
+            null
+        }
+    }
+
+    /**
+     * Every icon the pack offers, for choosing one by hand: its drawable.xml list when it has
+     * one (in res/xml or assets), else every icon its appfilter maps.
+     */
+    @SuppressLint("DiscouragedApi")
+    fun allDrawables(context: Context): List<String> {
+        val parser: XmlPullParser? = res.getIdentifier("drawable", "xml", packageName).takeIf { it != 0 }?.let { res.getXml(it) }
+            ?: try {
+                val bytes = context.createPackageContext(packageName, 0).assets.open("drawable.xml").use { it.readBytes() }
+                Xml.newPullParser().apply { setInput(bytes.inputStream(), null) }
+            } catch (e: Exception) {
+                null
+            }
+        val out = LinkedHashSet<String>()
+        if (parser != null) {
+            try {
+                var event = parser.eventType
+                while (event != XmlPullParser.END_DOCUMENT) {
+                    if (event == XmlPullParser.START_TAG && parser.name == "item") {
+                        parser.getAttributeValue(null, "drawable")?.takeIf { it.isNotBlank() }?.let(out::add)
+                    }
+                    event = parser.next()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "drawable.xml of $packageName is malformed after ${out.size} entries", e)
+            }
+        }
+        if (out.isEmpty()) out += byComponent.values
+        return out.toList()
     }
 
     /** Today's calendar icon: the weekday variant if the pack has it, else the date-only one. */
@@ -106,6 +158,10 @@ class IconPack private constructor(
             val byPackage = HashMap<String, String>()
             val calByComponent = HashMap<Pair<String, String>, String>()
             val calByPackage = HashMap<String, String>()
+            val backs = ArrayList<String>()
+            var mask: String? = null
+            var upon: String? = null
+            var scale = 1f
             try {
                 var event = parser.eventType
                 while (event != XmlPullParser.END_DOCUMENT) {
@@ -119,6 +175,13 @@ class IconPack private constructor(
                                     byPackage.putIfAbsent(component.first, drawable)
                                 }
                             }
+                            // Style for icons the pack does not cover (img1, img2, ... attributes).
+                            "iconback" -> for (i in 0 until parser.attributeCount) {
+                                if (parser.getAttributeName(i).startsWith("img")) parser.getAttributeValue(i).takeIf { it.isNotBlank() }?.let(backs::add)
+                            }
+                            "iconmask" -> mask = parser.getAttributeValue(null, "img1")?.takeIf { it.isNotBlank() }
+                            "iconupon" -> upon = parser.getAttributeValue(null, "img1")?.takeIf { it.isNotBlank() }
+                            "scale" -> scale = parser.getAttributeValue(null, "factor")?.toFloatOrNull()?.coerceIn(0.1f, 2f) ?: 1f
                             "calendar" -> {
                                 val prefix = parser.getAttributeValue(null, "prefix")
                                 if (component != null && !prefix.isNullOrBlank()) {
@@ -135,7 +198,8 @@ class IconPack private constructor(
                 Log.w(TAG, "appfilter of $packageName is malformed after ${byComponent.size} entries", e)
             }
             Log.i(TAG, "Loaded $packageName: ${byComponent.size} icons, ${calByComponent.size} calendars")
-            return IconPack(packageName, res, byComponent, byPackage, calByComponent, calByPackage)
+            val style = if (backs.isEmpty() && mask == null && upon == null) null else PackStyle(backs, mask, upon, scale)
+            return IconPack(packageName, res, byComponent, byPackage, calByComponent, calByPackage, style)
         }
 
         @SuppressLint("DiscouragedApi") // appfilter is looked up by name inside another package.

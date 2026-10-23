@@ -30,6 +30,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -51,6 +52,9 @@ import com.example.homelauncher.data.DragItem
 import com.example.homelauncher.data.FolderEntry
 import com.example.homelauncher.data.HomeEntry
 import com.example.homelauncher.data.HomeState
+import com.example.homelauncher.data.IconFiles
+import com.example.homelauncher.data.IconOverride
+import com.example.homelauncher.data.IconPack
 import com.example.homelauncher.data.StackEntry
 import com.example.homelauncher.data.WidgetEntry
 import com.example.homelauncher.model.GridOccupancy
@@ -71,6 +75,7 @@ import com.example.homelauncher.ui.home.DropResult
 import com.example.homelauncher.ui.home.FolderIconView
 import com.example.homelauncher.ui.home.HomeScreenLayout
 import com.example.homelauncher.ui.home.ViewMap
+import com.example.homelauncher.ui.overlay.EditAppState
 import com.example.homelauncher.ui.overlay.HomeOverlay
 import com.example.homelauncher.ui.overlay.ItemMenu
 import com.example.homelauncher.ui.overlay.MenuEntry
@@ -147,6 +152,21 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private val tmpRectF = RectF()
     private val pt = FloatArray(2)
 
+    private val pickImage = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        val edit = ui.editApp
+        if (uri == null || edit == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            val name = withContext(Dispatchers.IO) { IconFiles.save(this@HomeActivity, uri) }
+            if (name == null) {
+                toast(getString(R.string.edit_app_image_failed))
+                return@launch
+            }
+            // A previous pick in this edit that was not saved is no longer needed.
+            discardUnsavedImage(edit)
+            edit.draft = edit.draft.copy(file = name, packPackage = null, drawable = null)
+        }
+    }
+
     private val speech = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { drawerModel.query = it }
     }
@@ -183,6 +203,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             when {
                 ui.menu != null -> ui.menu = null
                 resizeFrame != null -> dismissResizeFrame()
+                ui.editApp != null -> closeEditApp()
                 ui.picker != null -> closePicker()
                 ui.folder != null -> closeFolder()
                 ui.overview != null -> closeOverview()
@@ -259,6 +280,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 launcher.home.state.filterNotNull().collect(::bind)
             }
         }
+        // Dynamic clock icons were redrawn in place: repaint the icons on home.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launcher.apps.clockTicks.collect {
+                    views.values.forEach { v -> if (v is AppIconView && v.app?.isClock == true || v is FolderIconView) v.invalidate() }
+                }
+            }
+        }
         // Ids of widgets removed earlier (kept until now so Undo could bring them back).
         if (savedInstanceState == null) lifecycleScope.launch { widgets.releaseUnused(launcher.home.widgetIdsInUse()) }
         lifecycleScope.launch {
@@ -320,6 +349,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             dismissResizeFrame()
             if (ui.isModal || ui.editMode) {
                 ui.menu = null
+                closeEditApp()
                 closePicker()
                 closeFolder()
                 closeOverview()
@@ -539,6 +569,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             is AppEntry -> {
                 val app = entry.app
                 out += MenuEntry(R.drawable.ph_info, getString(R.string.menu_app_info)) { appInfo(app, null) }
+                out += MenuEntry(R.drawable.ph_edit, getString(R.string.menu_edit_app)) { editApp(app) }
                 if (drawerEnabled) {
                     out += MenuEntry(R.drawable.ph_remove, getString(R.string.menu_remove)) { removeWithUndo(entry.id) }
                 } else {
@@ -1178,6 +1209,49 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         } catch (e: ActivityNotFoundException) {
             toast(getString(R.string.cannot_uninstall, app.label))
         }
+    }
+
+    // --- Per-app icon and name ----------------------------------------------------------------
+
+    override fun editApp(app: AppInfo) {
+        lifecycleScope.launch {
+            val packs = withContext(Dispatchers.Default) { IconPack.installed(this@HomeActivity) }
+            val original = launcher.settings.current().iconOverrides[app.key.toString()]
+            ui.menu = null
+            ui.editApp = EditAppState(app, original, packs)
+            updateBackCallbacks()
+        }
+    }
+
+    override fun pickIconImage() {
+        try {
+            pickImage.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } catch (e: ActivityNotFoundException) {
+            toast(getString(R.string.edit_app_image_failed))
+        }
+    }
+
+    override fun saveEditApp(app: AppInfo, override: IconOverride) {
+        val edit = ui.editApp
+        ui.editApp = null
+        updateBackCallbacks()
+        val old = edit?.original?.file
+        lifecycleScope.launch {
+            launcher.settings.setIconOverride(app.key.toString(), override)
+            if (old != null && old != override.file) IconFiles.delete(this@HomeActivity, old)
+        }
+    }
+
+    override fun closeEditApp() {
+        val edit = ui.editApp ?: return
+        discardUnsavedImage(edit)
+        ui.editApp = null
+        updateBackCallbacks()
+    }
+
+    private fun discardUnsavedImage(edit: EditAppState) {
+        val f = edit.draft.file
+        if (f != null && f != edit.original?.file) IconFiles.delete(this, f)
     }
 
     override fun addToHome(app: AppInfo) {

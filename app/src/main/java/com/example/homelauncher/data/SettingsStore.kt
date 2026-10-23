@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONObject
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
@@ -53,6 +54,9 @@ data class LauncherSettings(
     val iconPack: String? = null,
     /** Lets any widget be resized to any size, ignoring the sizes its app declares. */
     val resizeAnyWidget: Boolean = false,
+    val iconStyle: IconStyle = IconStyle(),
+    /** Per-app label and icon choices, by [com.example.homelauncher.model.AppKey] string. */
+    val iconOverrides: Map<String, IconOverride> = emptyMap(),
 ) {
     /** Grid of the active mode. */
     val grid: GridSpec get() = grids.getValue(layoutMode)
@@ -79,6 +83,10 @@ class SettingsStore(private val context: Context) {
         val DRAWER_HINT_SEEN = booleanPreferencesKey("drawer_hint_seen")
         val ICON_PACK = stringPreferencesKey("icon_pack")
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
+        val ICON_SHAPE = stringPreferencesKey("icon_shape")
+        val THEMED_ICONS = booleanPreferencesKey("themed_icons")
+        val PACK_STYLE = booleanPreferencesKey("pack_style")
+        val ICON_OVERRIDES = stringPreferencesKey("icon_overrides")
 
         fun columns(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_columns")
         fun rows(m: LayoutMode) = intPreferencesKey("${m.storageKey}.grid_rows")
@@ -111,6 +119,12 @@ class SettingsStore(private val context: Context) {
             drawerHintSeen = p[Keys.DRAWER_HINT_SEEN] ?: false,
             iconPack = p[Keys.ICON_PACK],
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
+            iconStyle = IconStyle(
+                shape = IconShape.fromKey(p[Keys.ICON_SHAPE]),
+                themed = p[Keys.THEMED_ICONS] ?: false,
+                packStyle = p[Keys.PACK_STYLE] ?: true,
+            ),
+            iconOverrides = parseOverrides(p[Keys.ICON_OVERRIDES]),
         )
     }.distinctUntilChanged()
 
@@ -130,6 +144,56 @@ class SettingsStore(private val context: Context) {
     suspend fun setIconPack(packageName: String?) {
         context.dataStore.edit { if (packageName == null) it.remove(Keys.ICON_PACK) else it[Keys.ICON_PACK] = packageName }
     }
+
+    suspend fun setIconShape(shape: IconShape) {
+        context.dataStore.edit { it[Keys.ICON_SHAPE] = shape.storageKey }
+    }
+
+    suspend fun setThemedIcons(on: Boolean) {
+        context.dataStore.edit { it[Keys.THEMED_ICONS] = on }
+    }
+
+    suspend fun setPackStyle(on: Boolean) {
+        context.dataStore.edit { it[Keys.PACK_STYLE] = on }
+    }
+
+    /** Sets or (null / empty) clears the label and icon choice for one app. */
+    suspend fun setIconOverride(appKey: String, override: IconOverride?) {
+        context.dataStore.edit { p ->
+            val all = parseOverrides(p[Keys.ICON_OVERRIDES]).toMutableMap()
+            if (override == null || override.isEmpty) all.remove(appKey) else all[appKey] = override
+            p[Keys.ICON_OVERRIDES] = writeOverrides(all)
+        }
+    }
+
+    private fun parseOverrides(json: String?): Map<String, IconOverride> {
+        if (json.isNullOrEmpty()) return emptyMap()
+        return try {
+            val o = JSONObject(json)
+            o.keys().asSequence().associateWith { k ->
+                val e = o.getJSONObject(k)
+                IconOverride(
+                    label = e.optString("label").ifEmpty { null },
+                    packPackage = e.optString("pack").ifEmpty { null },
+                    drawable = e.optString("drawable").ifEmpty { null },
+                    file = e.optString("file").ifEmpty { null },
+                )
+            }
+        } catch (e: org.json.JSONException) {
+            emptyMap()
+        }
+    }
+
+    private fun writeOverrides(all: Map<String, IconOverride>): String = JSONObject().apply {
+        for ((k, v) in all) {
+            put(k, JSONObject().apply {
+                v.label?.let { put("label", it) }
+                v.packPackage?.let { put("pack", it) }
+                v.drawable?.let { put("drawable", it) }
+                v.file?.let { put("file", it) }
+            })
+        }
+    }.toString()
 
     suspend fun setResizeAnyWidget(on: Boolean) {
         context.dataStore.edit { it[Keys.RESIZE_ANY_WIDGET] = on }

@@ -59,6 +59,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
@@ -96,6 +97,7 @@ interface DrawerActions {
     fun launch(app: AppInfo, bounds: Rect?)
     fun appInfo(app: AppInfo, bounds: Rect?)
     fun uninstall(app: AppInfo)
+    fun editApp(app: AppInfo)
     fun addToHome(app: AppInfo)
     fun openSettings()
 
@@ -268,6 +270,8 @@ private fun AppGrid(
     val windowWidthDp = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp().value }
     val iconDp = minOf((windowWidthDp - 16f) / COLUMNS * size.cellFraction, size.maxDp.toFloat()).dp
     val labelStyle = MaterialTheme.typography.bodySmall.copy(fontSize = AppIconView.LABEL_SP.sp, lineHeight = (AppIconView.LABEL_SP + 2).sp)
+    // Read only inside the draw phase of clock icons, so a tick repaints them without recomposing.
+    val clockTick = model.clockTicks.collectAsState()
     LazyVerticalGrid(
         columns = GridCells.Fixed(COLUMNS),
         state = state,
@@ -296,7 +300,15 @@ private fun AppGrid(
                         .padding(vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Image(app.image, contentDescription = null, modifier = Modifier.size(iconDp))
+                    Image(
+                        app.image,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(iconDp)
+                            // A clock's bitmap is redrawn in place each minute; reading the tick
+                            // here repaints just this icon.
+                            .then(if (app.isClock) Modifier.drawWithContent { clockTick.value; drawContent() } else Modifier),
+                    )
                     Spacer(Modifier.height(AppIconView.LABEL_GAP_DP.dp))
                     Text(
                         app.label,
@@ -311,6 +323,7 @@ private fun AppGrid(
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, shape = RoundedCornerShape(20.dp)) {
                     DropdownMenuItem(text = { Text(stringResource(R.string.menu_add_to_home)) }, onClick = { menu = false; actions.addToHome(app) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.menu_app_info)) }, onClick = { menu = false; actions.appInfo(app, coords.bounds()) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.menu_edit_app)) }, onClick = { menu = false; actions.editApp(app) })
                     DropdownMenuItem(text = { Text(stringResource(R.string.menu_hide)) }, onClick = { menu = false; model.setHidden(app, true) })
                     if (!app.isSystem) {
                         DropdownMenuItem(text = { Text(stringResource(R.string.menu_uninstall)) }, onClick = { menu = false; actions.uninstall(app) })

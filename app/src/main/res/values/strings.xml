@@ -116,4 +116,28 @@
     <string name="snack_unstacked">Stack split up</string>
     <string name="resize_any_widget">Resize any widget</string>
     <string name="resize_any_widget_summary">Lets widgets take any size, even ones their app does not offer. Some widgets may then look cropped or stretched.</string>
+    <!-- Icons (Stage 4) -->
+    <string name="menu_edit_app">Edit icon and name</string>
+    <string name="edit_app_title">Edit app</string>
+    <string name="edit_app_label">Name</string>
+    <string name="edit_app_from_pack">Icon pack</string>
+    <string name="edit_app_image">Image</string>
+    <string name="edit_app_default_icon">Use the default icon</string>
+    <string name="edit_app_choose_pack">Choose an icon pack</string>
+    <string name="edit_app_search_icons">Search icons</string>
+    <string name="edit_app_image_failed">That image couldn\'t be used</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="back">Back</string>
+    <string name="icon_shape">Icon shape</string>
+    <string name="icon_shape_summary">Other shapes are drawn from each app\'s own icon, without effects the phone adds.</string>
+    <string name="shape_system">Phone</string>
+    <string name="shape_circle">Circle</string>
+    <string name="shape_squircle">Squircle</string>
+    <string name="shape_rounded">Rounded</string>
+    <string name="shape_square">Square</string>
+    <string name="themed_icons">Themed icons</string>
+    <string name="themed_icons_summary">Apps that support it take the colours of your wallpaper.</string>
+    <string name="pack_style">Pack style for other apps</string>
+    <string name="pack_style_summary">Apps the icon pack does not include get its back plate and mask, if it has them.</string>
 </resources>

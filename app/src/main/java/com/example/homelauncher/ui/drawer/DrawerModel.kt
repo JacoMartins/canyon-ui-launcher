@@ -49,6 +49,9 @@ class DrawerModel(
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     /** The active layout's icon size; the Apps screen uses it too. */
+    /** Bumped every minute when dynamic clock icons were redrawn. */
+    val clockTicks: StateFlow<Int> = apps.clockTicks
+
     val iconSize: StateFlow<IconSize> = settings.settings.map { it.grid.iconSize }
         .stateIn(scope, SharingStarted.Eagerly, IconSize.MEDIUM)
 
