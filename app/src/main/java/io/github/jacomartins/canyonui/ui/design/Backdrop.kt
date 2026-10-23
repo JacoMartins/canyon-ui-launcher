@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeSourceSelection
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.blur.HazeBlurStyle
@@ -57,7 +58,7 @@ fun BackdropSource(state: HazeState) {
     // its top-left at rest. (Following the view's live position recorded the copy off screen
     // while the Apps screen was still slid away, so it had nothing to blur.)
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0f }) {
-        Canvas(Modifier.fillMaxSize().hazeSource(state)) {
+        Canvas(Modifier.fillMaxSize().hazeSource(state, zIndex = 0f, key = WALLPAPER_SOURCE)) {
             drawImage(image, dstOffset = IntOffset.Zero, dstSize = IntSize(b.width, b.height))
         }
     }
@@ -70,12 +71,18 @@ fun BackdropSource(state: HazeState) {
  * drawn instead. Does nothing in the translucent mode. Put it before the element's own
  * (see-through) background.
  */
-fun Modifier.backdrop(shape: RoundedCornerShape): Modifier = composed {
+fun Modifier.backdrop(shape: RoundedCornerShape, withContent: Boolean = false): Modifier = composed {
     val blur by WallpaperBackdrop.active.collectAsState()
     val b = blur ?: return@composed this
     val haze = LocalBackdropHaze.current
     if (haze != null && Build.VERSION.SDK_INT >= 31) {
-        val input = HazeInput.Sources(haze)
+        // The wallpaper alone, or ([withContent]) with the content marked as a source too (the
+        // Apps screen's icons under its search field).
+        val input = if (withContent) {
+            HazeInput.Sources(haze, HazeSourceSelection.All)
+        } else {
+            HazeInput.Sources(haze, HazeSourceSelection.All.where { it.key == WALLPAPER_SOURCE })
+        }
         return@composed if (b.mode == RenderMode.GLASS) {
             // No rim light or edge shadow of Haze's own: the border is the interface's depth
             // ring, the same in every mode.
@@ -114,6 +121,9 @@ fun Modifier.backdrop(shape: RoundedCornerShape): Modifier = composed {
             }
         }
 }
+
+/** Haze source key of the wallpaper copy. */
+const val WALLPAPER_SOURCE = "wallpaper"
 
 private val FrostedStyle = HazeBlurStyle {
     blurRadius(28.dp)

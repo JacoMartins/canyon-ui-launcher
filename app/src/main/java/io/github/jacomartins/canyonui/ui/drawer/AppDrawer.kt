@@ -85,6 +85,7 @@ import io.github.jacomartins.canyonui.ui.design.LocalBackdropHaze
 import io.github.jacomartins.canyonui.ui.design.backdrop
 import io.github.jacomartins.canyonui.ui.design.backdropColor
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import androidx.compose.runtime.CompositionLocalProvider
 import io.github.jacomartins.canyonui.data.AppInfo
 import androidx.compose.ui.draw.shadow
@@ -157,7 +158,8 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         // The apps scroll under the header (it floats over them) instead of being cut off at it;
         // the letter dots stay between the header and the search field.
         val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + TopBarHeight
-        Box(Modifier.fillMaxSize()) {
+        // The apps are a Haze source too, so the glass search field bends the icons under it.
+        Box(Modifier.fillMaxSize().hazeSource(haze, zIndex = 1f)) {
             val bottom = bottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
             if (results.isEmpty() && model.query.isNotBlank()) {
                 EmptySearch(model.query, Modifier.padding(top = top))
@@ -238,10 +240,11 @@ private fun SearchPill(
             .fillMaxWidth(widthFraction)
             .height(SearchPillHeight)
             .shadow(Spacing.sm, CircleShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-            .oneDepthBorder(),
+            .oneDepthBorder()
+            // Glass or frosted (by the Transparency setting) over the apps and the wallpaper.
+            .backdrop(CircleShape, withContent = true),
         shape = CircleShape,
-        // Translucent so the grid shows through faintly; real glass comes with the Stage 5 glass setting.
-        color = colors.surfaceContainerHighest.copy(alpha = 0.92f),
+        color = backdropColor(colors.surfaceContainerHighest.copy(alpha = 0.92f)),
         onClick = { focus.requestFocus() },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
