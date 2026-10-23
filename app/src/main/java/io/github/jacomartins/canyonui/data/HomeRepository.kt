@@ -732,11 +732,23 @@ class HomeRepository(
                 byKey[key]?.let { toNew.getOrPut(cat) { ArrayList() } += it }
             }
         }
-        if (toNew.isEmpty()) return@edit
-        val leaving = loose.filter { e -> toNew.values.any { list -> list.any { it.key == keyOf(e) } } }
-        dao.deleteItems(leaving.map { it.id })
-        val remaining = items.filter { it !in loose && it.container == Container.DESKTOP }
-        fileIntoNewFolders(dao, st, remaining, toNew)
+        if (toNew.isNotEmpty()) {
+            val leaving = loose.filter { e -> toNew.values.any { list -> list.any { it.key == keyOf(e) } } }
+            dao.deleteItems(leaving.map { it.id })
+            val remaining = items.filter { it !in loose && it.container == Container.DESKTOP }
+            fileIntoNewFolders(dao, st, remaining, toNew)
+        }
+        deleteEmptyPages(dao)
+    }
+
+    /** Removes pages with nothing on them, except the home page (the first). */
+    private suspend fun deleteEmptyPages(dao: LauncherDao) {
+        val pages = dao.pagesNow()
+        val used = dao.itemsNow().filter { it.container == Container.DESKTOP }.mapTo(HashSet()) { it.pageId }
+        val empty = pages.drop(1).filter { it.id !in used }
+        if (empty.isEmpty()) return
+        empty.forEach { dao.deletePage(it.id) }
+        dao.updatePages(dao.pagesNow().mapIndexed { i, p -> p.copy(rank = i) })
     }
 
     /**

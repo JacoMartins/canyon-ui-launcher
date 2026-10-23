@@ -126,7 +126,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     ) {
                         RadioButton(selected = s.layoutMode == mode, onClick = null)
                         Column(Modifier.padding(start = 12.dp)) {
-                            Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
+                            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
                             Text(stringResource(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -158,7 +158,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                         .clickable { showSwipeUp = true }
                         .padding(vertical = 8.dp),
                 ) {
-                    Text(stringResource(R.string.swipe_up), style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.swipe_up), style = MaterialTheme.typography.titleMedium)
                     val target = s.swipeUpTarget
                     val current = target?.let { t ->
                         val pkg = t.substringAfter('|').substringBefore('/')
@@ -193,7 +193,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         Card(onClick = { showPacks = true }) {
-            Text(stringResource(R.string.icon_pack), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.icon_pack), style = MaterialTheme.typography.titleMedium)
             Text(
                 s.iconPack?.let { pkg ->
                     runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }
@@ -219,7 +219,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         Card(onClick = { showWallpaperApp = true }) {
-            Text(stringResource(R.string.wallpaper_app), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.wallpaper_app), style = MaterialTheme.typography.titleMedium)
             Text(
                 s.wallpaperTarget?.let { t ->
                     val pkg = t.substringAfter('|').substringBefore('/')
@@ -297,7 +297,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         Card(onClick = { showHidden = true }) {
-            Text(stringResource(R.string.hidden_apps), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.hidden_apps), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.hidden_apps_per_layout), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 pluralHidden(s.hiddenApps.size),
@@ -307,7 +307,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         Card(onClick = { showLicenses = true }) {
-            Text(stringResource(R.string.licenses), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.licenses), style = MaterialTheme.typography.titleMedium)
         }
     }
     if (showLicenses) {
@@ -373,7 +373,7 @@ private fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Un
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = null)
     }
 }
@@ -417,7 +417,8 @@ private fun ShapeChoice(shape: IconShape, selected: Boolean, modifier: Modifier,
 
 @Composable
 private fun SectionTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+    // Section headlines (h2): semi-bold, a step above the item titles (h3).
+    Text(text, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
 }
 
 @Composable

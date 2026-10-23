@@ -2,23 +2,32 @@ package io.github.jacomartins.canyonui.ui.home
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.RectF
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+import android.graphics.drawable.Drawable
 import android.view.View
+import androidx.core.content.ContextCompat
+import io.github.jacomartins.canyonui.R
 import kotlin.math.abs
 
 /**
- * Dots for the home pages. The active dot stretches into a pill and slides with the scroll
- * position, so it tracks the finger rather than jumping at the end of a swipe.
+ * The page indicator in Phosphor icons: a circle per page and a house for the home page, Regular
+ * for the other pages and Fill for the one in view. The two cross-fade with the scroll position,
+ * so the indicator follows the finger instead of jumping at the end of a swipe.
  */
 class PageIndicatorView(context: Context) : View(context) {
 
     private val d = resources.displayMetrics.density
-    private val dot = 6 * d
-    private val gap = 8 * d
-    private val activeWidth = 16 * d
-    private val rect = RectF()
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val dot = (9 * d).toInt()
+    private val house = (12 * d).toInt()
+    private val gap = 7 * d
+
+    private val circle = icon(R.drawable.ph_circle)
+    private val circleFill = icon(R.drawable.ph_circle_fill)
+    private val home = icon(R.drawable.ph_house)
+    private val homeFill = icon(R.drawable.ph_house_fill)
+
+    private fun icon(res: Int): Drawable = ContextCompat.getDrawable(context, res)!!.mutate()
 
     var pageCount = 1
         set(value) {
@@ -28,10 +37,16 @@ class PageIndicatorView(context: Context) : View(context) {
     private var position = 0f
 
     var color: Int = 0xFFFFFFFF.toInt()
-        set(value) { field = value; invalidate() }
+        set(value) {
+            field = value
+            val filter = PorterDuffColorFilter(value, PorterDuff.Mode.SRC_IN)
+            listOf(circle, circleFill, home, homeFill).forEach { it.colorFilter = filter }
+            invalidate()
+        }
 
     init {
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        color = color
     }
 
     fun setPosition(pages: Float) {
@@ -47,45 +62,35 @@ class PageIndicatorView(context: Context) : View(context) {
         )
     }
 
-    private val housePath = android.graphics.Path()
-
-    /** The first page is marked with a small house, as on One UI. */
-    private fun drawHome(canvas: Canvas, cx: Float, cy: Float) {
-        val s = 4.5f * d
-        housePath.rewind()
-        housePath.moveTo(cx, cy - s)
-        housePath.lineTo(cx + s, cy - s * 0.1f)
-        housePath.lineTo(cx + s * 0.75f, cy - s * 0.1f)
-        housePath.lineTo(cx + s * 0.75f, cy + s)
-        housePath.lineTo(cx - s * 0.75f, cy + s)
-        housePath.lineTo(cx - s * 0.75f, cy - s * 0.1f)
-        housePath.lineTo(cx - s, cy - s * 0.1f)
-        housePath.close()
-        canvas.drawPath(housePath, paint)
+    private fun draw(canvas: Canvas, icon: Drawable, cx: Float, cy: Float, size: Int, alpha: Float) {
+        if (alpha <= 0.01f) return
+        val l = (cx - size / 2f).toInt()
+        val t = (cy - size / 2f).toInt()
+        icon.setBounds(l, t, l + size, t + size)
+        icon.alpha = (alpha * 255).toInt()
+        icon.draw(canvas)
     }
 
     override fun onDraw(canvas: Canvas) {
         if (pageCount <= 1) return
         val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
-        // The stretched widths of neighbouring dots always sum to one extra pill, so the row
-        // keeps a constant width and stays centred while it animates.
-        val total = (pageCount - 1) * (dot + gap) + activeWidth
+        val total = (pageCount - 1) * (dot + gap) + house
         var x = (width - total) / 2f
         val cy = height / 2f
-        paint.color = color
         for (slot in 0 until pageCount) {
             val page = if (rtl) pageCount - 1 - slot else slot
-            // 1 when this dot is the current page, falling to 0 one page away.
+            // 1 when this page is in view, falling to 0 one page away.
             val t = (1f - abs(position - page)).coerceIn(0f, 1f)
-            val w = dot + (activeWidth - dot) * t
-            paint.alpha = (90 + 165 * t).toInt()
+            val size = if (page == 0) house else dot
+            val cx = x + size / 2f
             if (page == 0) {
-                drawHome(canvas, x + w / 2, cy)
+                draw(canvas, home, cx, cy, size, (1f - t) * 0.6f)
+                draw(canvas, homeFill, cx, cy, size, t)
             } else {
-                rect.set(x, cy - dot / 2, x + w, cy + dot / 2)
-                canvas.drawRoundRect(rect, dot / 2, dot / 2, paint)
+                draw(canvas, circle, cx, cy, size, (1f - t) * 0.6f)
+                draw(canvas, circleFill, cx, cy, size, t)
             }
-            x += w + gap
+            x += size + gap
         }
     }
 }

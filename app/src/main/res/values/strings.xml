@@ -178,4 +178,9 @@
     <string name="wallpaper_app_ask">Ask each time</string>
     <string name="wallpaper_apps">Wallpaper apps</string>
     <string name="wallpaper_app_summary">The app the Wallpaper button opens.</string>
+    <string name="folder_custom_color">Custom colour</string>
+    <string name="color_hue">Hue</string>
+    <string name="color_saturation">Saturation</string>
+    <string name="color_brightness">Brightness</string>
+    <string name="color_opacity">Opacity</string>
 </resources>

@@ -59,6 +59,8 @@ class OverlayState {
     var snack by mutableStateOf<Snack?>(null)
     var dragging by mutableStateOf(false)
     var editMode by mutableStateOf(false)
+    /** Icon size on the home screen, in dp; an open folder shows its apps at the same size. */
+    var homeIconDp by mutableFloatStateOf(56f)
     /** "Organize apps by category" is on (home screen only mode). */
     var categoryMode by mutableStateOf(false)
     /** Edit mode: the zoomed page's top edge (window px) and its zoom, for the bar above it. */

@@ -135,8 +135,13 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
     override fun onDraw(canvas: Canvas) {
         val f = folder ?: return
         backdropBounds(box)
-        // Translucent, so the wallpaper shows through; a chosen colour is a little stronger.
-        bgPaint.color = if (f.color != 0) (f.color and 0x00FFFFFF) or (0xA6 shl 24) else defaultColor
+        // A chosen colour carries its own transparency (from the colour picker); colours saved
+        // before the picker existed were opaque and get the usual translucency.
+        bgPaint.color = when {
+            f.color == 0 -> defaultColor
+            f.color ushr 24 == 0xFF -> (f.color and 0x00FFFFFF) or (0xA6 shl 24)
+            else -> f.color
+        }
         if (isLarge) {
             val radius = box.width() * largeCornerShare()
             canvas.drawRoundRect(box, radius, radius, bgPaint)
@@ -198,7 +203,8 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
 
     /** Cell [i] of the 3x3 inner grid, inset so icons have air around them. */
     private fun cellRect(i: Int, out: Rect) {
-        val inset = box.width() * if (isLarge) 0.08f else 0.14f
+        // Large folders match One UI 8.5's: icons about 25% of the side, about 6.5% from the edge.
+        val inset = box.width() * if (isLarge) 0.035f else 0.14f
         val inner = box.width() - 2 * inset
         val step = inner / 3f
         val pad = step * if (isLarge) 0.10f else 0.06f
@@ -220,7 +226,9 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
     private fun onTap() {
         val f = folder ?: return
         if (isLarge) {
-            for (i in 0 until minOf(f.apps.size, if (f.apps.size > 9) 8 else 9)) {
+            // With nine or more apps the last cell opens the folder, so a full folder can
+            // always be opened (to edit it) from the folder itself.
+            for (i in 0 until minOf(f.apps.size, if (f.apps.size >= 9) 8 else 9)) {
                 cellRect(i, cell)
                 if (cell.contains(downX.toInt(), downY.toInt())) {
                     val loc = IntArray(2).also { getLocationOnScreen(it) }

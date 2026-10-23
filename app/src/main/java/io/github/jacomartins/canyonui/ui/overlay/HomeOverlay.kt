@@ -68,6 +68,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import io.github.jacomartins.canyonui.ui.design.ColorPicker
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -109,7 +111,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 /** Folder colours offered in the folder popup (0 = theme default). */
-val FolderColors = listOf(0, 0xFF5B8DEF.toInt(), 0xFF3FB27F.toInt(), 0xFFF2B63D.toInt(), 0xFFF0805A.toInt(), 0xFFE86A8F.toInt(), 0xFF9B7BE8.toInt())
+val FolderColors = listOf(0, 0xA65B8DEF.toInt(), 0xA63FB27F.toInt(), 0xA6F2B63D.toInt(), 0xA6F0805A.toInt(), 0xA6E86A8F.toInt(), 0xA69B7BE8.toInt())
 
 private val PanelShape = RoundedCornerShape(32.dp)
 
@@ -140,7 +142,7 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
         }
 
         state.picker?.let { WidgetPicker(it, actions) }
-        state.folder?.let { FolderPopup(it, actions) }
+        state.folder?.let { FolderPopup(it, state, actions) }
         // Above an open folder: the app being edited may be inside it.
         state.editApp?.let { EditAppSheet(it, actions) }
         state.menu?.let { ItemMenuLayer(it) { state.menu = null } }
@@ -269,14 +271,17 @@ private class Coords {
     }
 }
 
-private const val FOLDER_COLUMNS = 4
-private const val FOLDER_PER_PAGE = 16
+/** An open folder is always a 3x3 square of apps, page after page. */
+private const val FOLDER_COLUMNS = 3
+private const val FOLDER_PER_PAGE = 9
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderPopup(folder: FolderEntry, actions: OverlayActions) {
+private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: OverlayActions) {
     var title by remember(folder.id) { mutableStateOf(folder.title) }
     var showColors by remember(folder.id) { mutableStateOf(false) }
+    var showPicker by remember(folder.id) { mutableStateOf(false) }
+    val pickerLabel = stringResource(R.string.folder_custom_color)
     fun close() {
         if (title.trim() != folder.title) actions.renameFolder(folder, title)
         actions.closeFolder()
@@ -321,28 +326,66 @@ private fun FolderPopup(folder: FolderEntry, actions: OverlayActions) {
                 }
             }
             AnimatedVisibility(visible = showColors) {
-                Row(Modifier.padding(top = Spacing.smMd), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    for (c in FolderColors) {
-                        val selected = folder.color == c
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.padding(top = Spacing.smMd), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        for (c in FolderColors) {
+                            val selected = folder.color == c
+                            Box(
+                                Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(if (c == 0) MaterialTheme.colorScheme.surfaceVariant else Color(c))
+                                    .border(if (selected) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                    .clickable(role = Role.RadioButton) { actions.setFolderColor(folder, c) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (selected) Icon(painterResource(R.drawable.ph_check), contentDescription = null, modifier = Modifier.size(16.dp), tint = if (c == 0) MaterialTheme.colorScheme.onSurfaceVariant else Color.White)
+                            }
+                        }
+                        // Any colour, with transparency.
+                        val custom = folder.color != 0 && folder.color !in FolderColors
                         Box(
                             Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(if (c == 0) MaterialTheme.colorScheme.surfaceVariant else Color(c))
-                                .border(if (selected) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                .clickable(role = Role.RadioButton) { actions.setFolderColor(folder, c) },
-                            contentAlignment = Alignment.Center,
+                                .background(Brush.sweepGradient(RainbowColors))
+                                .border(if (custom || showPicker) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                .clickable(role = Role.Button, onClickLabel = stringResource(R.string.folder_custom_color)) { showPicker = !showPicker }
+                                .semantics { contentDescription = pickerLabel },
+                        )
+                    }
+                    AnimatedVisibility(visible = showPicker) {
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f),
+                            modifier = Modifier
+                                .padding(top = Spacing.smMd)
+                                .fillMaxWidth()
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
+                                .surfaceRing(cornerRadius = 24.dp),
                         ) {
-                            if (selected) Icon(painterResource(R.drawable.ph_check), contentDescription = null, modifier = Modifier.size(16.dp), tint = if (c == 0) MaterialTheme.colorScheme.onSurfaceVariant else Color.White)
+                            ColorPicker(
+                                initial = folder.color,
+                                labels = listOf(
+                                    stringResource(R.string.color_hue), stringResource(R.string.color_saturation),
+                                    stringResource(R.string.color_brightness), stringResource(R.string.color_opacity),
+                                ),
+                                onCommit = { actions.setFolderColor(folder, it) },
+                                modifier = Modifier.padding(Spacing.md),
+                            )
                         }
                     }
                 }
             }
             Spacer(Modifier.height(Spacing.md))
 
+            val iconSize = state.homeIconDp.dp
+            val rowHeight = Spacing.smMd * 2 + iconSize + AppIconView.LABEL_GAP_DP.dp +
+                with(LocalDensity.current) { (AppIconView.LABEL_SP + 3).sp.toDp() }
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    // Square cells: each column is as wide as a row is tall.
+                    .width(rowHeight * FOLDER_COLUMNS + Spacing.sm * 2)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { } // keep taps inside
                     .surfaceRing(cornerRadius = 32.dp),
                 shape = PanelShape,
@@ -351,17 +394,15 @@ private fun FolderPopup(folder: FolderEntry, actions: OverlayActions) {
                 Column(Modifier.padding(vertical = Spacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
                     val pages = (folder.apps.size + FOLDER_PER_PAGE - 1) / FOLDER_PER_PAGE
                     val pager = rememberPagerState { pages.coerceAtLeast(1) }
-                    // Every row has the same fixed height, and a folder with several pages keeps room
-                    // for all 16 apps on each, so the panel does not change size between pages.
-                    val rowHeight = Spacing.smMd * 2 + 56.dp + AppIconView.LABEL_GAP_DP.dp +
-                        with(LocalDensity.current) { (AppIconView.LABEL_SP + 3).sp.toDp() }
-                    val rowsPerPage = if (pages > 1) FOLDER_PER_PAGE / FOLDER_COLUMNS else (folder.apps.size + FOLDER_COLUMNS - 1) / FOLDER_COLUMNS
+                    // Always three rows of three square cells (even with fewer apps), with icons at
+                    // the home screen's size, so every folder opens as the same square.
+                    val rowsPerPage = FOLDER_PER_PAGE / FOLDER_COLUMNS
                     HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
                         val apps = folder.apps.drop(page * FOLDER_PER_PAGE).take(FOLDER_PER_PAGE)
                         Column(Modifier.padding(horizontal = Spacing.sm).height(rowHeight * rowsPerPage), verticalArrangement = Arrangement.Top) {
                             for (row in apps.chunked(FOLDER_COLUMNS)) {
                                 Row(Modifier.fillMaxWidth().height(rowHeight)) {
-                                    for (app in row) FolderApp(app, folder, actions, Modifier.weight(1f))
+                                    for (app in row) FolderApp(app, folder, actions, iconSize, Modifier.weight(1f))
                                     repeat(FOLDER_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
                             }
@@ -386,12 +427,17 @@ private fun FolderPopup(folder: FolderEntry, actions: OverlayActions) {
     }
 }
 
+private val RainbowColors = listOf(
+    Color(0xFFFF0000), Color(0xFFFFFF00), Color(0xFF00FF00), Color(0xFF00FFFF),
+    Color(0xFF0000FF), Color(0xFFFF00FF), Color(0xFFFF0000),
+)
+
 /** Keeps white text readable over a light wallpaper behind the dimmed backdrop. */
 private val TitleShadow = Shadow(Color.Black.copy(alpha = 0.45f), Offset(0f, 2f), 8f)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderApp(app: AppEntry, folder: FolderEntry, actions: OverlayActions, modifier: Modifier) {
+private fun FolderApp(app: AppEntry, folder: FolderEntry, actions: OverlayActions, iconSize: androidx.compose.ui.unit.Dp, modifier: Modifier) {
     val coords = remember { Coords() }
     val haptics = LocalHapticFeedback.current
     Column(
@@ -409,7 +455,7 @@ private fun FolderApp(app: AppEntry, folder: FolderEntry, actions: OverlayAction
             .padding(vertical = Spacing.smMd),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Image(app.app.image, contentDescription = null, modifier = Modifier.size(56.dp))
+        Image(app.app.image, contentDescription = null, modifier = Modifier.size(iconSize))
         Spacer(Modifier.height(AppIconView.LABEL_GAP_DP.dp))
         Text(
             app.app.label,

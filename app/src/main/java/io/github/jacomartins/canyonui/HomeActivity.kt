@@ -483,6 +483,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         widgets.prune(widgetIds)
         applyWidgetSizes(st)
 
+        // Open folders show their apps at the home screen's icon size (known once pages are laid out).
+        dragLayer.post {
+            val page = home.workspace.pageAt(0) ?: return@post
+            if (page.cellWidth <= 0) return@post
+            val d = resources.displayMetrics.density
+            ui.homeIconDp = minOf(page.cellWidth * homeStyle.iconCellFraction, homeStyle.maxIconDp * d) / d
+        }
+
         // Keep an open folder in step with changes (renamed, apps added or dragged out).
         ui.folder?.let { open -> ui.folder = st.entry(open.id) as? FolderEntry }
         if (ui.overview != null) dragLayer.post { if (ui.overview != null) ui.overview = captureThumbs() }
