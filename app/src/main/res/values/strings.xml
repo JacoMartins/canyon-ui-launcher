@@ -189,7 +189,9 @@
     <string name="wallpaper_ours">Canyon UI wallpapers</string>
     <string name="wallpaper_ours_none">None yet.</string>
     <string name="wallpaper_gallery">Gallery</string>
-    <string name="wallpaper_add_gallery">Add from gallery</string>
+    <string name="wallpaper_add_from">Add from…</string>
+    <string name="wallpaper_photos">Photos</string>
+    <string name="wallpaper_folders">Folders</string>
     <string name="wallpaper_show_recent">Show recent photos</string>
     <string name="wallpaper_recent_denied">Allow photo access in the app\'s settings to see your recent photos here.</string>
     <string name="wallpaper_live">Live wallpapers</string>

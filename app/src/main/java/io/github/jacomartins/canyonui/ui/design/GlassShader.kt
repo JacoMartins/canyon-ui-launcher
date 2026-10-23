@@ -28,6 +28,7 @@ internal object GlassShader {
         uniform float2 size;
         uniform float radius;
         uniform float bend;
+        uniform float band;
 
         float sdBox(float2 p, float2 b, float r) {
             float2 q = abs(p) - b + float2(r);
@@ -39,15 +40,23 @@ internal object GlassShader {
             float2 p = xy - origin - hs;
             float r = min(radius, min(hs.x, hs.y));
             float d = sdBox(p, hs, r);
-            float band = max(min(hs.x, hs.y) * 0.35, 1.0);
-            float t = clamp(1.0 + d / band, 0.0, 1.0);
+            // How deep into the rim band: 1 at the edge, 0 where the flat middle starts. The
+            // band is a share of the shorter side, so every shape bends the same way all round.
+            float bw = min(band, min(hs.x, hs.y));
+            float t = clamp(1.0 + d / bw, 0.0, 1.0);
             float2 e = float2(0.75, 0.0);
             float2 g = float2(sdBox(p + e.xy, hs, r) - sdBox(p - e.xy, hs, r),
                               sdBox(p + e.yx, hs, r) - sdBox(p - e.yx, hs, r));
             float2 n = g / max(length(g), 0.0001);
-            float2 s = xy - n * (t * t * bend);
-            half4 c = image.eval(s);
-            return half4(c.rgb, 1.0);
+            // A rounded (circular) lens profile: flat in the middle, steepest at the rim.
+            float lens = 1.0 - sqrt(max(1.0 - t * t, 0.0));
+            float2 shift = n * (lens * bend);
+            // A touch of colour separation at the rim, as light splits in thick glass.
+            half3 c = half3(
+                image.eval(xy - shift * 1.06).r,
+                image.eval(xy - shift).g,
+                image.eval(xy - shift * 0.94).b);
+            return half4(c, 1.0);
         }
     """
 
@@ -105,6 +114,7 @@ internal object GlassShader {
         s.setFloatUniform("size", bounds.width(), bounds.height())
         s.setFloatUniform("radius", if (radius >= 0f) radius else minOf(bounds.width(), bounds.height()) * 0.25f)
         s.setFloatUniform("bend", BEND_DP * d)
+        s.setFloatUniform("band", minOf(bounds.width(), bounds.height()) * BAND_SHARE)
         h.paint.shader = s
         canvas.drawPath(clip, h.paint)
         return true
@@ -112,5 +122,7 @@ internal object GlassShader {
 
     private var broken = false
 
-    private const val BEND_DP = 7f
+    // Like Haze's default glass: a 15dp shift over a rim a quarter of the shorter side deep.
+    private const val BEND_DP = 15f
+    private const val BAND_SHARE = 0.25f
 }

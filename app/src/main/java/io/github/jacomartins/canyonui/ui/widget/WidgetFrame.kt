@@ -148,18 +148,18 @@ object WidgetFrame {
     }
 
     /**
-     * The widget's own card (measured from what it draws) as a rounded outline in [out]; false
-     * when the widget draws no solid card (text or icons straight on the wallpaper).
+     * The widget's own card (measured from what it draws) as a rounded outline in [out], and
+     * its corner radius; -1 when the widget draws no solid card (text or icons on nothing).
      */
-    fun cardPath(view: View, out: Path): Boolean {
-        if (snapshotting) return false
-        val frame = view.outlineProvider as? Frame ?: return false
-        val card = frame.measured ?: return false
-        if (frame.measuredW != view.width || frame.measuredH != view.height) return false
+    fun cardPath(view: View, out: Path): Float {
+        if (snapshotting) return -1f
+        val frame = view.outlineProvider as? Frame ?: return -1f
+        val card = frame.measured ?: return -1f
+        if (frame.measuredW != view.width || frame.measuredH != view.height) return -1f
         val r = frame.radius()
         out.reset()
         out.addRoundRect(RectF(card), r, r, Path.Direction.CW)
-        return true
+        return r
     }
 
     private var snapshotting = false

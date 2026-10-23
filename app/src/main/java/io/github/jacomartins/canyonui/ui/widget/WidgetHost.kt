@@ -161,8 +161,9 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
     override fun dispatchDraw(canvas: Canvas) {
         // Frosted and glass: the blurred wallpaper behind the widget's own card, so a see-through
         // widget background frosts like the launcher's surfaces.
-        if (WidgetFrame.cardPath(this, cardPath)) {
-            io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, cardPath)
+        val cardRadius = WidgetFrame.cardPath(this, cardPath)
+        if (cardRadius >= 0f) {
+            io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, cardPath, cardRadius)
         }
         try {
             super.dispatchDraw(canvas)

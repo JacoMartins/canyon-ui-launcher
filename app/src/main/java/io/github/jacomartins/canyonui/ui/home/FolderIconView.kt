@@ -158,7 +158,8 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         } else {
             outline()
         }
-        val glassRadius = if (isLarge) box.width() * largeCornerShare() else box.width() * 0.3f
+        // The glass lens follows the outline's real corners (a circle bends all round).
+        val glassRadius = if (isLarge) box.width() * largeCornerShare() else box.width() * iconCornerShare()
         if (WallpaperBackdrop.draw(canvas, this, outlinePath, glassRadius)) {
             bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShareFor(bgPaint.color)).toInt()
         }
@@ -213,6 +214,15 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         val frontLeft = if (rtl) backLeft + shift else backLeft - shift
         hit.set(frontLeft.toInt(), (cell.top + shift).toInt(), (frontLeft + side).toInt(), (cell.top + shift + side).toInt())
         canvas.drawBitmap(front.app.icon, null, hit, bitmapPaint)
+    }
+
+    /** About the corner radius of the icon shape, as a share of its side. */
+    private fun iconCornerShare() = when (shape) {
+        IconShape.CIRCLE -> 0.5f
+        IconShape.SQUIRCLE -> 0.38f
+        IconShape.ROUNDED -> 0.24f
+        IconShape.SQUARE -> 0.1f
+        IconShape.SYSTEM -> 0.33f
     }
 
     /** A large folder's corner radius as a share of its side, by icon shape. */
