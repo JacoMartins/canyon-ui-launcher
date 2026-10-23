@@ -282,6 +282,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.drawer = drawer
         drag = DragController(dragLayer, home, this)
         dragLayer.drag = drag
+        dragLayer.onPinchIn = { if (!ui.isModal) enterEditMode() }
+        dragLayer.onPinchOut = { if (ui.editMode && !ui.isModal) exitEditMode() }
         setContentView(dragLayer)
         // TalkBack and switch access users get the drawer without the swipe.
         ViewCompat.addAccessibilityAction(home, getString(R.string.action_open_all_apps)) { _, _ -> drawerEnabled.also { if (it) drawer.open() } }

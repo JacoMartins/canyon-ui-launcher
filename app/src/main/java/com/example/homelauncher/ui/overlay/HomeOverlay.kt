@@ -338,11 +338,16 @@ private fun FolderPopup(folder: FolderEntry, actions: OverlayActions) {
 
                 val pages = (folder.apps.size + FOLDER_PER_PAGE - 1) / FOLDER_PER_PAGE
                 val pager = rememberPagerState { pages.coerceAtLeast(1) }
+                // Every row has the same fixed height, and a folder with several pages keeps room
+                // for all 16 apps on each, so the panel does not change size between pages.
+                val rowHeight = Spacing.smMd * 2 + 56.dp + AppIconView.LABEL_GAP_DP.dp +
+                    with(LocalDensity.current) { (AppIconView.LABEL_SP + 3).sp.toDp() }
+                val rowsPerPage = if (pages > 1) FOLDER_PER_PAGE / FOLDER_COLUMNS else (folder.apps.size + FOLDER_COLUMNS - 1) / FOLDER_COLUMNS
                 HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
                     val apps = folder.apps.drop(page * FOLDER_PER_PAGE).take(FOLDER_PER_PAGE)
-                    Column(Modifier.padding(horizontal = Spacing.sm)) {
+                    Column(Modifier.padding(horizontal = Spacing.sm).height(rowHeight * rowsPerPage), verticalArrangement = Arrangement.Top) {
                         for (row in apps.chunked(FOLDER_COLUMNS)) {
-                            Row(Modifier.fillMaxWidth()) {
+                            Row(Modifier.fillMaxWidth().height(rowHeight)) {
                                 for (app in row) FolderApp(app, folder, actions, Modifier.weight(1f))
                                 repeat(FOLDER_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
                             }

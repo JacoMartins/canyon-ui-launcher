@@ -3,6 +3,7 @@ package com.example.homelauncher.ui.home
 import android.annotation.SuppressLint
 import android.content.Context
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.VelocityTracker
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
@@ -49,12 +50,58 @@ class DragLayer(context: Context) : FrameLayout(context) {
     private var armDownX = 0f
     private var armDownY = 0f
 
+    /** Two fingers closing on home (pinch in) and opening (pinch out), like One UI's edit mode gesture. */
+    var onPinchIn: (() -> Unit)? = null
+    var onPinchOut: (() -> Unit)? = null
+    private var pinchScale = 1f
+    private var pinchDone = false
+    private var pinchCancelled = false
+    private val pinch = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            pinchScale = 1f
+            return drawer.isClosed
+        }
+
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            if (pinchDone) return true
+            pinchScale *= detector.scaleFactor
+            val action = when {
+                pinchScale < PINCH_IN -> onPinchIn
+                pinchScale > PINCH_OUT -> onPinchOut
+                else -> null
+            } ?: return true
+            pinchDone = true
+            action()
+            return true
+        }
+    }).apply { isQuickScaleEnabled = false }
+
     /**
      * Item drags are handled here rather than in [onInterceptTouchEvent]: scrolling lists in the
      * drawer and folder popup disallow intercepting once they start moving, which would otherwise
      * swallow a drag armed by a long-press on one of their icons.
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            pinchDone = false
+            pinchCancelled = false
+        }
+        if (drag?.isDragging != true && drawer.isClosed) {
+            pinch.onTouchEvent(ev)
+            if (pinchDone) {
+                // The pinch was used: whatever the fingers started below (a page swipe, a
+                // long-press) lets go, and the rest of the gesture goes nowhere.
+                if (!pinchCancelled) {
+                    pinchCancelled = true
+                    val cancel = MotionEvent.obtain(ev)
+                    cancel.action = MotionEvent.ACTION_CANCEL
+                    super.dispatchTouchEvent(cancel)
+                    cancel.recycle()
+                    drag?.disarm()
+                }
+                return true
+            }
+        }
         val d = drag ?: return super.dispatchTouchEvent(ev)
         if (d.isDragging) {
             when (ev.actionMasked) {
@@ -154,5 +201,10 @@ class DragLayer(context: Context) : FrameLayout(context) {
     private fun recycle() {
         tracker?.recycle()
         tracker = null
+    }
+
+    private companion object {
+        const val PINCH_IN = 0.8f
+        const val PINCH_OUT = 1.25f
     }
 }

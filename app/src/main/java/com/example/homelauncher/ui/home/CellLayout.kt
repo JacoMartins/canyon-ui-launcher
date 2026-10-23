@@ -41,6 +41,10 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
     private val hintRect = android.graphics.RectF()
     private val hintPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
     private val backdropPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val ringPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = resources.displayMetrics.density
+    }
     private var hintVisible = false
     private var hintFolder = false
     private var hintX = 0
@@ -78,6 +82,8 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
         backdropPaint.color = backdrop
         // The plus in the hint's hue, fully opaque: white over dark wallpapers, black over light.
         plusPaint.color = hint or 0xFF000000.toInt()
+        // The border in the same hue at 45%: light on dark wallpapers, dark on light ones.
+        ringPaint.color = (hint and 0x00FFFFFF) or 0x73000000
         invalidate()
     }
 
@@ -125,6 +131,10 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             val r = 28 * d
             hintRect.set(4 * d, 0f, width - 4 * d, height.toFloat())
             canvas.drawRoundRect(hintRect, r, r, backdropPaint)
+            // OneDepth's border: a fine translucent line just inside the card's edge.
+            val half = ringPaint.strokeWidth / 2f
+            hintRect.inset(half, half)
+            canvas.drawRoundRect(hintRect, r - half, r - half, ringPaint)
         }
         if (addPagePlaceholder) {
             val cx = width / 2f
