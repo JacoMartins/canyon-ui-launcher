@@ -10,10 +10,10 @@ import kotlin.math.cos
 import kotlin.math.pow
 
 /**
- * The OneDepth depth ring for View-based surfaces (widgets, folders, edit mode pages), drawn
- * exactly like [buttonRing] so every border in the interface matches: a rim lit from the top, a
- * weaker bounce light at the bottom, and dark crescents at the left and right tips of shapes
- * wider than tall. Gradients are rebuilt only when the size or mode changes.
+ * The interface's border ([OneDepthBorder]) for View-based surfaces (widgets, folders, edit mode
+ * pages), drawn exactly like [oneDepthBorder]: a rim lit from the top, a weaker bounce light at
+ * the bottom, and dark sides at the left and right, on every shape. Gradients are rebuilt only
+ * when the size or mode changes.
  */
 class DepthRingPainter(density: Float) {
     private val width = density
@@ -39,8 +39,7 @@ class DepthRingPainter(density: Float) {
         val h = rect.height()
         if (w <= 0f || h <= 0f) return
         val r = radius.coerceAtMost(minOf(w, h) / 2f)
-        // Crescents only on shapes wider than tall (on a circle they would pinch the ring).
-        val s = if (w - h < 1f) 0f else width
+        val s = width
         if (w != cachedW || h != cachedH || r != cachedR || dark != cachedDark || rect.top != cachedTop || rect.left != cachedLeft) {
             cachedW = w; cachedH = h; cachedR = r; cachedDark = dark; cachedTop = rect.top; cachedLeft = rect.left
             ring.shader = litGradient(rect.top, h, if (dark) BUTTON_ALPHA_DARK else BUTTON_ALPHA_LIGHT)
@@ -58,17 +57,19 @@ class DepthRingPainter(density: Float) {
     }
 
     /**
-     * The lit ring along any outline (an icon-shaped folder): [bounds] is the outline's box,
-     * for the light's gradient. No tip crescents; icon shapes are about as wide as tall.
+     * The same border along any outline (an icon-shaped folder): [bounds] is the outline's box,
+     * for the gradients; [radius] is about the outline's corner radius, for the dark sides.
      */
-    fun drawPath(canvas: Canvas, path: android.graphics.Path, bounds: RectF, dark: Boolean) {
+    fun drawPath(canvas: Canvas, path: android.graphics.Path, bounds: RectF, dark: Boolean, radius: Float = bounds.width() * 0.3f) {
         val h = bounds.height()
         if (h <= 0f) return
-        if (h != cachedH || bounds.top != cachedTop || dark != cachedDark || cachedR != -2f) {
+        if (h != cachedH || bounds.top != cachedTop || bounds.left != cachedLeft || dark != cachedDark || cachedR != -2f) {
             cachedW = bounds.width(); cachedH = h; cachedR = -2f; cachedDark = dark; cachedTop = bounds.top; cachedLeft = bounds.left
             ring.shader = litGradient(bounds.top, h, if (dark) BUTTON_ALPHA_DARK else BUTTON_ALPHA_LIGHT)
+            side.shader = tipGradient(bounds.left, bounds.width(), radius, if (dark) SIDE_ALPHA_DARK else SIDE_ALPHA_LIGHT)
         }
         canvas.drawPath(path, ring)
+        canvas.drawPath(path, side)
     }
 
     private fun litGradient(top: Float, h: Float, alpha: Float): LinearGradient {
@@ -100,14 +101,14 @@ class DepthRingPainter(density: Float) {
 
     private companion object {
         const val STEPS = 32
-        // DepthLight.Button and buttonRing's values.
-        const val KEY = 0.8f
-        const val FILL = 0.25f
-        const val SPREAD = 0.5f
-        const val SOFTNESS = 0.65f
-        const val BUTTON_ALPHA_DARK = 0.40f
-        const val BUTTON_ALPHA_LIGHT = 0.60f
-        const val SIDE_ALPHA_DARK = 0.40f
-        const val SIDE_ALPHA_LIGHT = 0.25f
+        // The shared border's values (OneDepthBorder).
+        val KEY = OneDepthBorder.Light.key
+        val FILL = OneDepthBorder.Light.fill
+        val SPREAD = OneDepthBorder.Light.spread
+        val SOFTNESS = OneDepthBorder.Light.softness
+        const val BUTTON_ALPHA_DARK = OneDepthBorder.ALPHA_DARK
+        const val BUTTON_ALPHA_LIGHT = OneDepthBorder.ALPHA_LIGHT
+        const val SIDE_ALPHA_DARK = OneDepthBorder.SIDE_ALPHA_DARK
+        const val SIDE_ALPHA_LIGHT = OneDepthBorder.SIDE_ALPHA_LIGHT
     }
 }

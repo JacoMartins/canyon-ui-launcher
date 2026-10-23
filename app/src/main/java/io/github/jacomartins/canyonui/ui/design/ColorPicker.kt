@@ -110,7 +110,7 @@ private fun GradientSlider(
                 .fillMaxSize()
                 .padding(vertical = 4.dp)
                 .clip(CircleShape)
-                .buttonRing()
+                .oneDepthBorder()
                 .pointerInput(widthPx) {
                     detectTapGestures { onChange(at(it.x)); onDone() }
                 }
@@ -132,7 +132,7 @@ private fun GradientSlider(
                 .align(Alignment.CenterStart)
                 .clip(CircleShape)
                 .background(Color.White)
-                .buttonRing(),
+                .oneDepthBorder(),
         )
     }
 }

@@ -60,7 +60,7 @@ fun PillButton(
             shape = CircleShape,
             color = if (enabled) container else container.copy(alpha = 0.38f),
             contentColor = if (enabled) onContainer else onContainer.copy(alpha = 0.6f),
-            modifier = modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).buttonRing(),
+            modifier = modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).oneDepthBorder(),
         ) {
             ProvideTextStyle(MaterialTheme.typography.labelLarge) {
                 Row(

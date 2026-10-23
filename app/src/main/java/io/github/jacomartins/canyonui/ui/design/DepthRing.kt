@@ -67,10 +67,23 @@ private fun DepthLight.brush(height: Float): Brush {
 private val TIP_EASE = listOf(0f to 1f, .25f to .84f, .5f to .5f, .75f to .16f, 1f to 0f)
 
 /**
+ * The one border of the interface (OneDepth's button border): every surface with a border uses
+ * these values, in Compose ([oneDepthBorder]) and in Views ([DepthRingPainter]), in every mode.
+ */
+object OneDepthBorder {
+    val Width = 1.dp
+    val Light = DepthLight.Button
+    const val ALPHA_DARK = 0.40f
+    const val ALPHA_LIGHT = 0.60f
+    const val SIDE_ALPHA_DARK = 0.40f
+    const val SIDE_ALPHA_LIGHT = 0.25f
+}
+
+/**
  * Draws the depth ring over the content's bounds.
  * [cornerRadius] null means a pill (radius = half the height).
  */
-fun Modifier.depthRing(
+private fun Modifier.depthRing(
     cornerRadius: Dp? = null,
     width: Dp = 1.dp,
     alpha: Float = 0.333f,
@@ -84,9 +97,8 @@ fun Modifier.depthRing(
         val sidePx = sideWidth.toPx()
         val h = size.height
         val r = (cornerRadius?.toPx() ?: (h / 2f)).coerceAtMost(minOf(h, size.width) / 2f)
-        // Tip crescents only make sense on shapes wider than tall; on a circle they would pinch
-        // the ring out of round, so circles get the lit ring alone.
-        val s = if (size.width - h < 1f) 0f else sidePx
+        // The dark sides on every shape, square and round ones included.
+        val s = sidePx
 
         val ringBrush = light.brush(h)
         val ringTopLeft = Offset(s + w / 2f, w / 2f)
@@ -124,20 +136,18 @@ fun Modifier.depthRing(
 fun isDarkSurface(): Boolean = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
 /**
- * Ring for bars, search fields, panels and cards. Every border in the interface is the button
- * border (so they all match, including the View-drawn ones in [DepthRingPainter]).
+ * The interface's border ([OneDepthBorder]) for any Compose surface: buttons, fields, bars,
+ * panels, cards. [cornerRadius] null means a pill.
  */
 @Composable
-fun Modifier.surfaceRing(cornerRadius: Dp? = null): Modifier = buttonRing(cornerRadius)
-
-/** Ring tuned for buttons (OneDepth's button values). */
-@Composable
-fun Modifier.buttonRing(cornerRadius: Dp? = null): Modifier {
+fun Modifier.oneDepthBorder(cornerRadius: Dp? = null): Modifier {
     val dark = isDarkSurface()
     return depthRing(
         cornerRadius = cornerRadius,
-        alpha = if (dark) 0.40f else 0.60f,
-        light = DepthLight.Button,
-        sideAlpha = if (dark) 0.40f else 0.25f,
+        width = OneDepthBorder.Width,
+        alpha = if (dark) OneDepthBorder.ALPHA_DARK else OneDepthBorder.ALPHA_LIGHT,
+        light = OneDepthBorder.Light,
+        sideWidth = OneDepthBorder.Width,
+        sideAlpha = if (dark) OneDepthBorder.SIDE_ALPHA_DARK else OneDepthBorder.SIDE_ALPHA_LIGHT,
     )
 }

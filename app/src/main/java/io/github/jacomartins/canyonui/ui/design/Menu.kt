@@ -67,7 +67,7 @@ fun MenuLayer(anchor: Rect, entries: List<MenuEntry>, onDismiss: () -> Unit, mod
                 // After the placement, so an animation scales the panel about its own centre.
                 .then(modifier)
                 .shadow(Spacing.sm, MenuShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-                .surfaceRing(cornerRadius = MENU_RADIUS)
+                .oneDepthBorder(cornerRadius = MENU_RADIUS)
                 .backdrop(MenuShape),
             shape = MenuShape,
             color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f)),

@@ -73,7 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.jacomartins.canyonui.R
 import io.github.jacomartins.canyonui.ui.design.Spacing
-import io.github.jacomartins.canyonui.ui.design.surfaceRing
+import io.github.jacomartins.canyonui.ui.design.oneDepthBorder
 import io.github.jacomartins.canyonui.ui.widget.PickerGroup
 import io.github.jacomartins.canyonui.ui.widget.PickerWidget
 import io.github.jacomartins.canyonui.ui.widget.WidgetCatalog
@@ -110,7 +110,7 @@ fun WidgetPicker(picker: WidgetPickerState, actions: OverlayActions) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .fillMaxHeight(0.9f)
-                .surfaceRing(cornerRadius = 32.dp)
+                .oneDepthBorder(cornerRadius = 32.dp)
                 // Taps on the sheet itself do not reach the scrim.
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
             shape = SheetShape,
@@ -165,7 +165,7 @@ private fun filter(picker: WidgetPickerState, q: String): List<PickerGroup> {
 private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     val label = stringResource(R.string.widgets_search)
-    Surface(shape = CircleShape, color = colors.surfaceContainerHighest, modifier = modifier.fillMaxWidth().height(48.dp).surfaceRing()) {
+    Surface(shape = CircleShape, color = colors.surfaceContainerHighest, modifier = modifier.fillMaxWidth().height(48.dp).oneDepthBorder()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = Spacing.md, end = Spacing.smMd).size(20.dp))
             BasicTextField(
@@ -254,7 +254,7 @@ private fun WidgetCard(w: PickerWidget, actions: OverlayActions) {
                 .onGloballyPositioned { bounds[0] = it.boundsInWindow() }
                 .clip(RoundedCornerShape(20.dp))
                 .background(colors.surfaceContainerHighest)
-                .surfaceRing(cornerRadius = 20.dp),
+                .oneDepthBorder(cornerRadius = 20.dp),
             contentAlignment = Alignment.Center,
         ) {
             val img = image

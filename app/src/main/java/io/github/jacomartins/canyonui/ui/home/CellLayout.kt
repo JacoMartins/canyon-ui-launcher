@@ -205,12 +205,14 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             if (child.isGone) continue
             val lp = child.layoutParams as LayoutParams
             val col = if (rtl) columns - lp.cellX - lp.spanX else lp.cellX
-            // Centred in its cells; a capped pill sits a little above the middle of its row, so
-            // its gap above is smaller than the one below.
+            // Centred in its cells. A capped pill (one row tall) keeps the widget gap on one side
+            // like One UI 8.5: at the top of an even row and at the bottom of an odd one, so two
+            // stacked pills line up with the top and bottom of a 2x2 widget beside them.
             val left = paddingLeft + col * cw + (cw * lp.spanX - child.measuredWidth) / 2
             val freeY = ch * lp.spanY - child.measuredHeight
             val pillRow = lp.spanY == 1 && lp.maxThickness > 0 && freeY > 2 * lp.inset
-            val top = paddingTop + lp.cellY * ch + if (pillRow) maxOf(lp.inset, (freeY * PILL_TOP_SHARE).toInt()) else freeY / 2
+            val pillTop = if (lp.cellY % 2 == 0) lp.inset else freeY - lp.inset
+            val top = paddingTop + lp.cellY * ch + if (pillRow) pillTop else freeY / 2
             child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
         }
     }
@@ -219,8 +221,4 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
     override fun generateDefaultLayoutParams(): ViewGroup.LayoutParams = LayoutParams(0, 0)
     override fun shouldDelayChildPressedState() = false
 
-    private companion object {
-        /** Share of a pill's free row height that goes above it (0.5 would centre it). */
-        const val PILL_TOP_SHARE = 0.38f
-    }
 }

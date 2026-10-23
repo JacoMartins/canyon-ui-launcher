@@ -115,8 +115,7 @@ import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.MenuLayer
 import io.github.jacomartins.canyonui.ui.design.Spacing
-import io.github.jacomartins.canyonui.ui.design.buttonRing
-import io.github.jacomartins.canyonui.ui.design.surfaceRing
+import io.github.jacomartins.canyonui.ui.design.oneDepthBorder
 import io.github.jacomartins.canyonui.ui.home.AppIconView
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -255,7 +254,7 @@ private fun EditBottomBar(actions: OverlayActions) {
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(bottom = Spacing.lg)
             .shadow(Spacing.sm, PanelShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-            .surfaceRing(cornerRadius = 32.dp)
+            .oneDepthBorder(cornerRadius = 32.dp)
             .backdrop(PanelShape),
         shape = PanelShape,
         color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f)),
@@ -395,7 +394,7 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                                 .padding(top = Spacing.smMd)
                                 .fillMaxWidth()
                                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
-                                .surfaceRing(cornerRadius = 24.dp)
+                                .oneDepthBorder(cornerRadius = 24.dp)
                                 .backdrop(RoundedCornerShape(24.dp)),
                         ) {
                             ColorPicker(
@@ -421,7 +420,7 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                     // Square cells: each column is as wide as a row is tall.
                     .width(rowHeight * FOLDER_COLUMNS + Spacing.sm * 2)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { } // keep taps inside
-                    .surfaceRing(cornerRadius = 32.dp)
+                    .oneDepthBorder(cornerRadius = 32.dp)
                     .backdrop(PanelShape),
                 shape = PanelShape,
                 color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f)),
@@ -564,7 +563,7 @@ private fun SnackHost(state: OverlayState, modifier: Modifier) {
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(bottom = 128.dp, start = Spacing.md, end = Spacing.md)
                 .shadow(Spacing.sm, PanelShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-                .surfaceRing(cornerRadius = 32.dp)
+                .oneDepthBorder(cornerRadius = 32.dp)
                 .backdrop(PanelShape),
             shape = PanelShape,
             // The mode's own surface (not the inverted one), like every other panel.

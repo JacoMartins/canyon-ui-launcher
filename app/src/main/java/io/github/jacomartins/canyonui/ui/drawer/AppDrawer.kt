@@ -93,7 +93,7 @@ import androidx.compose.ui.res.painterResource
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.Spacing
-import io.github.jacomartins.canyonui.ui.design.surfaceRing
+import io.github.jacomartins.canyonui.ui.design.oneDepthBorder
 import io.github.jacomartins.canyonui.ui.home.DragLayer
 import kotlin.math.roundToInt
 
@@ -238,7 +238,7 @@ private fun SearchPill(
             .fillMaxWidth(widthFraction)
             .height(SearchPillHeight)
             .shadow(Spacing.sm, CircleShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
-            .surfaceRing(),
+            .oneDepthBorder(),
         shape = CircleShape,
         // Translucent so the grid shows through faintly; real glass comes with the Stage 5 glass setting.
         color = colors.surfaceContainerHighest.copy(alpha = 0.92f),

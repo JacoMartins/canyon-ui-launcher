@@ -70,7 +70,7 @@ import io.github.jacomartins.canyonui.model.AppCategories
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.Spacing
-import io.github.jacomartins.canyonui.ui.design.surfaceRing
+import io.github.jacomartins.canyonui.ui.design.oneDepthBorder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -107,7 +107,7 @@ fun EditAppSheet(state: EditAppState, actions: OverlayActions) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .then(if (browsing != null) Modifier.fillMaxHeight(0.9f) else Modifier)
-                .surfaceRing(cornerRadius = 32.dp)
+                .oneDepthBorder(cornerRadius = 32.dp)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
             shape = SheetShape,
             color = colors.surfaceContainer,
@@ -170,7 +170,7 @@ private fun MainPage(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
             preview?.let { Image(it, contentDescription = null, modifier = Modifier.size(64.dp)) }
             val hint = state.app.label
-            Surface(shape = CircleShape, color = colors.surfaceContainerHighest, modifier = Modifier.weight(1f).height(48.dp).surfaceRing()) {
+            Surface(shape = CircleShape, color = colors.surfaceContainerHighest, modifier = Modifier.weight(1f).height(48.dp).oneDepthBorder()) {
                 Box(Modifier.padding(horizontal = Spacing.mdLg), contentAlignment = Alignment.CenterStart) {
                     val desc = stringResource(R.string.edit_app_label)
                     BasicTextField(
@@ -228,7 +228,7 @@ private fun CategoryDropdown(current: String, autoLabel: String, selected: AppCa
             onClick = { open = !open },
             shape = CircleShape,
             color = colors.surfaceContainerHighest,
-            modifier = Modifier.fillMaxWidth().height(44.dp).surfaceRing(),
+            modifier = Modifier.fillMaxWidth().height(44.dp).oneDepthBorder(),
         ) {
             Row(Modifier.padding(horizontal = Spacing.md), verticalAlignment = Alignment.CenterVertically) {
                 Text(current, style = MaterialTheme.typography.bodyLarge, color = colors.onSurface, modifier = Modifier.weight(1f), maxLines = 1)
@@ -236,7 +236,7 @@ private fun CategoryDropdown(current: String, autoLabel: String, selected: AppCa
             }
         }
         if (open) {
-            Surface(shape = RoundedCornerShape(24.dp), color = colors.surfaceContainerHighest, modifier = Modifier.fillMaxWidth().surfaceRing(cornerRadius = 24.dp)) {
+            Surface(shape = RoundedCornerShape(24.dp), color = colors.surfaceContainerHighest, modifier = Modifier.fillMaxWidth().oneDepthBorder(cornerRadius = 24.dp)) {
                 LazyColumn(Modifier.heightIn(max = DROPDOWN_MAX).padding(Spacing.xsSm), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
                     item { DropdownRow(autoLabel, selected == null) { onPick(null); open = false } }
                     items(AppCategories.Category.entries.toList(), key = { it.key }) { c ->
@@ -312,7 +312,7 @@ private fun PackIcons(pack: IconPackInfo, onBack: () -> Unit, onPick: (String) -
     Surface(
         shape = CircleShape,
         color = colors.surfaceContainerHighest,
-        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm).fillMaxWidth().height(48.dp).surfaceRing(),
+        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm).fillMaxWidth().height(48.dp).oneDepthBorder(),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = Spacing.md, end = Spacing.smMd).size(20.dp))

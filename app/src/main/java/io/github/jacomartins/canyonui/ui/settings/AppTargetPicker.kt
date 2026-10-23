@@ -41,7 +41,11 @@ import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.SolidColor
+import io.github.jacomartins.canyonui.ui.design.oneDepthBorder
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -167,16 +171,27 @@ fun AppTargetPicker(
                 item {
                     Header(stringResource(R.string.target_package))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = typed,
-                            onValueChange = { typed = it.trim() },
-                            singleLine = true,
-                            placeholder = { Text(stringResource(R.string.target_package_hint)) },
+                        // A pill field with the interface's border, like the search field.
+                        val colors = MaterialTheme.colorScheme
+                        androidx.compose.material3.Surface(
                             shape = CircleShape,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = { if (typed.isNotEmpty()) onSelect(PACKAGE_TARGET + typed) }),
-                            modifier = Modifier.weight(1f),
-                        )
+                            color = colors.surfaceContainerHighest,
+                            modifier = Modifier.weight(1f).height(44.dp).oneDepthBorder(),
+                        ) {
+                            Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+                                if (typed.isEmpty()) Text(stringResource(R.string.target_package_hint), color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+                                BasicTextField(
+                                    value = typed,
+                                    onValueChange = { typed = it.trim() },
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+                                    cursorBrush = SolidColor(colors.primary),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                                    keyboardActions = KeyboardActions(onDone = { if (typed.isNotEmpty()) onSelect(PACKAGE_TARGET + typed) }),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
                         PrimaryButton(stringResource(R.string.target_package_use), { onSelect(PACKAGE_TARGET + typed) }, enabled = typed.isNotEmpty())
                     }
                 }
