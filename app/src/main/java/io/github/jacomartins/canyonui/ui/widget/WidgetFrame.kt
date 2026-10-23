@@ -36,8 +36,8 @@ object WidgetFrame {
     /** Gap kept around a widget inside its cells, per side (measured on One UI 8.5: about 8.5dp). */
     const val INSET_DP = 8.5f
 
-    /** Pills (one cell wide or one row tall) are at most this thick (One UI 8.5: about 76dp). */
-    const val PILL_MAX_DP = 76f
+    /** Pills (one cell wide or one row tall) are at most this thick (a little over One UI 8.5's 76dp). */
+    const val PILL_MAX_DP = 82f
 
     /** [pill]: a fully rounded end (one cell wide or one row tall). */
     fun apply(view: View, ring: Boolean, pill: Boolean) {
