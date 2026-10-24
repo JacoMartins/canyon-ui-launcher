@@ -30,6 +30,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.asImageBitmap
@@ -47,13 +48,22 @@ val LocalBackdropHaze = staticCompositionLocalOf<HazeState?> { null }
 /**
  * The wallpaper copy as Haze's source, full screen and lined up with the real wallpaper. It is
  * recorded for the effects but never shown (the real wallpaper and home are what is seen), so it
- * sits under an invisible layer. Put it first in the overlay.
+ * sits under an invisible layer. Put it first in the overlay. [content], when given, is a
+ * screen-sized picture used instead (the home screen behind an open folder), stretched over it.
  */
 @Composable
-fun BackdropSource(state: HazeState, offsetY: () -> Float = { 0f }) {
+fun BackdropSource(state: HazeState, content: ImageBitmap? = null, offsetY: () -> Float = { 0f }) {
     val src by WallpaperBackdrop.source.collectAsState()
     val b = src ?: return
     val image = remember(b) { b.asImageBitmap() }
+    if (content != null) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0f }) {
+            Canvas(Modifier.fillMaxSize().hazeSource(state, zIndex = 0f, key = WALLPAPER_SOURCE)) {
+                drawImage(content, dstSize = IntSize(size.width.toInt(), size.height.toInt()), filterQuality = FilterQuality.Low)
+            }
+        }
+        return
+    }
     // Drawn at the view's own origin, less [offsetY]: the home overlay fills the screen from its
     // top-left, and the Apps screen passes how far it is slid down (read while drawing, so the
     // copy moves the other way and the glass slides over a still wallpaper).

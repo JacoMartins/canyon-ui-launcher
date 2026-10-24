@@ -25,7 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -49,11 +48,9 @@ fun MenuLayer(
     entries: List<MenuEntry>,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    /** 0 = folded into the pressed item, 1 = open: the panel grows out of the item. */
+    /** 0 = hidden, 1 = open: the panel fades in and out where it stands. */
     progress: (() -> Float)? = null,
 ) {
-    // Where the pressed item is, as a share of the placed panel (set during layout).
-    val origin = remember { floatArrayOf(0.5f, 0.5f) }
     val density = LocalDensity.current
     // Close to the item it belongs to.
     val margin = with(density) { 6.dp.roundToPx() }
@@ -72,20 +69,10 @@ fun MenuLayer(
                         // Above the icon when there is room, otherwise below it.
                         val above = a.top - p.height - margin
                         val y = if (above > margin * 8) above else (a.bottom + margin).coerceAtMost(constraints.maxHeight - p.height - margin)
-                        origin[0] = (a.centerX() - x) / p.width.coerceAtLeast(1).toFloat()
-                        origin[1] = (a.centerY() - y) / p.height.coerceAtLeast(1).toFloat()
                         p.place(x, y)
                     }
                 }
-                .graphicsLayer {
-                    val t = progress?.invoke() ?: return@graphicsLayer
-                    val s = MENU_START_SCALE + (1f - MENU_START_SCALE) * t
-                    scaleX = s
-                    scaleY = s
-                    alpha = (t * 2f).coerceIn(0f, 1f)
-                    transformOrigin = TransformOrigin(origin[0], origin[1])
-                }
-                // After the placement, so an animation scales the panel about its own centre.
+                .graphicsLayer { alpha = progress?.invoke() ?: 1f }
                 .then(modifier)
                 .shadow(Spacing.sm, MenuShape, ambientColor = Color.Black.copy(alpha = 0.25f), spotColor = Color.Black.copy(alpha = 0.375f))
                 .oneDepthBorder(cornerRadius = MENU_RADIUS)
@@ -123,6 +110,3 @@ fun MenuLayer(
 /** A row is about 40dp tall (pill radius 20) inside a 6dp inset. */
 private val MENU_RADIUS = 26.dp
 private val MenuShape = RoundedCornerShape(MENU_RADIUS)
-
-/** The menu's size when it starts out of the pressed item. */
-private const val MENU_START_SCALE = 0.1f

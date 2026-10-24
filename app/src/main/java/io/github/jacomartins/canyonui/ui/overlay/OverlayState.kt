@@ -52,8 +52,12 @@ interface OverlayActions {
 class OverlayState {
     var menu by mutableStateOf<ItemMenu?>(null)
     var folder by mutableStateOf<FolderEntry?>(null)
-    /** Centre of the folder icon that opened [folder] (window px): the panel grows out of it. */
-    var folderAnchor = androidx.compose.ui.geometry.Offset.Unspecified
+    /**
+     * The home screen as it was when [folder] opened (wallpaper copy under the launcher's own
+     * window, at a reduced size), for the panel's frosted or glass effect; null when there is
+     * none (translucent mode, or no wallpaper copy).
+     */
+    var folderBackdrop by mutableStateOf<ImageBitmap?>(null)
     /** The app being dragged inside the open folder (drawn as a gap), or 0. */
     var folderDragId by mutableLongStateOf(0L)
     /** The open folder's visible page of apps, in window coordinates, and its page number. */

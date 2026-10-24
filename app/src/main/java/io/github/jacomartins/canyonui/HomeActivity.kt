@@ -1226,11 +1226,40 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onOpenFolder(view: FolderIconView, folder: FolderEntry) {
         if (ui.editMode) { exitEditMode(); return }
-        val loc = IntArray(2).also { view.getLocationInWindow(it) }
-        val scale = ViewMap.scaleOf(dragLayer, view)
-        ui.folderAnchor = androidx.compose.ui.geometry.Offset(loc[0] + view.width * scale / 2f, loc[1] + view.height * scale / 2f)
-        ui.folder = folder
-        updateBackCallbacks()
+        // The frosted or glass panel shows the home screen behind it, so the screen is copied
+        // first (one frame) and the folder opens with it.
+        captureHome { shot ->
+            if (ui.folder != null || ui.editMode) return@captureHome
+            ui.folderBackdrop = shot
+            ui.folder = folder
+            updateBackCallbacks()
+        }
+    }
+
+    /**
+     * The home screen as seen now, for an effect behind a panel: the launcher's window (icons,
+     * widgets) copied with PixelCopy, over the wallpaper copy (the window holds no wallpaper).
+     * Null in the translucent mode or without a wallpaper copy. A reduced size: it is blurred.
+     */
+    private fun captureHome(done: (androidx.compose.ui.graphics.ImageBitmap?) -> Unit) {
+        val wall = WallpaperBackdrop.source.value
+        val root = window.decorView
+        if (wall == null || root.width == 0 || root.height == 0) { done(null); return }
+        val w = root.width / SNAPSHOT_SCALE
+        val h = root.height / SNAPSHOT_SCALE
+        val shot = createBitmap(w, h)
+        android.view.PixelCopy.request(window, shot, { result ->
+            if (result != android.view.PixelCopy.SUCCESS) { shot.recycle(); done(null); return@request }
+            val out = createBitmap(w, h)
+            Canvas(out).apply {
+                val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+                // The copy covers the screen from the window's top-left, as in BackdropSource.
+                drawBitmap(wall, null, Rect(0, 0, wall.width / SNAPSHOT_SCALE, wall.height / SNAPSHOT_SCALE), paint)
+                drawBitmap(shot, 0f, 0f, null)
+            }
+            shot.recycle()
+            done(out.asImageBitmap())
+        }, Handler(Looper.getMainLooper()))
     }
 
     override fun onLaunchFromFolder(view: View, app: AppEntry, bounds: Rect) {
@@ -1750,6 +1779,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** The longest pause between the taps of a double or triple tap. */
         private const val TAP_GAP_MS = 350L
         private const val ENTRY_MS = 480L
+        /** The home copy behind an open folder is this many times smaller than the screen. */
+        private const val SNAPSHOT_SCALE = 2
         private const val STEP_BACK_SCALE = 0.92f
         private const val STEP_BACK_MS = 220L
     }

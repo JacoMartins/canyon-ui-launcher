@@ -133,8 +133,16 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
     val haze = remember { HazeState() }
     androidx.compose.runtime.CompositionLocalProvider(LocalBackdropHaze provides haze) {
     Box(Modifier.fillMaxSize()) {
-        // Frosted and glass: the wallpaper copy the panels' Haze effects sample.
-        BackdropSource(haze)
+        // Frosted and glass: the wallpaper copy the panels' Haze effects sample, or, behind an
+        // open folder, a copy of the home screen (wallpaper, icons and widgets) so they show
+        // through the panel. It is dropped once the folder has faded out.
+        BackdropSource(haze, content = state.folderBackdrop)
+        androidx.compose.runtime.LaunchedEffect(state.folder == null) {
+            if (state.folder == null) {
+                kotlinx.coroutines.delay(CLOSE_MS.toLong())
+                state.folderBackdrop = null
+            }
+        }
         val chrome = state.editMode && state.folder == null && state.picker == null && !state.dragging
         AnimatedVisibility(
             visible = chrome,
@@ -152,7 +160,7 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
         }
 
         state.picker?.let { WidgetPicker(it, actions) }
-        // Folder: the dim fades, the panel grows out of the folder icon (and shrinks back into it).
+        // Folder: the panel fades in and out with the dim behind it.
         AnimatedContent(
             targetState = state.folder,
             contentKey = { it?.id },
@@ -160,29 +168,11 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             label = "folder",
         ) { f ->
             if (f != null) {
-                // 0 = shrunk into the folder icon, 1 = open. The panel's place is known only once
-                // laid out, so it is moved (not scaled about a guessed origin) from the icon.
                 val open by transition.animateFloat(
                     transitionSpec = { tween(if (targetState == EnterExitState.Visible) OPEN_MS else CLOSE_MS, easing = FastOutSlowInEasing) },
                     label = "folderOpen",
                 ) { if (it == EnterExitState.Visible) 1f else 0f }
-                var center by remember { mutableStateOf(Offset.Unspecified) }
-                FolderPopup(
-                    f, state, actions,
-                    modifier = Modifier
-                        .onGloballyPositioned { c -> center = c.boundsInWindow().center }
-                        .graphicsLayer {
-                            val a = state.folderAnchor
-                            val s = FOLDER_START_SCALE + (1f - FOLDER_START_SCALE) * open
-                            scaleX = s
-                            scaleY = s
-                            alpha = (open * 1.6f).coerceIn(0f, 1f)
-                            if (a != Offset.Unspecified && center != Offset.Unspecified) {
-                                translationX = (a.x - center.x) * (1f - open)
-                                translationY = (a.y - center.y) * (1f - open)
-                            }
-                        },
-                )
+                FolderPopup(f, state, actions, modifier = Modifier.graphicsLayer { alpha = open })
             }
         }
         // Above an open folder: the app being edited may be inside it.
@@ -632,9 +622,6 @@ private const val FOLDER_PANEL_ALPHA = 0.72f
 private const val OPEN_MS = 320
 private const val CLOSE_MS = 260
 private const val MENU_MS = 220
-
-/** The folder panel's size when it starts out of (and ends back in) the folder icon. */
-private const val FOLDER_START_SCALE = 0.15f
 
 /** The first page is the home page (the house in the page indicator); it cannot be deleted. */
 private const val HOME_PAGE = 0
