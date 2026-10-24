@@ -43,10 +43,17 @@ import androidx.compose.ui.unit.dp
 /**
  * A colour picker with transparency: hue, saturation, brightness and opacity sliders over a
  * preview. [onCommit] runs when a slider is let go (not on every frame of a drag) with the
- * colour as ARGB. [labels] name the four sliders for accessibility.
+ * colour as ARGB; [onChange], when given, on every change. [labels] name the four sliders for
+ * accessibility. With [initial] 0 it starts on [startColor]'s colour.
  */
 @Composable
-fun ColorPicker(initial: Int, labels: List<String>, onCommit: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun ColorPicker(
+    initial: Int,
+    labels: List<String>,
+    onCommit: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    onChange: ((Int) -> Unit)? = null,
+) {
     val start = remember(initial) {
         FloatArray(3).also { android.graphics.Color.colorToHSV(if (initial == 0) DEFAULT else initial, it) }
     }
@@ -74,10 +81,10 @@ fun ColorPicker(initial: Int, labels: List<String>, onCommit: (Int) -> Unit, mod
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
-        GradientSlider(hue, labels[0], Brush.horizontalGradient(HUES), { hue = it }, ::commit)
-        GradientSlider(sat, labels[1], Brush.horizontalGradient(listOf(Color.White, full)), { sat = it }, ::commit)
-        GradientSlider(value, labels[2], Brush.horizontalGradient(listOf(Color.Black, full)), { value = it }, ::commit)
-        GradientSlider(alpha, labels[3], Brush.horizontalGradient(listOf(opaque.copy(alpha = 0f), opaque)), { alpha = it }, ::commit, checker = true)
+        GradientSlider(hue, labels[0], Brush.horizontalGradient(HUES), { hue = it; onChange?.invoke(argb()) }, ::commit)
+        GradientSlider(sat, labels[1], Brush.horizontalGradient(listOf(Color.White, full)), { sat = it; onChange?.invoke(argb()) }, ::commit)
+        GradientSlider(value, labels[2], Brush.horizontalGradient(listOf(Color.Black, full)), { value = it; onChange?.invoke(argb()) }, ::commit)
+        GradientSlider(alpha, labels[3], Brush.horizontalGradient(listOf(opaque.copy(alpha = 0f), opaque)), { alpha = it; onChange?.invoke(argb()) }, ::commit, checker = true)
     }
 }
 
@@ -162,4 +169,10 @@ private val HUES = listOf(
     Color(0xFF0000FF), Color(0xFFFF00FF), Color(0xFFFF0000),
 )
 private val DEFAULT = Color(0xFF5B8DEF).toArgb()
+
+/** The colour [ColorPicker] shows for [initial]: [initial] itself, or its starting colour for 0. */
+fun startColor(initial: Int): Int = if (initial != 0) initial else {
+    val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(DEFAULT, it) }
+    android.graphics.Color.HSVToColor((DEFAULT_ALPHA * 255).toInt(), hsv)
+}
 private const val DEFAULT_ALPHA = 0.65f

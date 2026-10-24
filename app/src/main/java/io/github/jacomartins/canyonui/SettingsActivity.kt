@@ -600,7 +600,9 @@ private fun FolderColorRow(color: Int, store: SettingsStore, home: HomeRepositor
         )
     }
     if (open) {
-        var picked by remember { mutableIntStateOf(color) }
+        // What the picker shows, from the start (with no colour set yet it shows its own blue,
+        // which "Apply" must apply, not "default").
+        var picked by remember { mutableIntStateOf(io.github.jacomartins.canyonui.ui.design.startColor(color)) }
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { open = false },
             title = { Text(stringResource(R.string.folder_color)) },
@@ -614,6 +616,7 @@ private fun FolderColorRow(color: Int, store: SettingsStore, home: HomeRepositor
                             stringResource(R.string.color_brightness), stringResource(R.string.color_opacity),
                         ),
                         onCommit = { picked = it },
+                        onChange = { picked = it },
                         modifier = Modifier.padding(top = Spacing.md),
                     )
                 }
