@@ -131,6 +131,8 @@ class DrawerController(
         if (on == layersOn) return
         layersOn = on
         home.setLayerType(if (on) View.LAYER_TYPE_HARDWARE else View.LAYER_TYPE_NONE, null)
+        // Home is one picture while it moves: its blurs must not redraw it on every frame.
+        io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.hold(on)
     }
 
     companion object {

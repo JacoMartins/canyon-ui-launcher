@@ -439,11 +439,12 @@ object WallpaperBackdrop {
      * shown, so the blur stays still under it. Install once, from the view's constructor.
      */
     fun track(view: View) {
+        tracked.add(view)
         val last = IntArray(2) { Int.MIN_VALUE }
         val now = IntArray(2)
         var lastScale = 0f
         val listener = ViewTreeObserver.OnPreDrawListener {
-            if (_active.value != null) {
+            if (_active.value != null && !quiet()) {
                 view.getLocationOnScreen(now)
                 var s = 1f
                 var v: View? = view
@@ -459,5 +460,32 @@ object WallpaperBackdrop {
             override fun onViewAttachedToWindow(v: View) = v.viewTreeObserver.addOnPreDrawListener(listener)
             override fun onViewDetachedFromWindow(v: View) = v.viewTreeObserver.removeOnPreDrawListener(listener)
         })
+    }
+
+    // Whole-screen animations (the Apps screen sliding over home, the unlock and return zoom,
+    // edit mode's zoom) move every tracked view on every frame. Re-aligning each one's blur then
+    // redrew every folder and widget, glass shader included, 60 times a second, and broke the
+    // hardware layer those animations draw home through: smooth on the A54, choppy on the A03.
+    // Meanwhile the blur moves with the screen (nobody sees it at that speed) and every view
+    // re-aligns once at the end.
+    private val tracked: MutableSet<View> = java.util.Collections.newSetFromMap(java.util.WeakHashMap())
+    private var held = false
+    private var quietUntil = 0L
+    private val realign = Runnable { if (!quiet()) tracked.toList().forEach { it.invalidate() } }
+
+    private fun quiet() = held || SystemClock.uptimeMillis() < quietUntil
+
+    /** Holds re-alignment while [on] (a gesture-driven whole-screen move, such as the Apps screen). */
+    fun hold(on: Boolean) {
+        if (held == on) return
+        held = on
+        if (!on) main.post(realign)
+    }
+
+    /** No re-alignment for [ms] (a whole-screen animation of that length), then once. */
+    fun quietFor(ms: Long) {
+        quietUntil = maxOf(quietUntil, SystemClock.uptimeMillis() + ms)
+        main.removeCallbacks(realign)
+        main.postDelayed(realign, quietUntil - SystemClock.uptimeMillis() + 16)
     }
 }

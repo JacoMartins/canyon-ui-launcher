@@ -580,6 +580,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     /** Animates the pages, dock and dots to [scale] and [alpha] about the screen centre. */
     private fun homeTo(scale: Float, alpha: Float, ms: Long) {
+        if (Motion.enabled()) WallpaperBackdrop.quietFor(ms)
         for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
             v.pivotY = home.height / 2f - v.top
             v.pivotX = v.width / 2f
@@ -1564,11 +1565,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val pivot = home.height / 2f
         ui.editScale = scale
         ui.editPageTop = (pivot - (pivot - ws.top) * scale).toInt()
+        if (Motion.enabled()) WallpaperBackdrop.quietFor(EDIT_ZOOM_MS)
         for (v in listOf(home.workspace, home.indicator)) {
             v.pivotY = home.height / 2f - v.top
             v.pivotX = v.width / 2f
             if (Motion.enabled()) {
-                v.animate().scaleX(scale).scaleY(scale).setDuration(240).setInterpolator(decelerate).withLayer().start()
+                v.animate().scaleX(scale).scaleY(scale).setDuration(EDIT_ZOOM_MS).setInterpolator(decelerate).withLayer().start()
             } else {
                 v.scaleX = scale
                 v.scaleY = scale
@@ -2022,6 +2024,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** The longest pause between the taps of a double or triple tap. */
         private const val TAP_GAP_MS = 350L
         private const val ENTRY_MS = 480L
+        /** Edit mode's zoom of the pages, in and out. */
+        private const val EDIT_ZOOM_MS = 240L
+
         /** A folder turning large or normal size. */
         private const val RESIZE_MS = 300L
 
