@@ -503,6 +503,7 @@ private fun GestureSettings(s: LauncherSettings, store: SettingsStore) {
 private fun RenderModeChoice(mode: RenderMode, onSelect: (RenderMode) -> Unit) {
     val context = LocalContext.current
     val hasCopy by WallpaperBackdrop.hasCopy.collectAsState()
+    val colorsOnly by WallpaperBackdrop.colorsOnly.collectAsState()
     Column(Modifier.selectableGroup()) {
         for (m in RenderMode.entries) {
             val (title, summary) = when (m) {
@@ -527,13 +528,29 @@ private fun RenderModeChoice(mode: RenderMode, onSelect: (RenderMode) -> Unit) {
     }
     if (mode != RenderMode.TRANSLUCENT) {
         Text(
-            stringResource(if (hasCopy) R.string.render_has_photo else R.string.render_needs_photo),
+            stringResource(
+                when {
+                    hasCopy -> R.string.render_has_photo
+                    colorsOnly -> R.string.render_colors_only
+                    else -> R.string.render_needs_photo
+                },
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         val label = stringResource(R.string.render_pick_photo)
         val onPick = { context.startActivity(android.content.Intent(context, WallpaperActivity::class.java)) }
-        if (hasCopy) SecondaryButton(label, onPick, icon = R.drawable.ph_wallpaper) else PrimaryButton(label, onPick, icon = R.drawable.ph_wallpaper)
+        val capture = {
+            context.startActivity(
+                android.content.Intent(context, HomeActivity::class.java)
+                    .setAction(HomeActivity.ACTION_CAPTURE_WALLPAPER)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            if (hasCopy) SecondaryButton(label, onPick, icon = R.drawable.ph_wallpaper) else PrimaryButton(label, onPick, icon = R.drawable.ph_wallpaper)
+            SecondaryButton(stringResource(R.string.render_capture), capture)
+        }
     }
 }
 

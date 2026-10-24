@@ -56,6 +56,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
+import io.github.jacomartins.canyonui.ui.design.WallpaperCapture
 import io.github.jacomartins.canyonui.gesture.LauncherAccessibilityService
 import io.github.jacomartins.canyonui.ui.settings.targetIntent
 import io.github.jacomartins.canyonui.ui.settings.WALLPAPER_ACTIONS
@@ -235,6 +236,36 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun requestContacts() = contactsPermission.launch(android.Manifest.permission.READ_CONTACTS)
+
+    private val captureConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val data = r.data
+        if (r.resultCode != RESULT_OK || data == null) return@registerForActivityResult
+        // Only the wallpaper on screen: everything of the launcher hides while the frame is taken.
+        dragLayer.alpha = 0f
+        WallpaperCapture.start(this, r.resultCode, data) { shot ->
+            dragLayer.animate().alpha(1f).setDuration(200).start()
+            if (shot == null) {
+                toast(getString(R.string.capture_failed))
+            } else {
+                lifecycleScope.launch {
+                    WallpaperBackdrop.setFromCapture(this@HomeActivity, shot)
+                    toast(getString(R.string.capture_done))
+                }
+            }
+        }
+    }
+
+    /** Settings' "Capture wallpaper": asks Android for one screen capture, home showing only the wallpaper. */
+    private fun captureWallpaper() {
+        if (!drawer.isClosed) drawer.close(animate = false)
+        if (ui.editMode) exitEditMode()
+        closeFolder()
+        try {
+            captureConsent.launch(WallpaperCapture.consentIntent(this))
+        } catch (e: ActivityNotFoundException) {
+            toast(getString(R.string.capture_failed))
+        }
+    }
 
     /** The number waiting for the call permission. */
     private var pendingCall: String? = null
@@ -648,6 +679,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == ACTION_CAPTURE_WALLPAPER) {
+            captureWallpaper()
+            return
+        }
         // Home pressed. If home was already showing, close what is open, animate back to the
         // first page or close the drawer; if returning from another app, reset without animation.
         val visible = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
@@ -1877,6 +1912,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** Above this overall lightness a wallpaper gets dark labels (light mode). */
         private const val LIGHT_WALLPAPER = 0.62f
         private const val ENTRY_SCALE = 0.66f
+
+        /** Settings asks home to capture the wallpaper (see [captureWallpaper]). */
+        const val ACTION_CAPTURE_WALLPAPER = "io.github.jacomartins.canyonui.CAPTURE_WALLPAPER"
 
         /** The longest pause between the taps of a double or triple tap. */
         private const val TAP_GAP_MS = 350L

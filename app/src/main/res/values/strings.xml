@@ -319,4 +319,10 @@
     <string name="folder_color_summary">Folders without a color of their own use this one. \"Apply to all folders\" also replaces the colors set on single folders.</string>
     <string name="folder_color_apply_all">Apply to all folders</string>
     <string name="folder_color_use_default">Use default</string>
+    <string name="render_colors_only">Using your wallpaper\'s colors: it was set outside Canyon UI, or it is a live or solid-color wallpaper (Android does not let apps read it). Capture it once to blur the real image.</string>
+    <string name="render_capture">Capture wallpaper</string>
+    <string name="capture_channel">Wallpaper capture</string>
+    <string name="capture_running">Capturing the wallpaper</string>
+    <string name="capture_done">Wallpaper captured for the blur</string>
+    <string name="capture_failed">The wallpaper could not be captured</string>
 </resources>

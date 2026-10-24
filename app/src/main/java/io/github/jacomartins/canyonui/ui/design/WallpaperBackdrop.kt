@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.max
@@ -39,8 +40,13 @@ import kotlin.math.roundToInt
  *
  * Android does not let ordinary apps read the wallpaper (that needs a system permission), so the
  * launcher keeps its own copy: the user picks a photo in settings, the launcher sets it as the
- * home wallpaper and keeps the image. When the wallpaper is changed anywhere else the copy no
- * longer matches what is on screen, so it is dropped and surfaces fall back to translucent.
+ * home wallpaper and keeps the image, or the user captures the screen once (with Android's
+ * screen capture consent) while home shows only the wallpaper. When the wallpaper is changed
+ * anywhere else the copy no longer matches what is on screen, so it is dropped.
+ *
+ * Without a copy (a wallpaper set elsewhere, a solid colour, a live wallpaper) the effects use
+ * the wallpaper's colours, which Android does share: exact for a solid colour, a gradient of the
+ * main colours otherwise.
  */
 object WallpaperBackdrop {
 
@@ -52,6 +58,7 @@ object WallpaperBackdrop {
     private const val PREFS = "wallpaper_copy"
     private const val KEY_VALID = "valid"
     private const val KEY_ID = "wallpaper_id"
+    private const val KEY_LIVE = "live_component"
 
     /** A wallpaper change this soon after setting our own is our own. */
     private const val OWN_CHANGE_MS = 15_000L
@@ -63,6 +70,10 @@ object WallpaperBackdrop {
     private var listening = false
 
     private val _hasCopy = MutableStateFlow(false)
+
+    /** The effects use the wallpaper's colours only (no copy of the image). */
+    private val _colorsOnly = MutableStateFlow(false)
+    val colorsOnly: StateFlow<Boolean> = _colorsOnly.asStateFlow()
 
     /** True while the launcher's copy matches the wallpaper on screen. */
     val hasCopy: StateFlow<Boolean> = _hasCopy.asStateFlow()
@@ -105,10 +116,13 @@ object WallpaperBackdrop {
         // Our own change: the id is saved once the set finishes (checking before that read the
         // previous id and threw the new copy away).
         if (setting || SystemClock.elapsedRealtime() - setAt < OWN_CHANGE_MS) return
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val saved = prefs.getInt(KEY_ID, -1)
-        val now = wallpaperId(context) ?: return
-        if (saved != -1 && now != saved) invalidate(context)
+        when {
+            _hasCopy.value -> if (!stillSame(context)) invalidate(context) else return
+            // Colours may have changed while away.
+            _colorsOnly.value || copy == null -> fromColors(context)
+            else -> return
+        }
+        rebuild()
     }
 
     /**
@@ -138,9 +152,11 @@ object WallpaperBackdrop {
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
                 putBoolean(KEY_VALID, true)
                 putInt(KEY_ID, wallpaperId(context) ?: id)
+                remove(KEY_LIVE)
             }
             copy = cropped
             _hasCopy.value = true
+            _colorsOnly.value = false
             rebuild()
             true
         } catch (e: Exception) {
@@ -154,13 +170,43 @@ object WallpaperBackdrop {
     private suspend fun load(context: Context) = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val file = File(context.filesDir, FILE)
-        if (!prefs.getBoolean(KEY_VALID, false) || !file.exists()) return@withContext
-        copy = try {
-            android.graphics.BitmapFactory.decodeFile(file.path)
-        } catch (e: OutOfMemoryError) {
-            null
+        if (prefs.getBoolean(KEY_VALID, false) && file.exists()) {
+            copy = try {
+                android.graphics.BitmapFactory.decodeFile(file.path)
+            } catch (e: OutOfMemoryError) {
+                null
+            }
         }
         _hasCopy.value = copy != null
+        if (copy == null) fromColors(context)
+    }
+
+    /** No copy of the image: one painted from the wallpaper's colours, when Android gives them. */
+    private fun fromColors(context: Context) {
+        val colors = try {
+            WallpaperManager.getInstance(context).getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
+        } catch (e: Exception) {
+            null
+        }
+        if (colors == null) {
+            copy = null
+            _colorsOnly.value = false
+            return
+        }
+        val (w, h) = screenSize(context)
+        val bmp = createBitmap(w.coerceAtLeast(1), h.coerceAtLeast(1))
+        val c = Canvas(bmp)
+        val main = colors.primaryColor.toArgb()
+        val others = listOfNotNull(colors.secondaryColor?.toArgb(), colors.tertiaryColor?.toArgb())
+        if (others.isEmpty()) {
+            // A solid colour wallpaper: exactly that colour.
+            c.drawColor(main)
+        } else {
+            val stops = (listOf(main) + others).toIntArray()
+            c.drawPaint(Paint().apply { shader = android.graphics.LinearGradient(0f, 0f, w * 0.3f, h.toFloat(), stops, null, android.graphics.Shader.TileMode.CLAMP) })
+        }
+        copy = bmp
+        _colorsOnly.value = true
     }
 
     private fun invalidate(context: Context) {
@@ -170,6 +216,18 @@ object WallpaperBackdrop {
         _hasCopy.value = false
         _active.value = null
         _source.value = null
+        fromColors(context)
+    }
+
+    /** The wallpaper's colours changed: still the copied wallpaper (a live one moving), or another one. */
+    private fun stillSame(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val live = prefs.getString(KEY_LIVE, null)
+        if (live != null) return WallpaperManager.getInstance(context).wallpaperInfo?.component?.flattenToString() == live
+        val saved = prefs.getInt(KEY_ID, -1)
+        // Android does not always tell the id: then it cannot be told apart, so it is kept.
+        val now = wallpaperId(context) ?: return true
+        return saved == -1 || now == saved
     }
 
     /** The wallpaper changing elsewhere (not by us, just now) makes the copy stale. */
@@ -179,8 +237,37 @@ object WallpaperBackdrop {
         val app = context.applicationContext
         WallpaperManager.getInstance(app).addOnColorsChangedListener({ _, which ->
             if (which and WallpaperManager.FLAG_SYSTEM == 0) return@addOnColorsChangedListener
-            if (SystemClock.elapsedRealtime() - setAt > OWN_CHANGE_MS) invalidate(app)
+            if (setting || SystemClock.elapsedRealtime() - setAt <= OWN_CHANGE_MS) return@addOnColorsChangedListener
+            when {
+                // Painted from the colours: paint it again.
+                _colorsOnly.value -> fromColors(app)
+                _hasCopy.value && stillSame(app) -> return@addOnColorsChangedListener
+                else -> invalidate(app)
+            }
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch { rebuild() }
         }, main)
+    }
+
+    /**
+     * Keeps [shot] (the screen captured while home showed only the wallpaper) as the copy. A live
+     * wallpaper stays this one frame; it is kept until another wallpaper is set.
+     */
+    suspend fun setFromCapture(context: Context, shot: Bitmap) = withContext(Dispatchers.IO) {
+        val app = context.applicationContext
+        val (w, h) = screenSize(app)
+        val img = if (shot.width == w && shot.height == h) shot else centerCrop(shot, w, h)
+        File(app.filesDir, FILE).outputStream().use { img.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        val wm = WallpaperManager.getInstance(app)
+        app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_VALID, true)
+            putInt(KEY_ID, wallpaperId(app) ?: -1)
+            val live = wm.wallpaperInfo?.component?.flattenToString()
+            if (live != null) putString(KEY_LIVE, live) else remove(KEY_LIVE)
+        }
+        copy = img
+        _hasCopy.value = true
+        _colorsOnly.value = false
+        rebuild()
     }
 
     private suspend fun rebuild() {
@@ -261,7 +348,7 @@ object WallpaperBackdrop {
     }
 
     /** The full screen in pixels, system bars included (the wallpaper covers it all). */
-    private fun screenSize(context: Context): Pair<Int, Int> {
+    fun screenSize(context: Context): Pair<Int, Int> {
         val wm = context.getSystemService(WindowManager::class.java)
         return if (Build.VERSION.SDK_INT >= 30) {
             val b = wm.maximumWindowMetrics.bounds
