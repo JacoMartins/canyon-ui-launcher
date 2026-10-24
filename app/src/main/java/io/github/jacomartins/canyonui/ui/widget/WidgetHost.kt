@@ -179,6 +179,8 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
         } catch (e: RuntimeException) {
             onCrash(e)
         }
+        // New content: the card it draws may have changed.
+        WidgetFrame.remeasure(this)
     }
 
     private fun onCrash(e: RuntimeException) {

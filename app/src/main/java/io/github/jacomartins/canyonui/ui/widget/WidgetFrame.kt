@@ -59,6 +59,13 @@ object WidgetFrame {
         refresh(view)
     }
 
+    /** The widget sent new content: its card may have changed, so it is measured again. */
+    fun remeasure(view: View) {
+        val frame = view.outlineProvider as? Frame ?: return
+        frame.measured = null
+        refresh(view)
+    }
+
     fun clear(view: View) {
         if (view.outlineProvider is Frame) view.outlineProvider = ViewOutlineProvider.BACKGROUND
         view.clipToOutline = false
@@ -83,7 +90,10 @@ object WidgetFrame {
             view.invalidateOutline()
             view.foreground?.invalidateSelf()
         }
-        if (view is LauncherWidgetHostView && !frame.measurePending) {
+        // Measured again only when the size changed or the widget sent new content
+        // ([remeasure]): measuring after every layout kept the launcher drawing all the time.
+        val stale = measured == null || frame.measuredW != view.width || frame.measuredH != view.height
+        if (view is LauncherWidgetHostView && stale && !frame.measurePending) {
             frame.measurePending = true
             view.post {
                 frame.measurePending = false
@@ -112,10 +122,11 @@ object WidgetFrame {
         val sw = (w / SAMPLE).coerceAtLeast(1)
         val sh = (h / SAMPLE).coerceAtLeast(1)
         val bmp = createBitmap(sw, sh)
-        val fg = view.foreground
         try {
-            view.foreground = null // The ring itself must not count.
-            snapshotting = true // Nor the blur drawn behind the card.
+            // Neither the ring nor the blur behind the card count. (The ring is not taken off
+            // and put back: setting a foreground asks for a new layout, and a layout measured
+            // again, so the widget was laid out and drawn on every frame.)
+            snapshotting = true
             val c = Canvas(bmp)
             c.scale(sw.toFloat() / w, sh.toFloat() / h)
             view.draw(c)
@@ -123,7 +134,6 @@ object WidgetFrame {
             // Hardware bitmaps cannot be drawn in software; keep the structural guess.
             return null
         } finally {
-            view.foreground = fg
             snapshotting = false
         }
         val px = IntArray(sw * sh)
@@ -245,6 +255,7 @@ object WidgetFrame {
         private val rect = RectF()
 
         override fun draw(canvas: Canvas) {
+            if (snapshotting) return
             val c = if (frame.content.isEmpty) bounds else frame.content
             rect.set(c)
             painter.draw(canvas, rect, frame.radius(), dark())
