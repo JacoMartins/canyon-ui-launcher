@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -187,7 +187,12 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         }
     }
 
-    val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
+    // The keyboard's final height from the moment it starts to open (not following its slide):
+    // a search field left behind the opening keyboard for a frame made Android pan the whole
+    // window up to show it, and the pan stayed while the keyboard was open, pushing the top
+    // results above the screen.
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.imeAnimationTarget)
 
     val haze = remember { HazeState() }
     val cornerPx = with(LocalDensity.current) { DRAWER_CORNER.toPx() }
