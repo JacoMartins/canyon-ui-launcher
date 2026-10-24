@@ -499,7 +499,7 @@ private fun AppGrid(
 @Composable
 fun HiddenAppsDialog(model: DrawerModel, onDismiss: () -> Unit) {
     val hidden by model.hidden.collectAsState()
-    AlertDialog(
+    io.github.jacomartins.canyonui.ui.design.SheetDialog(
         onDismissRequest = onDismiss,
         confirmButton = { PrimaryButton(stringResource(R.string.done), onDismiss) },
         title = { Text(stringResource(R.string.hidden_apps)) },
@@ -519,6 +519,5 @@ fun HiddenAppsDialog(model: DrawerModel, onDismiss: () -> Unit) {
                 }
             }
         },
-        shape = RoundedCornerShape(28.dp),
     )
 }

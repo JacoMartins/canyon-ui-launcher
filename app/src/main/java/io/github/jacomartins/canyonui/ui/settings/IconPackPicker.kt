@@ -59,11 +59,10 @@ fun IconPackPicker(
     val packs by produceState<List<IconPackInfo>?>(null) {
         value = withContext(Dispatchers.Default) { IconPack.installed(context) }
     }
-    AlertDialog(
+    io.github.jacomartins.canyonui.ui.design.SheetDialog(
         onDismissRequest = onDismiss,
         confirmButton = { PrimaryButton(stringResource(R.string.done), onDismiss) },
         title = { Text(stringResource(R.string.icon_pack)) },
-        shape = RoundedCornerShape(28.dp),
         text = {
             val list = packs
             if (list == null) {

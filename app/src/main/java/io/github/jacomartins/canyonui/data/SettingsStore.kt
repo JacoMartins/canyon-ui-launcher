@@ -369,8 +369,13 @@ class SettingsStore(private val context: Context) {
 
     companion object {
         const val MIN_COLUMNS = 4
-        const val MAX_COLUMNS = 6
-        const val MIN_ROWS = 5
-        const val MAX_ROWS = 7
+        const val MAX_COLUMNS = 10
+        const val MIN_ROWS = 4
+        const val MAX_ROWS = 10
+
+        /** What a phone offers (a tablet, 600dp wide and up, gets the whole range). */
+        const val PHONE_MAX_COLUMNS = 6
+        const val PHONE_MIN_ROWS = 5
+        const val PHONE_MAX_ROWS = 7
     }
 }

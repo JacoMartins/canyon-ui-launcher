@@ -73,6 +73,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.jacomartins.canyonui.R
 import io.github.jacomartins.canyonui.ui.design.Spacing
+import io.github.jacomartins.canyonui.ui.design.backdrop
+import io.github.jacomartins.canyonui.ui.design.backdropColor
 import io.github.jacomartins.canyonui.ui.design.oneDepthBorder
 import io.github.jacomartins.canyonui.ui.widget.PickerGroup
 import io.github.jacomartins.canyonui.ui.widget.PickerWidget
@@ -88,6 +90,9 @@ import kotlin.math.roundToInt
 class WidgetPickerState(val groups: List<PickerGroup>, val stackSpan: Pair<Int, Int>? = null)
 
 private val SheetShape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+
+/** The widget sheet's colour over the Transparency effect (the folder panel is 0.72). */
+private const val SHEET_ALPHA = 0.85f
 private const val CARD_WIDTH_DP = 148
 
 /** Bottom sheet listing widgets by app, with search. Tap adds to the current page; long-press drags. */
@@ -111,10 +116,12 @@ fun WidgetPicker(picker: WidgetPickerState, actions: OverlayActions) {
                 .fillMaxWidth()
                 .fillMaxHeight(0.9f)
                 .oneDepthBorder(cornerRadius = 32.dp)
+                // Translucent, frosted or glass by the Transparency setting, like the other panels.
+                .backdrop(SheetShape)
                 // Taps on the sheet itself do not reach the scrim.
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
             shape = SheetShape,
-            color = colors.surfaceContainer,
+            color = backdropColor(colors.surfaceContainer.copy(alpha = SHEET_ALPHA)),
         ) {
             Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars).imePadding()) {
                 Box(Modifier.fillMaxWidth().padding(top = Spacing.sm), contentAlignment = Alignment.Center) {

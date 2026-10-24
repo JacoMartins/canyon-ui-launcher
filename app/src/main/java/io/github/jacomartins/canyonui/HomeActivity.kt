@@ -435,7 +435,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.addView(overlayView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         drawer = DrawerController(home, drawerView, this)
         drawer.onOffset = { drawerModel.offsetY = it }
-        // However a folder closes (tap outside, back, home, a drag out), its large tile comes back.
+        // However a folder closes (tap outside, back, home, a drag out), its tile comes back.
         lifecycleScope.launch {
             androidx.compose.runtime.snapshotFlow { ui.folder == null }.collect { closed -> if (closed) restoreOpenedTile() }
         }
@@ -1358,30 +1358,26 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             loc[0] + tile.left * scale, loc[1] + tile.top * scale,
             loc[0] + tile.right * scale, loc[1] + tile.bottom * scale,
         )
-        // A large folder turns into the panel: its tile fades out as the panel grows from it
-        // (and back in as it shrinks into it), and it is left out of the copy behind the panel.
-        // A small folder stays.
-        val large = view.isLarge
+        // The folder turns into the panel: its tile fades out as the panel grows from it (and
+        // back in as it shrinks into it), and it is left out of the copy behind the panel.
         val whole = RectF(loc[0].toFloat(), loc[1].toFloat(), loc[0] + view.width * scale, loc[1] + view.height * scale)
         // The frosted or glass panel shows the home screen behind it, so the screen is copied
         // first (one frame) and the folder opens with it.
-        captureHome(hide = whole.takeIf { large }) { shot ->
+        captureHome(hide = whole) { shot ->
             if (ui.folder != null || ui.editMode) return@captureHome
             ui.folderBackdrop = shot
             ui.folderFrom = from
             ui.folder = folder
-            if (large) {
-                openedTile = WeakReference(view)
-                view.animate().alpha(0f).setStartDelay(0).setDuration(TILE_FADE_OUT_MS).start()
-            }
+            openedTile = WeakReference(view)
+            view.animate().alpha(0f).setStartDelay(0).setDuration(TILE_FADE_OUT_MS).start()
             updateBackCallbacks()
         }
     }
 
-    /** The large folder tile hidden while its panel is open. */
+    /** The folder tile hidden while its panel is open. */
     private var openedTile: WeakReference<FolderIconView>? = null
 
-    /** The folder closed: its large tile comes back as the panel shrinks into it. */
+    /** The folder closed: its tile comes back as the panel shrinks into it. */
     private fun restoreOpenedTile() {
         val v = openedTile?.get() ?: return
         openedTile = null
@@ -1955,7 +1951,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** The longest pause between the taps of a double or triple tap. */
         private const val TAP_GAP_MS = 350L
         private const val ENTRY_MS = 480L
-        /** A large folder's tile while its panel opens (the panel is opaque after a quarter). */
+        /** A folder's tile while its panel opens (the panel is opaque after a quarter). */
         private const val TILE_FADE_OUT_MS = 160L
         /** And while it closes: the panel fades only near the end of shrinking into the tile. */
         private const val TILE_FADE_IN_DELAY_MS = 120L

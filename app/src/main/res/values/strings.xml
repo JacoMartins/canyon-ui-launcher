@@ -216,16 +216,11 @@
     <string name="render_glass">Glass</string>
     <string name="render_glass_summary">Lightly frosted, clearer glass with a soft sheen</string>
     <string name="render_pick_photo">Choose wallpaper</string>
-    <string name="wallpaper_ours">Canyon UI wallpapers</string>
-    <string name="wallpaper_ours_none">None yet.</string>
-    <string name="wallpaper_gallery">Gallery</string>
-    <string name="wallpaper_add_from">Add from…</string>
     <string name="wallpaper_photos">Photos</string>
     <string name="wallpaper_folders">Folders</string>
     <string name="wallpaper_show_recent">Show recent photos</string>
     <string name="wallpaper_recent_denied">Allow photo access in the app\'s settings to see your recent photos here.</string>
     <string name="wallpaper_live">Live wallpapers</string>
-    <string name="wallpaper_live_none">No live wallpapers installed.</string>
     <string name="wallpaper_set_where">Set wallpaper on</string>
     <string name="wallpaper_home">Home screen</string>
     <string name="wallpaper_lock">Lock screen</string>
@@ -330,4 +325,8 @@
     <string name="capture_running">Capturing the wallpaper</string>
     <string name="capture_done">Wallpaper captured for the blur</string>
     <string name="capture_failed">The wallpaper could not be captured</string>
+    <string name="wallpaper_other_apps">Other apps</string>
+    <string name="wallpaper_recent">Recent</string>
+    <string name="wallpaper_crop_hint">Drag and pinch to choose what shows</string>
+    <string name="wallpaper_crop_set">Set wallpaper</string>
 </resources>

@@ -193,15 +193,21 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         SettingsSection(title = stringResource(R.string.home_grid)) {
+            // Tablets (and unfolded phones) get bigger grids; phones the sizes that fit them,
+            // plus the current one if it was set on a bigger screen.
+            val tablet = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp >= 600
+            val maxColumns = if (tablet) SettingsStore.MAX_COLUMNS else maxOf(SettingsStore.PHONE_MAX_COLUMNS, s.columns)
+            val minRows = if (tablet) SettingsStore.MIN_ROWS else minOf(SettingsStore.PHONE_MIN_ROWS, s.rows)
+            val maxRows = if (tablet) SettingsStore.MAX_ROWS else maxOf(SettingsStore.PHONE_MAX_ROWS, s.rows)
             Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (c in SettingsStore.MIN_COLUMNS..SettingsStore.MAX_COLUMNS) {
+                for (c in SettingsStore.MIN_COLUMNS..maxColumns) {
                     ChoiceButton("$c", s.columns == c, { scope.launch { store.setGrid(s.layoutMode, c, s.rows) } }, Modifier.weight(1f))
                 }
             }
             Text(stringResource(R.string.grid_rows), style = MaterialTheme.typography.titleMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (r in SettingsStore.MIN_ROWS..SettingsStore.MAX_ROWS) {
+                for (r in minRows..maxRows) {
                     ChoiceButton("$r", s.rows == r, { scope.launch { store.setGrid(s.layoutMode, s.columns, r) } }, Modifier.weight(1f))
                 }
             }
@@ -349,7 +355,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
     }
     if (showLicenses) {
         val text = remember { context.assets.open("licenses/phosphor-icons.txt").bufferedReader().use { it.readText() } }
-        androidx.compose.material3.AlertDialog(
+        io.github.jacomartins.canyonui.ui.design.SheetDialog(
             onDismissRequest = { showLicenses = false },
             confirmButton = { PrimaryButton(stringResource(R.string.done), { showLicenses = false }) },
             title = { Text(stringResource(R.string.licenses)) },
@@ -359,7 +365,6 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     Text(text, style = MaterialTheme.typography.bodySmall)
                 }
             },
-            shape = RoundedCornerShape(28.dp),
         )
     }
     if (showHidden) HiddenAppsDialog(hiddenModel, onDismiss = { showHidden = false })
@@ -603,7 +608,7 @@ private fun FolderColorRow(color: Int, store: SettingsStore, home: HomeRepositor
         // What the picker shows, from the start (with no colour set yet it shows its own blue,
         // which "Apply" must apply, not "default").
         var picked by remember { mutableIntStateOf(io.github.jacomartins.canyonui.ui.design.startColor(color)) }
-        androidx.compose.material3.AlertDialog(
+        io.github.jacomartins.canyonui.ui.design.SheetDialog(
             onDismissRequest = { open = false },
             title = { Text(stringResource(R.string.folder_color)) },
             text = {
@@ -636,7 +641,6 @@ private fun FolderColorRow(color: Int, store: SettingsStore, home: HomeRepositor
                     scope.launch { store.setFolderColor(0) }
                 })
             },
-            shape = RoundedCornerShape(28.dp),
         )
     }
 }

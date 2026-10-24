@@ -1,6 +1,23 @@
 package io.github.jacomartins.canyonui
 
 import android.Manifest
+import android.graphics.RectF
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.max
+import kotlin.math.roundToInt
 import android.app.WallpaperInfo
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
@@ -39,7 +56,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,7 +66,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,9 +94,10 @@ import kotlinx.coroutines.withContext
 
 /**
  * Canyon UI's own wallpaper chooser (the edit mode's Wallpaper button):
- * - Canyon UI wallpapers: the launcher ships none yet.
- * - Gallery: the photo picker, plus the latest photos when photo access is allowed.
+ * - Photos: the photo picker or another gallery app, the latest photos and their folders (when
+ *   photo access is allowed). A photo then gets the crop screen, to choose the part that shows.
  * - Live wallpapers: installed ones; Android's own preview sets them.
+ * - Wallpaper apps: the phone maker's and others, which set the wallpaper themselves.
  *
  * A photo set on the home screen from here is also what the frosted and glass effects blur.
  * Once a wallpaper is set (here, or by a wallpaper app opened from here), it goes back home.
@@ -142,12 +158,13 @@ private fun canReadPhotos(context: Context): Boolean {
 @Composable
 private fun WallpaperScreen(onDone: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    // A photo chosen: first the part of it to show, then where it goes.
     var chosen by remember { mutableStateOf<Uri?>(null) }
+    var cropped by remember { mutableStateOf<RectF?>(null) }
     var canRead by remember { mutableStateOf(canReadPhotos(context)) }
     var asked by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) chosen = uri }
-    // An image handed back by a gallery or file app from "Add from".
+    // An image handed back by a gallery or file app from "Other apps".
     val fromApp = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r -> r.data?.data?.let { chosen = it } }
     var showSources by remember { mutableStateOf(false) }
     var folder by remember { mutableStateOf<PhotoFolder?>(null) }
@@ -161,6 +178,20 @@ private fun WallpaperScreen(onDone: () -> Unit) {
     val folders by produceState(emptyList<PhotoFolder>(), canRead) {
         value = if (canRead) withContext(Dispatchers.IO) { photoFolders(context) } else emptyList()
     }
+    val live by produceState(emptyList<LiveWallpaper>()) {
+        value = withContext(Dispatchers.IO) { liveWallpapers(context) }
+    }
+    val apps by produceState(emptyList<SourceApp>()) { value = withContext(Dispatchers.IO) { sourceApps(context) } }
+
+    val photo = chosen
+    if (photo != null) {
+        CropScreen(photo, onCancel = { chosen = null }, onConfirm = { cropped = it })
+        cropped?.let { crop ->
+            SetDialog(photo, crop, onDone, onDismiss = { cropped = null }, clear = { cropped = null; chosen = null })
+        }
+        return
+    }
+
     // One folder open: its photos, newest first; back returns to the chooser.
     folder?.let { f ->
         androidx.activity.compose.BackHandler { folder = null }
@@ -176,11 +207,7 @@ private fun WallpaperScreen(onDone: () -> Unit) {
                 ThumbGrid(photos.map { it.second }, aspect = 1f) { i -> chosen = photos[i].first }
             }
         }
-        chosen?.let { uri -> SetDialog(uri, onDone, onDismiss = { chosen = null }, clear = { chosen = null }) }
         return
-    }
-    val live by produceState(emptyList<LiveWallpaper>()) {
-        value = withContext(Dispatchers.IO) { liveWallpapers(context) }
     }
 
     Column(
@@ -196,13 +223,19 @@ private fun WallpaperScreen(onDone: () -> Unit) {
             modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
         )
 
-        SettingsSection(title = stringResource(R.string.wallpaper_ours)) {
-            Text(stringResource(R.string.wallpaper_ours_none), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        SettingsSection(title = stringResource(R.string.wallpaper_gallery)) {
-            PrimaryButton(stringResource(R.string.wallpaper_add_from), { showSources = true }, icon = R.drawable.ph_plus)
+        // Photos: where to pick from, then the latest ones, then their folders.
+        SettingsSection(title = stringResource(R.string.wallpaper_photos)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                PrimaryButton(
+                    stringResource(R.string.wallpaper_photos),
+                    { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    Modifier.weight(1f),
+                    icon = R.drawable.ph_wallpaper,
+                )
+                SecondaryButton(stringResource(R.string.wallpaper_other_apps), { showSources = true }, Modifier.weight(1f))
+            }
             if (recent.isNotEmpty()) {
+                io.github.jacomartins.canyonui.ui.design.SectionHeader(stringResource(R.string.wallpaper_recent), Modifier.padding(top = Spacing.sm))
                 ThumbGrid(recent.map { it.second }, aspect = 1f) { i -> chosen = recent[i].first }
             }
             if (folders.isNotEmpty()) {
@@ -219,59 +252,143 @@ private fun WallpaperScreen(onDone: () -> Unit) {
                             if (Build.VERSION.SDK_INT >= 34) add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
                         }
                         permission.launch(perms.toTypedArray())
-                    }, icon = R.drawable.ph_wallpaper)
+                    }, Modifier.fillMaxWidth())
                 }
             }
         }
 
-        SettingsSection(title = stringResource(R.string.wallpaper_live)) {
-            if (live.isEmpty()) {
-                Text(stringResource(R.string.wallpaper_live_none), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                for (w in live) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable(role = Role.Button) { openLive(context, w.component) }
-                            .padding(vertical = Spacing.xs),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(Modifier.size(56.dp).clip(RoundedCornerShape(14.dp))) {
-                            w.thumb?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
-                        }
-                        Text(w.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = Spacing.smMd))
-                    }
+        // Live wallpapers: tiles with their previews; Android's own preview sets them.
+        if (live.isNotEmpty()) {
+            SettingsSection(title = stringResource(R.string.wallpaper_live)) {
+                LiveGrid(live) { openLive(context, it.component) }
+            }
+        }
+
+        // Wallpaper apps (the phone maker's, others): they set the wallpaper themselves.
+        val setters = apps.filter { !it.pick }
+        if (setters.isNotEmpty()) {
+            SettingsSection(title = stringResource(R.string.wallpaper_apps)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    for (a in setters) SourceRow(a.label, a.icon) { openApp(context, a, fromApp::launch) }
                 }
             }
         }
     }
 
-    chosen?.let { uri -> SetDialog(uri, onDone, onDismiss = { chosen = null }, clear = { chosen = null }) }
     if (showSources) {
         SourcesDialog(
-            onPhotos = {
-                showSources = false
-                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            },
+            apps.filter { it.pick },
             onApp = { app ->
                 showSources = false
-                try {
-                    if (app.pick) fromApp.launch(app.intent) else context.startActivity(app.intent)
-                } catch (e: android.content.ActivityNotFoundException) {
-                    Toast.makeText(context, R.string.wallpaper_live_unavailable, Toast.LENGTH_SHORT).show()
-                } catch (e: SecurityException) {
-                    Toast.makeText(context, R.string.wallpaper_live_unavailable, Toast.LENGTH_SHORT).show()
-                }
+                openApp(context, app, fromApp::launch)
             },
             onDismiss = { showSources = false },
         )
     }
 }
 
-/** Asks where the photo goes, sets it, then goes home. */
+/** Opens [app]: one that hands back an image through [pick], or a wallpaper app. */
+private fun openApp(context: Context, app: SourceApp, pick: (Intent) -> Unit) {
+    try {
+        if (app.pick) pick(app.intent) else context.startActivity(app.intent)
+    } catch (e: android.content.ActivityNotFoundException) {
+        Toast.makeText(context, R.string.wallpaper_live_unavailable, Toast.LENGTH_SHORT).show()
+    } catch (e: SecurityException) {
+        Toast.makeText(context, R.string.wallpaper_live_unavailable, Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * The chosen photo over the whole screen, as it will look: drag and pinch to pick the part that
+ * shows. It always covers the screen (no empty edges).
+ */
 @Composable
-private fun SetDialog(uri: Uri, onDone: () -> Unit, onDismiss: () -> Unit, clear: () -> Unit) {
+private fun CropScreen(uri: Uri, onCancel: () -> Unit, onConfirm: (RectF) -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = onCancel)
+    val context = LocalContext.current
+    val image by produceState<ImageBitmap?>(null, uri) { value = withContext(Dispatchers.IO) { previewImage(context, uri) } }
+    var box by remember { mutableStateOf(IntSize.Zero) }
+    var zoom by remember(uri) { mutableFloatStateOf(1f) }
+    var offset by remember(uri) { mutableStateOf(Offset.Unspecified) }
+    Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { box = it }) {
+        val img = image
+        if (img != null && box.width > 0 && box.height > 0) {
+            // The smallest scale that still covers the screen; zooming goes up from there.
+            val base = max(box.width / img.width.toFloat(), box.height / img.height.toFloat())
+            fun clamp(o: Offset, s: Float) = Offset(
+                o.x.coerceIn(box.width - img.width * s, 0f),
+                o.y.coerceIn(box.height - img.height * s, 0f),
+            )
+            if (offset == Offset.Unspecified) offset = Offset((box.width - img.width * base) / 2f, (box.height - img.height * base) / 2f)
+            Canvas(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(img, box) {
+                        detectTransformGestures { centroid, pan, gestureZoom, _ ->
+                            val s = base * zoom
+                            val nz = (zoom * gestureZoom).coerceIn(1f, MAX_ZOOM)
+                            val ns = base * nz
+                            // The point under the fingers stays under them while zooming.
+                            val p = (centroid - offset) / s
+                            offset = clamp(centroid - p * ns + pan, ns)
+                            zoom = nz
+                        }
+                    },
+            ) {
+                val s = base * zoom
+                drawImage(
+                    img,
+                    dstOffset = IntOffset(offset.x.roundToInt(), offset.y.roundToInt()),
+                    dstSize = IntSize((img.width * s).roundToInt(), (img.height * s).roundToInt()),
+                    filterQuality = FilterQuality.High,
+                )
+            }
+            Text(
+                stringResource(R.string.wallpaper_crop_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = Spacing.md, start = Spacing.lg, end = Spacing.lg)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.Black.copy(alpha = 0.45f))
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            )
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(Spacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                SecondaryButton(stringResource(R.string.cancel), onCancel, Modifier.weight(1f))
+                PrimaryButton(stringResource(R.string.wallpaper_crop_set), {
+                    val s = base * zoom
+                    val l = -offset.x / (img.width * s)
+                    val t = -offset.y / (img.height * s)
+                    onConfirm(RectF(l, t, l + box.width / (img.width * s), t + box.height / (img.height * s)))
+                }, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** [uri] decoded at about twice the screen's size: sharp when zoomed, far less than a full photo. */
+private fun previewImage(context: Context, uri: Uri): ImageBitmap? = try {
+    val (w, h) = WallpaperBackdrop.screenSize(context)
+    android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
+        val s = max(2f * w / info.size.width, 2f * h / info.size.height).coerceAtMost(1f)
+        decoder.setTargetSize((info.size.width * s).roundToInt().coerceAtLeast(1), (info.size.height * s).roundToInt().coerceAtLeast(1))
+    }.asImageBitmap()
+} catch (e: Exception) {
+    null
+}
+
+/** Asks where the photo goes, sets the [crop] part of it, then goes home. */
+@Composable
+private fun SetDialog(uri: Uri, crop: RectF, onDone: () -> Unit, onDismiss: () -> Unit, clear: () -> Unit) {
     val context = LocalContext.current
     WhereDialog(
         onPick = { which ->
@@ -279,7 +396,7 @@ private fun SetDialog(uri: Uri, onDone: () -> Unit, onDismiss: () -> Unit, clear
             // In the app's scope, not this dialog's: closing the dialog cancelled the set half
             // way (the wallpaper changed, but the blur was never rebuilt and home never came).
             (context.applicationContext as LauncherApp).scope.launch {
-                val ok = WallpaperBackdrop.setFromPhoto(context.applicationContext, uri, which)
+                val ok = WallpaperBackdrop.setFromPhoto(context.applicationContext, uri, which, crop)
                 Toast.makeText(context.applicationContext, if (ok) R.string.wallpaper_done else R.string.render_photo_failed, Toast.LENGTH_SHORT).show()
                 if (ok) onDone()
             }
@@ -288,26 +405,19 @@ private fun SetDialog(uri: Uri, onDone: () -> Unit, onDismiss: () -> Unit, clear
     )
 }
 
-/**
- * "Add from": Android's photo picker, then every app that hands back an image (galleries, file
- * managers) and every wallpaper app (they set the wallpaper themselves).
- */
+/** "Other apps": galleries and file managers that hand back an image. */
 @Composable
-private fun SourcesDialog(onPhotos: () -> Unit, onApp: (SourceApp) -> Unit, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    val apps by produceState(emptyList<SourceApp>()) { value = withContext(Dispatchers.IO) { sourceApps(context) } }
-    AlertDialog(
+private fun SourcesDialog(apps: List<SourceApp>, onApp: (SourceApp) -> Unit, onDismiss: () -> Unit) {
+    io.github.jacomartins.canyonui.ui.design.SheetDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.wallpaper_add_from)) },
+        title = { Text(stringResource(R.string.wallpaper_other_apps)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                SourceRow(stringResource(R.string.wallpaper_photos), null, onPhotos)
                 for (a in apps) SourceRow(a.label, a.icon) { onApp(a) }
             }
         },
         confirmButton = {},
         dismissButton = { SecondaryButton(stringResource(R.string.cancel), onDismiss) },
-        shape = RoundedCornerShape(28.dp),
     )
 }
 
@@ -351,6 +461,29 @@ private fun FolderGrid(folders: List<PhotoFolder>, onOpen: (PhotoFolder) -> Unit
     }
 }
 
+/** Live wallpapers, two a row: their preview (screen-shaped) and name. */
+@Composable
+private fun LiveGrid(items: List<LiveWallpaper>, onOpen: (LiveWallpaper) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        for (row in items.chunked(2)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                for (w in row) {
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button) { onOpen(w) }) {
+                        Box(
+                            Modifier.fillMaxWidth().aspectRatio(0.75f).clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                        ) {
+                            w.thumb?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                        }
+                        Text(w.label, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.padding(top = Spacing.xs, start = Spacing.xs))
+                    }
+                }
+                if (row.size == 1) Box(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
 /** Three photos a row, rounded, tappable. */
 @Composable
 private fun ThumbGrid(images: List<ImageBitmap>, aspect: Float, onPick: (Int) -> Unit) {
@@ -378,7 +511,7 @@ private fun ThumbGrid(images: List<ImageBitmap>, aspect: Float, onPick: (Int) ->
 /** Home, lock or both. */
 @Composable
 private fun WhereDialog(onPick: (Int) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    io.github.jacomartins.canyonui.ui.design.SheetDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.wallpaper_set_where)) },
         text = {
@@ -391,7 +524,6 @@ private fun WhereDialog(onPick: (Int) -> Unit, onDismiss: () -> Unit) {
         },
         confirmButton = {},
         dismissButton = { SecondaryButton(stringResource(R.string.cancel), onDismiss) },
-        shape = RoundedCornerShape(28.dp),
     )
 }
 
@@ -518,3 +650,6 @@ private const val RECENT_COUNT = 12
 private const val FOLDER_COUNT = 20
 private const val FOLDER_LIMIT = 120
 private const val THUMB_PX = 256
+
+/** How far the crop screen zooms in. */
+private const val MAX_ZOOM = 5f

@@ -215,16 +215,11 @@
     <string name="render_glass">Vidro</string>
     <string name="render_glass_summary">Vidro levemente fosco e mais claro, com um brilho suave</string>
     <string name="render_pick_photo">Escolher papel de parede</string>
-    <string name="wallpaper_ours">Papéis de parede do Canyon UI</string>
-    <string name="wallpaper_ours_none">Nenhum ainda.</string>
-    <string name="wallpaper_gallery">Galeria</string>
-    <string name="wallpaper_add_from">Adicionar de…</string>
     <string name="wallpaper_photos">Fotos</string>
     <string name="wallpaper_folders">Pastas</string>
     <string name="wallpaper_show_recent">Mostrar fotos recentes</string>
     <string name="wallpaper_recent_denied">Permita o acesso às fotos nas configurações do app para ver suas fotos recentes aqui.</string>
     <string name="wallpaper_live">Papéis de parede animados</string>
-    <string name="wallpaper_live_none">Nenhum papel de parede animado instalado.</string>
     <string name="wallpaper_set_where">Definir papel de parede em</string>
     <string name="wallpaper_home">Tela inicial</string>
     <string name="wallpaper_lock">Tela de bloqueio</string>
@@ -329,4 +324,8 @@
     <string name="capture_running">Capturando o papel de parede</string>
     <string name="capture_done">Papel de parede capturado para o desfoque</string>
     <string name="capture_failed">Não foi possível capturar o papel de parede</string>
+    <string name="wallpaper_other_apps">Outros apps</string>
+    <string name="wallpaper_recent">Recentes</string>
+    <string name="wallpaper_crop_hint">Arraste e use dois dedos para escolher o que aparece</string>
+    <string name="wallpaper_crop_set">Definir papel de parede</string>
 </resources>

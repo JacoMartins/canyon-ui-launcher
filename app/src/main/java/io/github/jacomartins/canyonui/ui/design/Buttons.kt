@@ -1,5 +1,7 @@
 package io.github.jacomartins.canyonui.ui.design
 
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -62,7 +64,8 @@ fun PillButton(
             contentColor = if (enabled) onContainer else onContainer.copy(alpha = 0.6f),
             modifier = modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).oneDepthBorder(),
         ) {
-            ProvideTextStyle(MaterialTheme.typography.labelLarge) {
+            // Labels centred everywhere, also when a long one fills a wide button.
+            ProvideTextStyle(MaterialTheme.typography.labelLarge.copy(textAlign = TextAlign.Center)) {
                 Row(
                     Modifier.padding(contentPadding),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xsSm, Alignment.CenterHorizontally),
@@ -84,7 +87,7 @@ fun PillButton(
     @DrawableRes icon: Int? = null,
     enabled: Boolean = true,
 ) = PillButton(onClick, modifier, kind, enabled) {
-    Text(text, maxLines = 1)
+    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.weight(1f, fill = false))
     if (icon != null) Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(18.dp))
 }
 

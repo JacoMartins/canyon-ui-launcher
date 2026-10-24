@@ -130,18 +130,27 @@ object WallpaperBackdrop {
      * WallpaperManager flags), cropped to the screen. A home wallpaper is kept as the copy to
      * blur. Returns false when it could not be read or set.
      */
-    suspend fun setFromPhoto(context: Context, uri: Uri, which: Int = WallpaperManager.FLAG_SYSTEM): Boolean = withContext(Dispatchers.IO) {
+    suspend fun setFromPhoto(
+        context: Context,
+        uri: Uri,
+        which: Int = WallpaperManager.FLAG_SYSTEM,
+        /** The part of the photo to use (0..1 of its width and height); null = its centre. */
+        crop: RectF? = null,
+    ): Boolean = withContext(Dispatchers.IO) {
         setting = true
         try {
             val (w, h) = screenSize(context)
             val source = ImageDecoder.createSource(context.contentResolver, uri)
             val decoded = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
                 decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                // Decode near the screen size: enough detail, far less memory than a full photo.
-                val s = max(w / info.size.width.toFloat(), h / info.size.height.toFloat()).coerceAtMost(1f)
+                // Decode near the screen size (for the chosen part): enough detail, far less
+                // memory than a full photo.
+                val cw = crop?.width()?.coerceIn(0.01f, 1f) ?: 1f
+                val ch = crop?.height()?.coerceIn(0.01f, 1f) ?: 1f
+                val s = max(w / (info.size.width * cw), h / (info.size.height * ch)).coerceAtMost(1f)
                 decoder.setTargetSize((info.size.width * s).roundToInt().coerceAtLeast(1), (info.size.height * s).roundToInt().coerceAtLeast(1))
             }
-            val cropped = centerCrop(decoded, w, h)
+            val cropped = if (crop == null) centerCrop(decoded, w, h) else region(decoded, crop, w, h)
             val wm = WallpaperManager.getInstance(context)
             // Screen-sized wallpaper, so what is on screen is exactly the copy (no scrolling).
             runCatching { wm.suggestDesiredDimensions(w, h) }
@@ -337,6 +346,15 @@ object WallpaperBackdrop {
                 sb += (add and 0xFF) - (sub and 0xFF)
             }
         }
+    }
+
+    /** The [crop] part of [src] (0..1 fractions), scaled to [w] x [h]. */
+    private fun region(src: Bitmap, crop: RectF, w: Int, h: Int): Bitmap {
+        val l = (crop.left * src.width).roundToInt().coerceIn(0, src.width - 1)
+        val t = (crop.top * src.height).roundToInt().coerceIn(0, src.height - 1)
+        val r = (crop.right * src.width).roundToInt().coerceIn(l + 1, src.width)
+        val b = (crop.bottom * src.height).roundToInt().coerceIn(t + 1, src.height)
+        return Bitmap.createBitmap(src, l, t, r - l, b - t).scale(w, h)
     }
 
     private fun centerCrop(src: Bitmap, w: Int, h: Int): Bitmap {

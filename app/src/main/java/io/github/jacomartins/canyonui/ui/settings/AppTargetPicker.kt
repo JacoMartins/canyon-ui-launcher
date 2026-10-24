@@ -158,11 +158,10 @@ fun AppTargetPicker(
         value = withContext(Dispatchers.Default) { appTargets(context, apps, actions) }
     }
     var typed by remember { mutableStateOf(selected?.takeIf { it.startsWith(PACKAGE_TARGET) }?.removePrefix(PACKAGE_TARGET).orEmpty()) }
-    AlertDialog(
+    io.github.jacomartins.canyonui.ui.design.SheetDialog(
         onDismissRequest = onDismiss,
         confirmButton = { SecondaryButton(stringResource(R.string.cancel), onDismiss) },
         title = { Text(title) },
-        shape = RoundedCornerShape(28.dp),
         text = {
             val list = targets.orEmpty()
             LazyColumn(Modifier.heightIn(max = 480.dp)) {
