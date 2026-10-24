@@ -42,4 +42,12 @@ class AppSearchTest {
             AppSearch.sectionIndex(sorted),
         )
     }
+
+    @Test fun rankMatchesFilterOrder() {
+        org.junit.Assert.assertEquals(0, AppSearch.rank("Câmera", "cam"))
+        org.junit.Assert.assertEquals(1, AppSearch.rank("Google Maps", "maps"))
+        org.junit.Assert.assertEquals(2, AppSearch.rank("Instagram", "gram"))
+        org.junit.Assert.assertEquals(-1, AppSearch.rank("Phone", "x"))
+        org.junit.Assert.assertEquals(-1, AppSearch.rank("Phone", ""))
+    }
 }

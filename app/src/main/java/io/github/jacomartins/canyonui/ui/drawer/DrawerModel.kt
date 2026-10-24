@@ -7,9 +7,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import io.github.jacomartins.canyonui.data.AppInfo
 import io.github.jacomartins.canyonui.data.AppRepository
+import io.github.jacomartins.canyonui.data.AppUsage
 import io.github.jacomartins.canyonui.data.IconSize
 import io.github.jacomartins.canyonui.data.SettingsStore
 import io.github.jacomartins.canyonui.model.AppSearch
+import io.github.jacomartins.canyonui.search.SearchModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,8 +23,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Drawer state: search query, filtered apps and hidden apps. */
+/** Drawer state: search query, filtered apps, hidden apps and Canyon search's other results. */
 class DrawerModel(
+    context: android.content.Context,
     apps: AppRepository,
     private val settings: SettingsStore,
     private val scope: CoroutineScope,
@@ -39,11 +42,29 @@ class DrawerModel(
     /** An app is being moved (dragged out of the drawer): the letter dots hide meanwhile. */
     var moving by mutableStateOf(false)
 
+    /**
+     * The screen is Canyon search only (home-screen-only mode, where there is no app list): an
+     * empty search shows suggestions and recent searches instead of every app.
+     */
+    var searchOnly by mutableStateOf(false)
+
+    /** Bumped to put the cursor in the search field and show the keyboard. */
+    var focusRequests by mutableIntStateOf(0)
+
+    /** The most used apps, for an empty search. */
+    var suggestions by mutableStateOf<List<AppInfo>>(emptyList())
+        private set
+
     private val all = apps.apps.filterNotNull()
     private val hiddenKeys = settings.settings.map { it.hiddenApps }
 
     private val visible = combine(all, hiddenKeys) { list, hidden ->
         if (hidden.isEmpty()) list else list.filter { it.key.toString() !in hidden }
+    }.stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** Shortcuts, contacts, settings, calculator and hand-offs for the query. */
+    val search = SearchModel(context, scope, snapshotFlow { query }) {
+        visible.value.associate { it.component.packageName to it.label }
     }
 
     val results: StateFlow<List<AppInfo>> = combine(visible, snapshotFlow { query }) { list, q ->
@@ -61,7 +82,25 @@ class DrawerModel(
     val iconSize: StateFlow<IconSize> = settings.settings.map { it.grid.iconSize }
         .stateIn(scope, SharingStarted.Eagerly, IconSize.MEDIUM)
 
+    /** Before the screen opens: fresh suggestions, shortcuts and contacts permission. */
+    fun prepare(usage: AppUsage) {
+        suggestions = visible.value
+            .map { it to usage.score(it.key.toString()) }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .take(SUGGESTIONS)
+            .map { it.first }
+        search.refresh()
+    }
+
+    /** Something was opened from the search: the query joins the recent searches. */
+    fun rememberQuery() = search.remember(query)
+
     fun setHidden(app: AppInfo, hidden: Boolean) {
         scope.launch { settings.setHidden(app.key.toString(), hidden) }
+    }
+
+    private companion object {
+        const val SUGGESTIONS = 8
     }
 }

@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -117,6 +118,13 @@ interface DrawerActions {
 
     /** Null when no speech recognizer is installed (the mic button is then hidden). */
     val voiceSearch: (() -> Unit)?
+
+    // Canyon search's other results.
+    fun openShortcut(shortcut: io.github.jacomartins.canyonui.search.ShortcutResult, bounds: Rect?)
+    /** Opens another app's screen (settings page, contact, web search...); says so if none can. */
+    fun openIntent(intent: android.content.Intent, bounds: Rect?)
+    fun requestContacts()
+    fun copyText(text: String)
 }
 
 private const val COLUMNS = 4
@@ -196,13 +204,29 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         // The apps are a Haze source too, so the glass search field bends the icons under it.
         Box(Modifier.fillMaxSize().hazeSource(haze, zIndex = 1f)) {
             val bottom = bottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
-            if (results.isEmpty() && model.query.isNotBlank()) {
-                EmptySearch(model.query, Modifier.padding(top = top))
-            } else {
-                AppGrid(results, gridState, top, bottom, actions, model)
-                // The letter dots, for the full list (not search results).
-                if (model.query.isBlank() && !model.moving) {
-                    AlphabetScrubber(results, gridState, touch, Modifier.align(Alignment.CenterEnd).padding(top = top, bottom = bottom))
+            val searching = model.query.isNotBlank()
+            val extras by model.search.extras.collectAsState()
+            val askContacts by model.search.askContacts.collectAsState()
+            val recents by model.search.recents.collectAsState()
+            when {
+                // Canyon search with nothing typed: suggested apps and recent searches.
+                model.searchOnly && !searching -> AppGrid(
+                    model.suggestions, gridState, top, bottom, actions, model,
+                    header = { searchStart(model.suggestions.isNotEmpty()) },
+                    footer = { searchRecents(recents, model) },
+                )
+                // Apps first, then every other kind of result (the calculator above them).
+                searching -> AppGrid(
+                    results, gridState, top, bottom, actions, model,
+                    header = { searchTop(extras, actions, nothing = results.isEmpty() && extras.isEmpty, query = model.query) },
+                    footer = { searchBottom(extras, askContacts, model, actions) },
+                )
+                else -> {
+                    AppGrid(results, gridState, top, bottom, actions, model)
+                    // The letter dots, for the full list.
+                    if (!model.moving) {
+                        AlphabetScrubber(results, gridState, touch, Modifier.align(Alignment.CenterEnd).padding(top = top, bottom = bottom))
+                    }
                 }
             }
         }
@@ -212,7 +236,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         SearchPill(
             model = model,
             voiceSearch = actions.voiceSearch,
-            onGo = { results.firstOrNull()?.let { actions.launch(it, null) } },
+            onGo = { openTop(results, model, actions) },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(bottomInsets)
@@ -224,6 +248,21 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
 
     if (showHidden) {
         HiddenAppsDialog(model, onDismiss = { showHidden = false })
+    }
+}
+
+/** The keyboard's Go key: the first app, else what the query is (a number, a link), else the first other result, else the web. */
+private fun openTop(results: List<AppInfo>, model: DrawerModel, actions: DrawerActions) {
+    if (model.query.isBlank()) return
+    val extras = model.search.extras.value
+    model.rememberQuery()
+    val app = results.firstOrNull()
+    when {
+        app != null -> actions.launch(app, null)
+        extras.direct.isNotEmpty() -> actions.openIntent(extras.direct.first().intent(), null)
+        extras.shortcuts.isNotEmpty() -> actions.openShortcut(extras.shortcuts.first(), null)
+        extras.contacts.isNotEmpty() -> actions.openIntent(android.content.Intent(android.content.Intent.ACTION_VIEW, extras.contacts.first().uri), null)
+        else -> actions.openIntent(io.github.jacomartins.canyonui.search.HandOff(io.github.jacomartins.canyonui.search.HandOff.Kind.WEB, model.query.trim()).intent(), null)
     }
 }
 
@@ -268,6 +307,14 @@ private fun SearchPill(
     val widthFraction by animateFloatAsState(if (expanded) 1f else 0.66f, label = "searchWidth")
     val focus = remember { FocusRequester() }
     val searchLabel = stringResource(R.string.search)
+    val placeholder = if (expanded) stringResource(R.string.search_everything) else searchLabel
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(model.focusRequests) {
+        if (model.focusRequests > 0) {
+            focus.requestFocus()
+            keyboard?.show()
+        }
+    }
 
     val blurOn = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState().value != null
     Surface(
@@ -305,7 +352,7 @@ private fun SearchPill(
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (model.query.isEmpty()) {
-                            Text(searchLabel, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant, maxLines = 1)
+                            Text(placeholder, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         inner()
                     }
@@ -344,6 +391,8 @@ private fun AppGrid(
     bottom: androidx.compose.ui.unit.Dp,
     actions: DrawerActions,
     model: DrawerModel,
+    header: LazyGridScope.() -> Unit = {},
+    footer: LazyGridScope.() -> Unit = {},
 ) {
     val optionsLabel = stringResource(R.string.action_options)
     val haptics = LocalHapticFeedback.current
@@ -373,6 +422,7 @@ private fun AppGrid(
         contentPadding = PaddingValues(start = 8.dp, end = 24.dp, top = top + 8.dp, bottom = bottom),
         modifier = Modifier.fillMaxSize(),
     ) {
+        header()
         items(apps, key = { it.key.toString() }, contentType = { 0 }) { app ->
             val coords = remember { Coords() }
             Box {
@@ -389,7 +439,10 @@ private fun AppGrid(
                                 coords.bounds()?.let { b -> actions.showMenu(b, appMenu(app, b)) }
                                 actions.armDrag(app, coords.bounds())
                             },
-                            onClick = { actions.launch(app, coords.bounds()) },
+                            onClick = {
+                                model.rememberQuery()
+                                actions.launch(app, coords.bounds())
+                            },
                         )
                         .padding(vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -416,19 +469,7 @@ private fun AppGrid(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun EmptySearch(query: String, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.TopCenter) {
-        Text(
-            stringResource(R.string.no_search_results, query.trim()),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = 48.dp),
-        )
+        footer()
     }
 }
 

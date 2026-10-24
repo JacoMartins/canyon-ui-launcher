@@ -230,6 +230,45 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { drawerModel.query = it }
     }
 
+    private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        drawerModel.search.refresh()
+    }
+
+    override fun requestContacts() = contactsPermission.launch(android.Manifest.permission.READ_CONTACTS)
+
+    override fun openShortcut(shortcut: io.github.jacomartins.canyonui.search.ShortcutResult, bounds: Rect?) {
+        val opts = bounds?.let { ActivityOptions.makeScaleUpAnimation(drawerView, it.left, it.top, it.width(), it.height()).toBundle() }
+        try {
+            launcherApps.startShortcut(shortcut.info, bounds, opts)
+            launchPending = true
+        } catch (e: ActivityNotFoundException) {
+            toast(getString(R.string.search_cannot_open))
+        } catch (e: IllegalStateException) {
+            toast(getString(R.string.search_cannot_open))
+        } catch (e: SecurityException) {
+            toast(getString(R.string.search_cannot_open))
+        }
+    }
+
+    override fun openIntent(intent: Intent, bounds: Rect?) {
+        val opts = bounds?.let { ActivityOptions.makeScaleUpAnimation(drawerView, it.left, it.top, it.width(), it.height()).toBundle() }
+        try {
+            startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), opts)
+            launchPending = true
+        } catch (e: ActivityNotFoundException) {
+            toast(getString(R.string.search_cannot_open))
+        } catch (e: SecurityException) {
+            toast(getString(R.string.search_cannot_open))
+        }
+    }
+
+    override fun copyText(text: String) {
+        getSystemService(android.content.ClipboardManager::class.java)
+            .setPrimaryClip(android.content.ClipData.newPlainText(text, text))
+        // Android 13 and later show their own confirmation.
+        if (Build.VERSION.SDK_INT < 33) toast(getString(R.string.search_copied))
+    }
+
     override val voiceSearch: (() -> Unit)? by lazy {
         if (packageManager.queryIntentActivities(speechIntent(), 0).isEmpty()) null else ::launchVoiceSearch
     }
@@ -309,7 +348,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.onEmptyTap = { if (ui.editMode) exitEditMode() else countLockTap() }
         home.onAddPage = ::addPage
 
-        drawerModel = DrawerModel(launcher.apps, launcher.settings, lifecycleScope)
+        drawerModel = DrawerModel(this, launcher.apps, launcher.settings, lifecycleScope)
 
         dragLayer = DragLayer(this)
         drawerView = ComposeView(this).apply {
@@ -336,7 +375,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.onPinchOut = { if (ui.editMode && !ui.isModal) exitEditMode() }
         setContentView(dragLayer)
         // TalkBack and switch access users get the drawer without the swipe.
-        ViewCompat.addAccessibilityAction(home, getString(R.string.action_open_all_apps)) { _, _ -> drawerEnabled.also { if (it) drawer.open() } }
+        ViewCompat.addAccessibilityAction(home, getString(R.string.action_open_all_apps)) { _, _ -> (drawerEnabled || canyonSearch).also { if (it) drawer.open() } }
         // Start the drawer below the screen before the first frame.
         dragLayer.post { drawer.close(animate = false) }
 
@@ -393,6 +432,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         views.values.forEach { (it as? FolderIconView)?.let(::styleFolder) }
                     }
                     swipeUpTarget = s.swipeUpTarget
+                    updateDrawerGesture()
                     wallpaperTarget = s.wallpaperTarget
                     lockTaps = s.lockTaps
                     if (badgeMode != s.badges) {
@@ -425,6 +465,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onResume() {
         super.onResume()
+        // Search's suggestions follow what was opened while away.
+        if (drawer.isClosed) drawerModel.prepare(launcher.usage)
         // The wallpaper may have been changed elsewhere while away: drop a stale blur copy.
         lifecycleScope.launch {
             WallpaperBackdrop.check(this@HomeActivity)
@@ -615,8 +657,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         if (restyled) views.values.forEach { (it as? FolderIconView)?.applyStyle(); it.invalidate() }
         if (drawerEnabled != st.drawerEnabled) {
             drawerEnabled = st.drawerEnabled
-            dragLayer.drawerEnabled = drawerEnabled && !ui.editMode
-            if (!drawerEnabled && !drawer.isClosed) drawer.close(animate = false)
+            updateDrawerGesture()
+            if (!drawerEnabled && !canyonSearch && !drawer.isClosed) drawer.close(animate = false)
             setHintVisible(!hintSeen && drawerEnabled)
         }
         home.setGrid(st.columns, st.rows, st.dockSlots)
@@ -1328,7 +1370,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         state?.let { st -> if (home.workspace.currentPage >= st.pageCount) home.workspace.snapToPage(st.pageCount - 1) }
         widgets.setEditMode(false)
         dismissResizeFrame()
-        dragLayer.drawerEnabled = drawerEnabled
+        updateDrawerGesture()
         if (hintVisible) home.hint.animate().alpha(1f).setDuration(150).start()
         home.setPageBackdrops(false)
         home.workspace.clipChildren = true
@@ -1413,6 +1455,17 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             val cell = grid.findFirstFree(st.columns, 1) ?: return@launch
             widgets.startAdd(info, st.columns, 1, DropAction.Move(Container.DESKTOP, 0, cell.x, cell.y), sizes.options(st.columns, 1))
         }
+    }
+
+    /**
+     * Home screen only mode with no search app chosen: the swipe up opens Canyon search, which is
+     * the Apps screen without its list (it follows the finger the same way).
+     */
+    private val canyonSearch get() = !drawerEnabled && swipeUpTarget == null
+
+    private fun updateDrawerGesture() {
+        drawerModel.searchOnly = !drawerEnabled
+        dragLayer.drawerEnabled = (drawerEnabled || canyonSearch) && !ui.editMode
     }
 
     /** Home screen only mode: a swipe up opens the app chosen in settings (e.g. a search app). */
@@ -1578,6 +1631,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onDrawerOpened() {
         drawerBack.isEnabled = true
+        drawerModel.search.refresh()
+        if (drawerModel.searchOnly) drawerModel.focusRequests++
         drawerView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         if (hintVisible) lifecycleScope.launch { launcher.settings.setDrawerHintSeen() }
@@ -1591,6 +1646,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             updateBackCallbacks()
         }
         drawerModel.query = ""
+        // Ready for the next time it opens: the suggestions follow what was opened since.
+        drawerModel.prepare(launcher.usage)
         drawerView.clearFocus()
         WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.ime())
         drawerView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS

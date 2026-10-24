@@ -24,7 +24,7 @@ class PageIndicatorView(context: Context) : View(context) {
 
     // One drawable per dot: a vector drawable's alpha is read when the frame is rendered, so a
     // single drawable drawn at several opacities in one frame shows them all at the last one.
-    private val homeFill = icon(R.drawable.ph_house_fill)
+    private val homeFill = icon(R.drawable.ph_house_simple_fill)
     private val circles = ArrayList<Drawable>()
 
     private fun icon(res: Int): Drawable = ContextCompat.getDrawable(context, res)!!.mutate()

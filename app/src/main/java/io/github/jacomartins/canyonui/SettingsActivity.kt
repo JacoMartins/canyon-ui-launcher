@@ -84,7 +84,7 @@ class SettingsActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val app = application as LauncherApp
-        val hiddenModel = DrawerModel(app.apps, app.settings, lifecycleScope)
+        val hiddenModel = DrawerModel(this, app.apps, app.settings, lifecycleScope)
         setContent {
             val settings by app.settings.settings.collectAsState(initial = null)
             HomeTheme(phonePalette = settings?.phonePalette == true) {

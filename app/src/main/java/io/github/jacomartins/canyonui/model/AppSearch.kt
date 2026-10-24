@@ -42,6 +42,21 @@ object AppSearch {
         return prefix + wordStart + contains
     }
 
+    /**
+     * How well [label] matches [normalizedQuery] (already [normalize]d): 0 the label starts with
+     * it, 1 a word in it does, 2 it contains it, -1 no match. The same ranks as [filter].
+     */
+    fun rank(label: String, normalizedQuery: String): Int {
+        if (normalizedQuery.isEmpty()) return -1
+        val l = normalize(label)
+        return when {
+            l.startsWith(normalizedQuery) -> 0
+            hasWordStartingWith(l, normalizedQuery) -> 1
+            l.contains(normalizedQuery) -> 2
+            else -> -1
+        }
+    }
+
     private fun hasWordStartingWith(label: String, q: String): Boolean {
         var i = label.indexOf(q)
         while (i > 0) {
