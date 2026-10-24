@@ -494,7 +494,16 @@ private fun GestureSettings(s: LauncherSettings, store: SettingsStore) {
     )
     if ((s.lockTaps >= 2 || s.swipeDownNotifications) && !serviceOn) {
         Text(stringResource(R.string.gesture_needs_service), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Said before it is turned on: banking apps react to it.
+        Text(stringResource(R.string.gesture_bank_warning), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         PrimaryButton(stringResource(R.string.gesture_open_settings), { LauncherAccessibilityService.openSettings(context) }, icon = R.drawable.ph_settings)
+    }
+    if (serviceOn) {
+        Text(stringResource(R.string.gesture_bank_warning_on), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SecondaryButton(stringResource(R.string.gesture_turn_off), {
+            LauncherAccessibilityService.turnOff()
+            serviceOn = false
+        })
     }
 }
 

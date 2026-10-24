@@ -103,7 +103,7 @@
     <string name="badges_allow">Allow notification access</string>
     <string name="gesture_service_label">Canyon UI gestures</string>
     <string name="gesture_service_summary">Lets home screen gestures lock the phone and open the notifications.</string>
-    <string name="gesture_service_description">Canyon UI uses this only to lock the phone and to pull down the notifications when you use those gestures on the home screen. It does not read what is on the screen.</string>
+    <string name="gesture_service_description">Canyon UI uses this only to lock the phone and to pull down the notifications when you use those gestures on the home screen. It does not read what is on the screen. Some banking apps refuse to open while a service like this one is on; turn it off if yours does.</string>
     <string name="gestures">Gestures</string>
     <string name="gesture_lock">Tap empty space to lock</string>
     <string name="gesture_lock_off">Off</string>
@@ -112,6 +112,9 @@
     <string name="gesture_notifications">Swipe down for notifications</string>
     <string name="gesture_needs_service">These gestures need the Canyon UI gestures accessibility service. Turn it on in the phone\'s accessibility settings (installed apps).</string>
     <string name="gesture_open_settings">Open accessibility settings</string>
+    <string name="gesture_bank_warning">Heads up: many banking apps refuse to open while an accessibility service from an app not installed from the Play Store is on. If your bank stops opening, turn the Canyon UI gestures service off.</string>
+    <string name="gesture_bank_warning_on">The gestures service is on. Some banking apps refuse to open while it is on: turn it off here before using them, and on again later in accessibility settings.</string>
+    <string name="gesture_turn_off">Turn off the gestures service</string>
     <string name="gesture_service_off">Turn on Canyon UI gestures in accessibility settings to use this gesture</string>
     <string name="categorize_title">Categorize apps?</string>
     <string name="categorize_message">Apps that are not in a folder go into their category folders, and empty pages are removed (the first page stays).</string>
@@ -312,6 +315,8 @@
     <string name="action_timer">Start a %1$s timer</string>
     <string name="action_alarm">Set an alarm for %1$s</string>
     <string name="action_allow_contacts">Allow contacts to find “%1$s”</string>
+    <string name="action_ride">Ride to %1$s</string>
+    <string name="action_drive">Drive to %1$s</string>
     <string name="action_in_app">Search “%1$s” in %2$s</string>
     <string name="folders">Folders</string>
     <string name="folder_color_default">Default: follows light and dark mode</string>

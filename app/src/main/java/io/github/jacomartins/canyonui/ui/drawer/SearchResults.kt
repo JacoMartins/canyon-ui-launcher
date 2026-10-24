@@ -79,6 +79,7 @@ fun LazyGridScope.searchTop(extras: SearchExtras, model: DrawerModel, actions: D
         full("top:$i:${a.title}") {
             ResultRow(title = a.title, subtitle = a.subtitle, image = a.image, icon = a.icon, highlight = i == 0 && extras.goFirst) { b ->
                 model.rememberQuery()
+                model.search.record(a.key, a.person)
                 runAction(a, b, actions)
             }
         }
@@ -122,9 +123,10 @@ fun LazyGridScope.searchBottom(extras: SearchExtras, askContacts: Boolean, model
                     title = c.name,
                     image = c.photo,
                     letter = c.name.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar(),
-                    trailing = { ContactButtons(c, actions, ::opened) },
+                    trailing = { ContactButtons(c, actions) { key -> opened(); model.search.record(key, c.lookupKey) } },
                 ) { b ->
-                    opened(); actions.openIntent(android.content.Intent(android.content.Intent.ACTION_VIEW, c.uri), b)
+                    opened(); model.search.record(null, c.lookupKey)
+                    actions.openIntent(android.content.Intent(android.content.Intent.ACTION_VIEW, c.uri), b)
                 }
             }
         }
@@ -246,7 +248,7 @@ private fun ResultRow(
 
 /** A contact's quick buttons: message (WhatsApp or another chat app, else SMS), call, video call. */
 @Composable
-private fun ContactButtons(c: ContactResult, actions: DrawerActions, opened: () -> Unit) {
+private fun ContactButtons(c: ContactResult, actions: DrawerActions, opened: (key: String) -> Unit) {
     val chat = c.app(ContactApp.Kind.CHAT)
     val video = c.app(ContactApp.Kind.VIDEO)
     val phone = c.phone
@@ -254,13 +256,13 @@ private fun ContactButtons(c: ContactResult, actions: DrawerActions, opened: () 
         if (chat != null || phone != null) {
             val label = stringResource(R.string.action_message, c.name) + (chat?.let { " · " + it.appLabel } ?: "")
             SmallIconButton(R.drawable.ph_chat_circle, label) {
-                opened()
+                opened(c.chatKey(chat))
                 actions.openIntent(chat?.intent() ?: android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.fromParts("smsto", phone, null)), null)
             }
         }
-        if (phone != null) SmallIconButton(R.drawable.ph_phone, stringResource(R.string.action_call, c.name)) { opened(); actions.placeCall(phone) }
+        if (phone != null) SmallIconButton(R.drawable.ph_phone, stringResource(R.string.action_call, c.name)) { opened(c.callKey); actions.placeCall(phone) }
         if (video != null) {
-            SmallIconButton(R.drawable.ph_video_camera, stringResource(R.string.action_video, c.name) + " · " + video.appLabel) { opened(); actions.openIntent(video.intent(), null) }
+            SmallIconButton(R.drawable.ph_video_camera, stringResource(R.string.action_video, c.name) + " · " + video.appLabel) { opened(c.videoKey(video)); actions.openIntent(video.intent(), null) }
         }
     }
 }

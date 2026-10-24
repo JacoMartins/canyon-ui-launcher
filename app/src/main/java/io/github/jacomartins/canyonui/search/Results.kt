@@ -45,6 +45,10 @@ class ContactResult(
     /** The number to call: the default one, else a mobile, else the first. */
     val phone: String? get() = (phones.firstOrNull { it.primary } ?: phones.firstOrNull { it.mobile } ?: phones.firstOrNull())?.number
 
+    fun chatKey(app: ContactApp?) = "chat:$lookupKey:${app?.pkg ?: "sms"}"
+    val callKey get() = "call:$lookupKey"
+    fun videoKey(app: ContactApp) = "video:$lookupKey:${app.pkg}"
+
     fun app(kind: ContactApp.Kind, pkg: String? = null): ContactApp? {
         val list = apps.filter { it.kind == kind && (pkg == null || it.pkg == pkg) }
         return list.firstOrNull { it.pkg in WHATSAPP } ?: list.firstOrNull()
@@ -79,6 +83,10 @@ class QuickAction(
     @DrawableRes val icon: Int,
     val image: ImageBitmap? = null,
     val run: Run,
+    /** What it is, for [ActionStats] ("chat:<contact>:com.whatsapp"); null = not learned. */
+    val key: String? = null,
+    /** The contact it is for, if any (their lookup key). */
+    val person: String? = null,
 ) {
     sealed interface Run {
         class Open(val intent: Intent) : Run

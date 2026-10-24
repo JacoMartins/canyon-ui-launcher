@@ -272,9 +272,9 @@ private suspend fun openTop(model: DrawerModel, actions: DrawerActions) {
     val app = model.results.value.firstOrNull()
     val current = extras.query == q
     when {
-        current && extras.goFirst && extras.top.isNotEmpty() -> runAction(extras.top.first(), null, actions)
+        current && extras.goFirst && extras.top.isNotEmpty() -> extras.top.first().let { model.search.record(it.key, it.person); runAction(it, null, actions) }
         app != null -> actions.launch(app, null)
-        current && extras.top.isNotEmpty() -> runAction(extras.top.first(), null, actions)
+        current && extras.top.isNotEmpty() -> extras.top.first().let { model.search.record(it.key, it.person); runAction(it, null, actions) }
         extras.direct.isNotEmpty() -> actions.openIntent(extras.direct.first().intent(), null)
         extras.shortcuts.isNotEmpty() -> actions.openShortcut(extras.shortcuts.first(), null)
         extras.contacts.isNotEmpty() -> actions.openIntent(android.content.Intent(android.content.Intent.ACTION_VIEW, extras.contacts.first().uri), null)

@@ -39,6 +39,11 @@ class LauncherAccessibilityService : AccessibilityService() {
         /** Locks the phone; false when the service is off. */
         fun lock(): Boolean = instance?.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN) ?: false
 
+        /** Switches the service off from inside the app (banking apps may refuse to open while it is on). */
+        fun turnOff() {
+            instance?.disableSelf()
+        }
+
         /** Pulls down the notifications; false when the service is off. */
         fun notifications(): Boolean = instance?.performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) ?: false
 
