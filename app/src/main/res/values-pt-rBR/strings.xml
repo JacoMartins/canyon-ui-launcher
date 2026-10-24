@@ -328,4 +328,7 @@
     <string name="wallpaper_recent">Recentes</string>
     <string name="wallpaper_crop_hint">Arraste e use dois dedos para escolher o que aparece</string>
     <string name="wallpaper_crop_set">Definir papel de parede</string>
+    <string name="effects_widgets">Transparência nos widgets</string>
+    <string name="effects_drag">Efeito ao vivo em pastas arrastadas</string>
+    <string name="effects_summary">Ao vivo: o efeito fosco ou de vidro de uma pasta arrastada acompanha o papel de parede enquanto ela se move. Desativado: ela mantém a aparência de quando foi pega. Desativar qualquer um alivia o trabalho em celulares mais lentos.</string>
 </resources>

@@ -329,4 +329,7 @@
     <string name="wallpaper_recent">Recent</string>
     <string name="wallpaper_crop_hint">Drag and pinch to choose what shows</string>
     <string name="wallpaper_crop_set">Set wallpaper</string>
+    <string name="effects_widgets">Transparency on widgets</string>
+    <string name="effects_drag">Live effect on dragged folders</string>
+    <string name="effects_summary">Live: a dragged folder\'s frosted or glass effect follows the wallpaper as it moves. Off: it keeps the look it had when picked up. Turning either off lightens the work on slower phones.</string>
 </resources>

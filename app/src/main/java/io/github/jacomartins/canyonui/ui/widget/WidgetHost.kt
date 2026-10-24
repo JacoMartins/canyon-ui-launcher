@@ -162,7 +162,7 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
         // Frosted and glass: the blurred wallpaper behind the widget's own card, so a see-through
         // widget background frosts like the launcher's surfaces.
         val cardRadius = WidgetFrame.cardPath(this, cardPath)
-        if (cardRadius >= 0f) {
+        if (cardRadius >= 0f && io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.widgetEffects) {
             io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, cardPath, cardRadius)
         }
         try {

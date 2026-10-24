@@ -83,6 +83,10 @@ data class LauncherSettings(
     val swipeDownNotifications: Boolean = false,
     /** How see-through surfaces are drawn; glass by default. */
     val renderMode: RenderMode = RenderMode.GLASS,
+    /** A dragged folder draws the frosted or glass wallpaper live as it moves (off: frozen). */
+    val dragEffects: Boolean = true,
+    /** Widgets get the frosted or glass wallpaper behind their card. */
+    val widgetEffects: Boolean = true,
     /** Category mode just started and the home page has room for a Google search bar. */
     val pendingSearchWidget: Boolean = false,
     /**
@@ -131,6 +135,8 @@ class SettingsStore(private val context: Context) {
         val FULL_CELL_WIDGET_SIZES = booleanPreferencesKey("full_cell_widget_sizes")
         val PHONE_PALETTE = booleanPreferencesKey("phone_palette")
         val RENDER_MODE = stringPreferencesKey("render_mode")
+        val DRAG_EFFECTS = booleanPreferencesKey("drag_effects")
+        val WIDGET_EFFECTS = booleanPreferencesKey("widget_effects")
         val LOCK_TAPS = intPreferencesKey("lock_taps")
         val BADGES = stringPreferencesKey("badges")
         val FOLDER_COLOR = intPreferencesKey("folder_color")
@@ -185,6 +191,8 @@ class SettingsStore(private val context: Context) {
             folderColor = p[Keys.FOLDER_COLOR] ?: 0,
             swipeDownNotifications = p[Keys.SWIPE_DOWN_NOTIFICATIONS] ?: false,
             renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.GLASS,
+            dragEffects = p[Keys.DRAG_EFFECTS] ?: true,
+            widgetEffects = p[Keys.WIDGET_EFFECTS] ?: true,
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
             swipeUpTarget = p[Keys.SWIPE_UP_TARGET],
             wallpaperTarget = p[Keys.WALLPAPER_TARGET],
@@ -319,6 +327,14 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setSwipeDownNotifications(on: Boolean) {
         context.dataStore.edit { it[Keys.SWIPE_DOWN_NOTIFICATIONS] = on }
+    }
+
+    suspend fun setDragEffects(on: Boolean) {
+        context.dataStore.edit { it[Keys.DRAG_EFFECTS] = on }
+    }
+
+    suspend fun setWidgetEffects(on: Boolean) {
+        context.dataStore.edit { it[Keys.WIDGET_EFFECTS] = on }
     }
 
     suspend fun setRenderMode(mode: RenderMode) {

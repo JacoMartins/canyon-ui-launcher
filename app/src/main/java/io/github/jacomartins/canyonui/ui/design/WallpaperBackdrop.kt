@@ -71,6 +71,10 @@ object WallpaperBackdrop {
 
     private val _hasCopy = MutableStateFlow(false)
 
+    /** Widgets draw the effect behind their card (Settings > Transparency). */
+    @Volatile
+    var widgetEffects = true
+
     /** The effects use the wallpaper's colours only (no copy of the image). */
     private val _colorsOnly = MutableStateFlow(false)
     val colorsOnly: StateFlow<Boolean> = _colorsOnly.asStateFlow()

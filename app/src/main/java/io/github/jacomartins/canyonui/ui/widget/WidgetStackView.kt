@@ -265,7 +265,9 @@ class WidgetStackView(context: Context) : FrameLayout(context) {
         // Frosted and glass behind the whole stack (its widgets are plain inside it), so a
         // see-through widget keeps the effect as the slideshow turns.
         val frameRadius = WidgetFrame.framePath(this, framePath)
-        if (frameRadius >= 0f) io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, framePath, frameRadius)
+        if (frameRadius >= 0f && io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.widgetEffects) {
+            io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, framePath, frameRadius)
+        }
         super.dispatchDraw(canvas)
         if (pages.size < 2 || dotsAlpha <= 0f) return
         val r = 3 * d

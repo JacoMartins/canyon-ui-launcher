@@ -436,6 +436,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.addView(overlayView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         drawer = DrawerController(home, drawerView, this)
         drawer.onOffset = { drawerModel.offsetY = it }
+        // Home holds still under panels (see holdHome).
+        lifecycleScope.launch {
+            androidx.compose.runtime.snapshotFlow { ui.isModal }.collect { holdHome(it) }
+        }
         // However a folder closes (tap outside, back, home, a drag out), its tile comes back.
         lifecycleScope.launch {
             androidx.compose.runtime.snapshotFlow { ui.folder == null }.collect { closed -> if (closed) restoreOpenedTile() }
@@ -510,6 +514,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         views.values.forEach { (it as? FolderIconView)?.let { f -> styleFolder(f); f.invalidate() } }
                     }
                     swipeUpTarget = s.swipeUpTarget
+                    dragEffects = s.dragEffects
+                    if (WallpaperBackdrop.widgetEffects != s.widgetEffects) {
+                        WallpaperBackdrop.widgetEffects = s.widgetEffects
+                        views.values.forEach { v -> if (v is io.github.jacomartins.canyonui.ui.widget.LauncherWidgetHostView || v is io.github.jacomartins.canyonui.ui.widget.WidgetStackView) v.invalidate() }
+                    }
                     updateDrawerGesture()
                     wallpaperTarget = s.wallpaperTarget
                     lockTaps = s.lockTaps
@@ -905,6 +914,28 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     /** Settings' folder colour (0 = the theme's). */
     private var folderColor = 0
 
+    /** A dragged folder draws its wallpaper effect live (Settings > Transparency). */
+    private var dragEffects = true
+
+    /**
+     * While a panel is open over home (folder, menu, widget sheet...), home holds still: it is
+     * drawn once into a layer and reused each frame, instead of running every folder's and
+     * widget's blur or glass again on every frame of the panel's animations. Taken off a little
+     * after the panel has closed.
+     */
+    private fun holdHome(on: Boolean) {
+        dragLayer.removeCallbacks(releaseHome)
+        if (on) {
+            if (drawer.isClosed && home.layerType != View.LAYER_TYPE_HARDWARE) home.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        } else {
+            dragLayer.postDelayed(releaseHome, RELEASE_HOME_MS)
+        }
+    }
+
+    private val releaseHome = Runnable {
+        if (!ui.isModal && drawer.isClosed && !drawer.isAnimating) home.setLayerType(View.LAYER_TYPE_NONE, null)
+    }
+
     private fun folderDefaultColor() = if (isNight) 0x991C1C1E.toInt() else 0x99F4F4F6.toInt()
 
     /** Folders take the icon shape and the mode's border values. */
@@ -1020,8 +1051,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         ViewMap.localToRoot(dragLayer, v, pt)
         val w = (local.width() * scale).toInt().coerceAtLeast(1)
         val h = (local.height() * scale).toInt().coerceAtLeast(1)
-        // A folder's tile without the wallpaper effect: the dragged copy draws that live.
-        val folderView = v as? FolderIconView
+        // A folder's tile without the wallpaper effect: the dragged copy draws that live (or,
+        // with live effects off in settings, with the effect as it was, frozen in the image).
+        val folderView = (v as? FolderIconView)?.takeIf { dragEffects }
         val image: Bitmap = when (entry) {
             is AppEntry -> entry.app.icon
             else -> createBitmap(local.width().toInt().coerceAtLeast(1), local.height().toInt().coerceAtLeast(1)).also { b ->
@@ -2030,8 +2062,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** A folder turning large or normal size. */
         private const val RESIZE_MS = 300L
 
-        /** A folder's tile while its panel opens (the panel is opaque after a quarter). */
-        private const val TILE_FADE_OUT_MS = 160L
+        /** A panel's close animation and a little more, before home stops holding still. */
+        private const val RELEASE_HOME_MS = 400L
+
+        /**
+         * A folder's tile while its panel opens: done by the time the panel covers it (a
+         * quarter in), and short, as home behind redraws while it changes.
+         */
+        private const val TILE_FADE_OUT_MS = 80L
         /** And while it closes: the panel fades only near the end of shrinking into the tile. */
         private const val TILE_FADE_IN_DELAY_MS = 120L
         private const val TILE_FADE_IN_MS = 160L

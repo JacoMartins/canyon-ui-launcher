@@ -267,6 +267,19 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
 
         SettingsSection(title = stringResource(R.string.render_mode)) {
             RenderModeChoice(s.renderMode, onSelect = { scope.launch { store.setRenderMode(it) } })
+            if (s.renderMode != io.github.jacomartins.canyonui.data.RenderMode.TRANSLUCENT) {
+                SwitchRow(
+                    title = stringResource(R.string.effects_widgets),
+                    checked = s.widgetEffects,
+                    onChange = { scope.launch { store.setWidgetEffects(it) } },
+                )
+                SwitchRow(
+                    title = stringResource(R.string.effects_drag),
+                    checked = s.dragEffects,
+                    onChange = { scope.launch { store.setDragEffects(it) } },
+                )
+                Text(stringResource(R.string.effects_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
 
         SettingsSection(title = stringResource(R.string.icon_shape)) {
