@@ -60,7 +60,7 @@ class WallpaperCapture : Service() {
         mp.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() = finish(null)
         }, handler)
-        // The consent dialog fades away and home hides its icons first.
+        // The consent dialog fades away, and home hides its icons and the system bars, first.
         handler.postDelayed(::capture, SETTLE_MS)
         handler.postDelayed({ finish(null) }, TIMEOUT_MS)
         return START_NOT_STICKY
@@ -128,7 +128,7 @@ class WallpaperCapture : Service() {
         private const val NOTIFICATION_ID = 7
         private const val EXTRA_CODE = "code"
         private const val EXTRA_DATA = "data"
-        private const val SETTLE_MS = 700L
+        private const val SETTLE_MS = 900L
         private const val TIMEOUT_MS = 6000L
         private const val FRAME = 3
 

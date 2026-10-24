@@ -52,6 +52,7 @@ import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -240,9 +241,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private val captureConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val data = r.data
         if (r.resultCode != RESULT_OK || data == null) return@registerForActivityResult
-        // Only the wallpaper on screen: everything of the launcher hides while the frame is taken.
+        // Only the wallpaper on screen: everything of the launcher hides while the frame is taken,
+        // and so do the status and navigation bars (they would be in the picture).
+        val bars = WindowCompat.getInsetsController(window, window.decorView)
+        bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        bars.hide(WindowInsetsCompat.Type.systemBars())
         dragLayer.alpha = 0f
         WallpaperCapture.start(this, r.resultCode, data) { shot ->
+            bars.show(WindowInsetsCompat.Type.systemBars())
             dragLayer.animate().alpha(1f).setDuration(200).start()
             if (shot == null) {
                 toast(getString(R.string.capture_failed))
