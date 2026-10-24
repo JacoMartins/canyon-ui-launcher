@@ -1226,11 +1226,20 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onOpenFolder(view: FolderIconView, folder: FolderEntry) {
         if (ui.editMode) { exitEditMode(); return }
+        // Where the folder's tile is on screen (small or large), for the panel to grow out of.
+        val loc = IntArray(2).also { view.getLocationInWindow(it) }
+        val scale = ViewMap.scaleOf(dragLayer, view)
+        val tile = view.backdropBounds(RectF())
+        val from = androidx.compose.ui.geometry.Rect(
+            loc[0] + tile.left * scale, loc[1] + tile.top * scale,
+            loc[0] + tile.right * scale, loc[1] + tile.bottom * scale,
+        )
         // The frosted or glass panel shows the home screen behind it, so the screen is copied
         // first (one frame) and the folder opens with it.
         captureHome { shot ->
             if (ui.folder != null || ui.editMode) return@captureHome
             ui.folderBackdrop = shot
+            ui.folderFrom = from
             ui.folder = folder
             updateBackCallbacks()
         }

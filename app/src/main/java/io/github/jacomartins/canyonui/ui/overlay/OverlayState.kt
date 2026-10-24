@@ -58,6 +58,8 @@ class OverlayState {
      * none (translucent mode, or no wallpaper copy).
      */
     var folderBackdrop by mutableStateOf<ImageBitmap?>(null)
+    /** The open folder's tile on the home screen (window px): the panel grows out of it. */
+    var folderFrom: androidx.compose.ui.geometry.Rect? = null
     /** The app being dragged inside the open folder (drawn as a gap), or 0. */
     var folderDragId by mutableLongStateOf(0L)
     /** The open folder's visible page of apps, in window coordinates, and its page number. */

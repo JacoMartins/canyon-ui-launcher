@@ -72,6 +72,10 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.ui.util.lerp
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -160,11 +164,13 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
         }
 
         state.picker?.let { WidgetPicker(it, actions) }
-        // Folder: the panel fades in and out with the dim behind it.
+        // Folder: the dim fades in and out, and the panel grows out of the folder's tile on the
+        // home screen (and shrinks back into it). No size animation of the container: that
+        // revealed the dim from a corner.
         AnimatedContent(
             targetState = state.folder,
             contentKey = { it?.id },
-            transitionSpec = { fadeIn(tween(OPEN_MS)) togetherWith fadeOut(tween(CLOSE_MS)) },
+            transitionSpec = { EnterTransition.None togetherWith ExitTransition.None using null },
             label = "folder",
         ) { f ->
             if (f != null) {
@@ -172,14 +178,14 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
                     transitionSpec = { tween(if (targetState == EnterExitState.Visible) OPEN_MS else CLOSE_MS, easing = FastOutSlowInEasing) },
                     label = "folderOpen",
                 ) { if (it == EnterExitState.Visible) 1f else 0f }
-                FolderPopup(f, state, actions, modifier = Modifier.graphicsLayer { alpha = open })
+                FolderPopup(f, state, actions, open = { open })
             }
         }
         // Above an open folder: the app being edited may be inside it.
         state.editApp?.let { EditAppSheet(it, actions) }
         AnimatedContent(
             targetState = state.menu,
-            transitionSpec = { fadeIn(tween(MENU_MS)) togetherWith fadeOut(tween(MENU_MS)) },
+            transitionSpec = { fadeIn(tween(MENU_MS)) togetherWith fadeOut(tween(MENU_MS)) using null },
             label = "menu",
         ) { m ->
             if (m != null) {
@@ -308,7 +314,7 @@ private const val FOLDER_PER_PAGE = 9
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: OverlayActions, modifier: Modifier = Modifier) {
+private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: OverlayActions, open: () -> Float) {
     var title by remember(folder.id) { mutableStateOf(folder.title) }
     var showColors by remember(folder.id) { mutableStateOf(false) }
     var showPicker by remember(folder.id) { mutableStateOf(false) }
@@ -320,15 +326,15 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.35f))
+            .drawBehind { drawRect(Color.Black.copy(alpha = FOLDER_DIM * open())) }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { close() }
             .windowInsetsPadding(WindowInsets.ime),
         contentAlignment = Alignment.Center,
     ) {
         // The name and colour choice float above the panel, over the dimmed home screen; the
         // panel holds only the apps.
-        Column(modifier.padding(horizontal = Spacing.md).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(Modifier.padding(horizontal = Spacing.lg), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.padding(horizontal = Spacing.md).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(Modifier.padding(horizontal = Spacing.lg).graphicsLayer { alpha = open() }, verticalAlignment = Alignment.CenterVertically) {
                 val nameLabel = stringResource(R.string.folder_name)
                 BasicTextField(
                     value = title,
@@ -414,8 +420,25 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
             val iconSize = state.homeIconDp.dp
             val rowHeight = Spacing.smMd * 2 + iconSize + AppIconView.LABEL_GAP_DP.dp +
                 with(LocalDensity.current) { (AppIconView.LABEL_SP + 3).sp.toDp() }
+            // Where the panel ends up (window px), measured outside its own transform.
+            var bounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
             Surface(
                 modifier = Modifier
+                    .onGloballyPositioned { c -> bounds = c.boundsInWindow() }
+                    // Grows out of the folder's tile: from its place and size to the panel's.
+                    .graphicsLayer {
+                        val t = open()
+                        val from = state.folderFrom
+                        if (from == null || bounds.isEmpty) {
+                            alpha = t
+                            return@graphicsLayer
+                        }
+                        scaleX = lerp(from.width / bounds.width, 1f, t)
+                        scaleY = lerp(from.height / bounds.height, 1f, t)
+                        translationX = (from.center.x - bounds.center.x) * (1f - t)
+                        translationY = (from.center.y - bounds.center.y) * (1f - t)
+                        alpha = (t * 4f).coerceIn(0f, 1f)
+                    }
                     // Square cells: each column is as wide as a row is tall.
                     .width(rowHeight * FOLDER_COLUMNS + Spacing.sm * 2)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { } // keep taps inside
@@ -425,7 +448,13 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                 // More see-through than the other panels: the apps float over the glass or blur.
                 color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = FOLDER_PANEL_ALPHA)),
             ) {
-                Column(Modifier.padding(vertical = Spacing.md), horizontalAlignment = Alignment.CenterHorizontally) {
+                // The apps appear once the panel has grown most of the way.
+                Column(
+                    Modifier
+                        .graphicsLayer { alpha = ((open() - 0.35f) / 0.65f).coerceIn(0f, 1f) }
+                        .padding(vertical = Spacing.md),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     val pages = (folder.apps.size + FOLDER_PER_PAGE - 1) / FOLDER_PER_PAGE
                     val pager = rememberPagerState { pages.coerceAtLeast(1) }
                     // Always three rows of three square cells (even with fewer apps), with icons at
@@ -619,6 +648,9 @@ private const val SNACK_MS = 5000L
 
 /** The open folder's panel colour (before the Transparency effect thins it further). */
 private const val FOLDER_PANEL_ALPHA = 0.72f
+
+/** How dark the home screen gets behind an open folder. */
+private const val FOLDER_DIM = 0.35f
 private const val OPEN_MS = 320
 private const val CLOSE_MS = 260
 private const val MENU_MS = 220
