@@ -136,8 +136,13 @@ class DragLayer(context: Context) : FrameLayout(context) {
     var onSwipeDown: (() -> Boolean)? = null
     private var downFired = false
 
+    /** A panel over home is open (folder, menu, widget picker...): home's swipes wait until it closes. */
+    var homePanelOpen: () -> Boolean = { false }
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
         if (drag?.armed != null) return false
+        // The panel takes the touches, not the swipes to search, the Apps screen or notifications.
+        if (drawer.isClosed && homePanelOpen()) return false
         if (swipeDown(ev)) return true
         if (!drawerEnabled && drawer.isClosed) return swipeUp(ev)
         when (ev.actionMasked) {
