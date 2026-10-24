@@ -96,6 +96,7 @@ import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.Spacing
 import io.github.jacomartins.canyonui.ui.design.oneDepthBorder
+import io.github.jacomartins.canyonui.ui.design.oneDepthTopBorder
 import io.github.jacomartins.canyonui.ui.home.DragLayer
 import kotlin.math.roundToInt
 
@@ -140,6 +141,10 @@ private val SearchPillHeight = 56.dp
 /** The Apps screen's top corners while it slides (square when fully open). */
 private val DRAWER_CORNER = 28.dp
 
+/** The corner radius for the screen slid down by [offsetY]: full near the bottom, 0 at the top. */
+private fun drawerCorner(offsetY: Float, height: Float, cornerPx: Float): Float =
+    (offsetY / height.coerceAtLeast(1f) * 6f).coerceIn(0f, 1f) * cornerPx
+
 /** The header row (options button) at the top of the Apps screen. */
 private val TopBarHeight = 56.dp
 
@@ -169,10 +174,12 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
             // Rounded top corners while the screen slides; square once it is all the way up.
             // Read in the layer only, so the slide redraws without recomposing.
             .graphicsLayer {
-                val r = (model.offsetY / size.height.coerceAtLeast(1f) * 6f).coerceIn(0f, 1f) * cornerPx
+                val r = drawerCorner(model.offsetY, size.height, cornerPx)
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = r, topEnd = r)
                 clip = r > 0.5f
-            },
+            }
+            // The interface border on the top edge and corners while they are rounded.
+            .oneDepthTopBorder(DRAWER_CORNER) { h -> drawerCorner(model.offsetY, h, cornerPx) },
     ) {
         // Behind the apps, by the Transparency setting: a see-through colour, or the blurred
         // wallpaper (frosted) or glass over it, under a lighter tint.

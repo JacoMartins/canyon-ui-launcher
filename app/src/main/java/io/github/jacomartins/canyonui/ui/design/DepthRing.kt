@@ -9,7 +9,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
@@ -150,4 +155,62 @@ fun Modifier.oneDepthBorder(cornerRadius: Dp? = null): Modifier {
         sideWidth = OneDepthBorder.Width,
         sideAlpha = if (dark) OneDepthBorder.SIDE_ALPHA_DARK else OneDepthBorder.SIDE_ALPHA_LIGHT,
     )
+}
+
+/**
+ * [OneDepthBorder] along the top edge and top corners only, for a sheet that runs off the bottom
+ * of the screen (the Apps screen): the lit rim and the dark corner tips, fading out down the sides.
+ * [radius] gives the live corner radius in px for the surface height, read at draw time; the border fades with it, so a
+ * sheet that has gone square shows none.
+ */
+@Composable
+fun Modifier.oneDepthTopBorder(maxRadius: Dp, radius: (height: Float) -> Float): Modifier {
+    val dark = isDarkSurface()
+    val alpha = if (dark) OneDepthBorder.ALPHA_DARK else OneDepthBorder.ALPHA_LIGHT
+    val sideAlpha = if (dark) OneDepthBorder.SIDE_ALPHA_DARK else OneDepthBorder.SIDE_ALPHA_LIGHT
+    val light = OneDepthBorder.Light
+    return drawWithCache {
+        val w = OneDepthBorder.Width.toPx()
+        val maxR = maxRadius.toPx()
+        // How far down the sides the border reaches before it is gone.
+        val fadeEnd = (maxR * 3f).coerceAtMost(size.height)
+        val ringBrush = Brush.verticalGradient(
+            colorStops = Array(STEPS + 1) { i ->
+                val t = i / STEPS.toFloat()
+                t to Color.White.copy(alpha = light.key * glow(t / light.spread, light.softness))
+            },
+            startY = 0f,
+            endY = fadeEnd,
+        )
+        val mask = Brush.verticalGradient(0f to Color.Black, (maxR / fadeEnd) to Color.Black, 1f to Color.Transparent, startY = 0f, endY = fadeEnd)
+        val layer = Paint()
+        val path = Path()
+        onDrawWithContent {
+            drawContent()
+            val r = radius(size.height).coerceIn(0f, maxR)
+            val share = if (maxR > 0f) r / maxR else 0f
+            if (share < 0.01f) return@onDrawWithContent
+            val fade = (r / size.width).coerceAtMost(0.5f)
+            val tipStops = TIP_EASE.map { (t, a) -> fade * t to Color.Black.copy(alpha = a) } +
+                TIP_EASE.reversed().map { (t, a) -> 1f - fade * t to Color.Black.copy(alpha = a) }
+            val tips = Brush.horizontalGradient(colorStops = tipStops.toTypedArray(), startX = 0f, endX = size.width)
+            fun outline(inset: Float, left: Float, right: Float) {
+                val cr = CornerRadius((r - inset).coerceAtLeast(0f))
+                path.rewind()
+                path.addRoundRect(
+                    RoundRect(Rect(left, inset, right, size.height + r + w), topLeft = cr, topRight = cr),
+                )
+            }
+            drawContext.canvas.saveLayer(Rect(0f, 0f, size.width, fadeEnd), layer)
+            // Lit rim, inset by the tip stroke so a crescent opens at each corner (as in depthRing).
+            outline(w / 2f, w + w / 2f, size.width - w - w / 2f)
+            drawPath(path, ringBrush, alpha = alpha * share, style = Stroke(w))
+            // Dark tips at the corners easing to transparent along the top edge.
+            outline(w / 2f, w / 2f, size.width - w / 2f)
+            drawPath(path, tips, alpha = sideAlpha * share, style = Stroke(w))
+            // Fade both down the sides.
+            drawRect(mask, size = Size(size.width, fadeEnd), blendMode = BlendMode.DstIn)
+            drawContext.canvas.restore()
+        }
+    }
 }
