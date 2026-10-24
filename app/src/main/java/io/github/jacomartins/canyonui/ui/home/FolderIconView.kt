@@ -90,7 +90,7 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
     private var downY = 0f
     private val pressInterpolator = DecelerateInterpolator()
 
-    private val isLarge get() = folder?.isLarge == true
+    val isLarge get() = folder?.isLarge == true
 
     init {
         isClickable = true
