@@ -68,7 +68,8 @@ class DrawerModel(
     }
 
     val results: StateFlow<List<AppInfo>> = combine(visible, snapshotFlow { query }) { list, q ->
-        AppSearch.filter(list, q) { it.label }
+        // "open camera" finds Camera.
+        AppSearch.filter(list, io.github.jacomartins.canyonui.search.Commands.appQuery(q)) { it.label }
     }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     val hidden: StateFlow<List<AppInfo>> = combine(all, hiddenKeys) { list, hidden ->

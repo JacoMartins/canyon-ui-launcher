@@ -16,6 +16,29 @@ object QueryKind {
         return t
     }
 
+    // Street type first ("Rua Augusta, 1500", "Av. Paulista 1000", "Street ..."), with a number.
+    private val STREET_FIRST = Regex(
+        """^(?:rua|r\.|avenida|av\.?|alameda|al\.|travessa|tv\.|estrada|estr\.|rodovia|rod\.|pra[cç]a|p[cç]a\.?|largo|via|viela|""" +
+            """street|st\.|avenue|ave\.?|road|rd\.|boulevard|blvd\.?|lane|ln\.|drive|dr\.|calle|carrera)\s+\S.*?\d+.*$""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    // Number first ("1600 Amphitheatre Parkway", "221B Baker Street").
+    private val NUMBER_FIRST = Regex(
+        """^\d+[a-z]?\s+(?:[\p{L}'.-]+\s+){0,4}(?:street|st\.?|avenue|ave\.?|road|rd\.?|boulevard|blvd\.?|lane|ln\.?|drive|dr\.?|way|parkway|pkwy|court|ct\.?|place|pl\.?|square|sq\.?|terrace|highway|hwy)\b.*$""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    // A Brazilian CEP (01310-100) or a US ZIP after a comma ("..., NY 10001").
+    private val POSTCODE = Regex("""(?:^|\s|,)(?:\d{5}-\d{3}|[A-Z]{2}\s+\d{5}(?:-\d{4})?)(?:\s|,|$)""")
+
+    /** Text that looks like a street address, for "Open in Maps". Rough by nature. */
+    fun address(q: String): String? {
+        val t = q.trim()
+        if (t.length < 6 || t.length > 160 || '@' in t || "://" in t) return null
+        return t.takeIf { STREET_FIRST.matches(it) || NUMBER_FIRST.matches(it) || POSTCODE.containsMatchIn(it) }
+    }
+
     fun email(q: String): String? = q.trim().takeIf { EMAIL.matches(it) }
 
     /** A web address to open, with "https://" added when missing. */

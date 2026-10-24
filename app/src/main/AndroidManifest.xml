@@ -20,6 +20,11 @@
         android:maxSdkVersion="32" />
     <!-- Canyon search shows matching contacts once the user allows it from the results (optional). -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- "call ana" + Go places the call; asked the first time (otherwise the dialer opens). -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <!-- "timer 5 min" and "alarm 7:30" hand the time to the clock app. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
     <application
         android:name=".LauncherApp"

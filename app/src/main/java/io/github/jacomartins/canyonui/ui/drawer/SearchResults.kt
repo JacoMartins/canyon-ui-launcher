@@ -39,7 +39,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.jacomartins.canyonui.R
+import io.github.jacomartins.canyonui.search.ContactApp
+import io.github.jacomartins.canyonui.search.ContactResult
 import io.github.jacomartins.canyonui.search.HandOff
+import io.github.jacomartins.canyonui.search.QuickAction
 import io.github.jacomartins.canyonui.search.SearchExtras
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
@@ -59,19 +62,39 @@ private fun LazyGridScope.full(key: String, content: @Composable () -> Unit) =
  * Above the apps: the calculator's answer, when the search is a calculation, or a line saying
  * [nothing] matched on the phone (other apps can still be searched, below).
  */
-fun LazyGridScope.searchTop(extras: SearchExtras, actions: DrawerActions, nothing: Boolean, query: String) {
+fun LazyGridScope.searchTop(extras: SearchExtras, model: DrawerModel, actions: DrawerActions, nothing: Boolean) {
     if (nothing) {
         full("none:") {
             Text(
-                stringResource(R.string.no_search_results, query.trim()),
+                stringResource(R.string.no_search_results, model.query.trim()),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.md),
             )
         }
     }
+    // What the query asks for: a command, a person to message, an address. The first one is
+    // what Go does, so it stands out.
+    extras.top.forEachIndexed { i, a ->
+        full("top:$i:${a.title}") {
+            ResultRow(title = a.title, subtitle = a.subtitle, image = a.image, icon = a.icon, highlight = i == 0 && extras.goFirst) { b ->
+                model.rememberQuery()
+                runAction(a, b, actions)
+            }
+        }
+    }
     val calc = extras.calc ?: return
     full("calc:") { CalcRow(extras.query, calc) { actions.copyText(calc) } }
+}
+
+/** Does what a [QuickAction] says. */
+fun runAction(a: QuickAction, bounds: Rect?, actions: DrawerActions) {
+    when (val run = a.run) {
+        is QuickAction.Run.Open -> actions.openIntent(run.intent, bounds)
+        is QuickAction.Run.Call -> actions.placeCall(run.number)
+        is QuickAction.Run.Shortcut -> actions.openShortcut(run.shortcut, bounds)
+        QuickAction.Run.AllowContacts -> actions.requestContacts()
+    }
 }
 
 /** Below the apps: the other kinds of result for the query. */
@@ -95,7 +118,12 @@ fun LazyGridScope.searchBottom(extras: SearchExtras, askContacts: Boolean, model
         full("title:contacts") { SectionTitle(stringResource(R.string.search_contacts)) }
         for (c in extras.contacts) {
             full("contact:${c.id}") {
-                ResultRow(title = c.name, image = c.photo, letter = c.name.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()) { b ->
+                ResultRow(
+                    title = c.name,
+                    image = c.photo,
+                    letter = c.name.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar(),
+                    trailing = { ContactButtons(c, actions, ::opened) },
+                ) { b ->
                     opened(); actions.openIntent(android.content.Intent(android.content.Intent.ACTION_VIEW, c.uri), b)
                 }
             }
@@ -178,6 +206,9 @@ private fun ResultRow(
     image: ImageBitmap? = null,
     @DrawableRes icon: Int? = null,
     letter: Char? = null,
+    /** The row Go opens: a light tint of the accent behind it. */
+    highlight: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
     onClick: (Rect?) -> Unit,
 ) {
     val coords = remember { RowCoords() }
@@ -187,6 +218,7 @@ private fun ResultRow(
             .fillMaxWidth()
             .onPlaced { coords.value = it }
             .clip(RoundedCornerShape(20.dp))
+            .then(if (highlight) Modifier.background(colors.primary.copy(alpha = 0.14f)) else Modifier)
             .clickable(role = Role.Button) { onClick(coords.bounds()) }
             .padding(horizontal = Spacing.sm, vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
@@ -208,6 +240,38 @@ private fun ResultRow(
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        trailing?.invoke()
+    }
+}
+
+/** A contact's quick buttons: message (WhatsApp or another chat app, else SMS), call, video call. */
+@Composable
+private fun ContactButtons(c: ContactResult, actions: DrawerActions, opened: () -> Unit) {
+    val chat = c.app(ContactApp.Kind.CHAT)
+    val video = c.app(ContactApp.Kind.VIDEO)
+    val phone = c.phone
+    Row {
+        if (chat != null || phone != null) {
+            val label = stringResource(R.string.action_message, c.name) + (chat?.let { " · " + it.appLabel } ?: "")
+            SmallIconButton(R.drawable.ph_chat_circle, label) {
+                opened()
+                actions.openIntent(chat?.intent() ?: android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.fromParts("smsto", phone, null)), null)
+            }
+        }
+        if (phone != null) SmallIconButton(R.drawable.ph_phone, stringResource(R.string.action_call, c.name)) { opened(); actions.placeCall(phone) }
+        if (video != null) {
+            SmallIconButton(R.drawable.ph_video_camera, stringResource(R.string.action_video, c.name) + " · " + video.appLabel) { opened(); actions.openIntent(video.intent(), null) }
+        }
+    }
+}
+
+@Composable
+private fun SmallIconButton(@DrawableRes icon: Int, label: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = label, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }
 

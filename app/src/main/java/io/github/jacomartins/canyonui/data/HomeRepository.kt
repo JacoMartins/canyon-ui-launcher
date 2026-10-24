@@ -877,6 +877,12 @@ class HomeRepository(
         dao.item(folderId)?.let { dao.updateItem(it.copy(color = color)) }
     }
 
+    /** Every folder drops its own colour and takes the one in settings. */
+    suspend fun clearFolderColors() = edit { dao, _ ->
+        val folders = dao.itemsNow().filter { it.type == ItemType.FOLDER && it.color != 0 }
+        if (folders.isNotEmpty()) dao.updateItems(folders.map { it.copy(color = 0) })
+    }
+
     /** Appends an empty page; returns its index. */
     suspend fun addPage(): Int = edit { dao, _ ->
         val n = dao.pagesNow().size

@@ -301,4 +301,22 @@
     <string name="set_all">All settings</string>
     <string name="set_canyon">Canyon UI settings</string>
     <string name="set_wallpaper">Wallpaper</string>
+    <string name="search_sms">SMS</string>
+    <string name="action_call">Call %1$s</string>
+    <string name="action_video">Video call %1$s</string>
+    <string name="action_message">Message %1$s</string>
+    <string name="action_email">Email %1$s</string>
+    <string name="action_play">Play “%1$s”</string>
+    <string name="action_directions">Directions to %1$s</string>
+    <string name="action_open_maps">Open “%1$s” in Maps</string>
+    <string name="action_timer">Start a %1$s timer</string>
+    <string name="action_alarm">Set an alarm for %1$s</string>
+    <string name="action_allow_contacts">Allow contacts to find “%1$s”</string>
+    <string name="action_in_app">Search “%1$s” in %2$s</string>
+    <string name="folders">Folders</string>
+    <string name="folder_color_default">Default: follows light and dark mode</string>
+    <string name="folder_color_custom">Custom color</string>
+    <string name="folder_color_summary">Folders without a color of their own use this one. \"Apply to all folders\" also replaces the colors set on single folders.</string>
+    <string name="folder_color_apply_all">Apply to all folders</string>
+    <string name="folder_color_use_default">Use default</string>
 </resources>

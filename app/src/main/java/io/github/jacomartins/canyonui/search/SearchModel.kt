@@ -1,21 +1,21 @@
 package io.github.jacomartins.canyonui.search
 
 import android.Manifest
+import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.content.pm.ShortcutInfo
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Process
-import android.provider.ContactsContract
-import android.app.SearchManager
-import androidx.compose.ui.graphics.ImageBitmap
+import android.provider.AlarmClock
+import android.provider.MediaStore
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.edit
-import androidx.core.net.toUri
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.net.toUri
+import io.github.jacomartins.canyonui.R
 import io.github.jacomartins.canyonui.model.AppSearch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,48 +31,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
-
-/** An app shortcut ("New message", "Scan QR code") of an installed app. */
-class ShortcutResult(val info: ShortcutInfo, val label: String, val appLabel: String, val icon: ImageBitmap?)
-
-/** A contact, opened in the phone's contacts app. */
-class ContactResult(val id: Long, val lookupKey: String, val name: String, val photo: ImageBitmap?) {
-    val uri: Uri get() = ContactsContract.Contacts.getLookupUri(id, lookupKey)
-}
-
-/** Something the search hands to another app: the query on the web, a number to call... */
-class HandOff(val kind: Kind, val value: String) {
-    enum class Kind { CALL, EMAIL, LINK, WEB, STORE, MAPS }
-
-    fun intent(): Intent = when (kind) {
-        Kind.CALL -> Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", value, null))
-        Kind.EMAIL -> Intent(Intent.ACTION_SENDTO, Uri.fromParts("mailto", value, null))
-        Kind.LINK -> Intent(Intent.ACTION_VIEW, value.toUri())
-        Kind.WEB -> Intent(Intent.ACTION_WEB_SEARCH).putExtra(SearchManager.QUERY, value)
-        Kind.STORE -> Intent(Intent.ACTION_VIEW, ("market://search?q=" + Uri.encode(value)).toUri())
-        Kind.MAPS -> Intent(Intent.ACTION_VIEW, ("geo:0,0?q=" + Uri.encode(value)).toUri())
-    }
-}
-
-/** Everything but apps for one query (apps are filtered by the drawer, on every key press). */
-class SearchExtras(
-    val query: String = "",
-    val calc: String? = null,
-    val shortcuts: List<ShortcutResult> = emptyList(),
-    val contacts: List<ContactResult> = emptyList(),
-    val settings: List<SettingPage> = emptyList(),
-    /** Call, email or open a link: what the query itself is. Shown before the other results. */
-    val direct: List<HandOff> = emptyList(),
-    /** Web, app store and maps for the query. */
-    val handOffs: List<HandOff> = emptyList(),
-) {
-    val isEmpty get() = calc == null && shortcuts.isEmpty() && contacts.isEmpty() && settings.isEmpty() && direct.isEmpty()
-}
 
 /**
- * Canyon search's sources besides apps, all on the phone: app shortcuts, contacts (once allowed),
- * settings pages, the calculator and hand-offs to other apps. Also keeps recent searches.
+ * Canyon search's sources besides apps, all on the phone: commands ("call ana", "stories on
+ * instagram", "timer 5 min"), contacts (once allowed) with their chat and call apps, app
+ * shortcuts, settings pages, addresses, the calculator and hand-offs to other apps. Also keeps
+ * recent searches.
  */
 @OptIn(FlowPreview::class)
 class SearchModel(
@@ -86,6 +50,7 @@ class SearchModel(
     private val launcherApps = app.getSystemService(LauncherApps::class.java)
     private val prefs = app.getSharedPreferences("search", Context.MODE_PRIVATE)
     private val iconPx = (40 * app.resources.displayMetrics.density).toInt()
+    private val people = ContactLookup(app, appLabels)
 
     private val _recents = MutableStateFlow(loadRecents())
     val recents: StateFlow<List<String>> = _recents.asStateFlow()
@@ -101,7 +66,17 @@ class SearchModel(
     val extras: StateFlow<SearchExtras> = combine(
         query.map { it.trim() }.distinctUntilChanged().debounce(EXTRAS_DEBOUNCE_MS),
         contactsAllowed,
-    ) { q, contacts -> if (q.isEmpty()) SearchExtras() else build(q, contacts) }
+    ) { q, contacts ->
+        when {
+            q.isEmpty() -> SearchExtras()
+            // Whatever another app's data holds, a bad answer never stops the search.
+            else -> try {
+                build(q, contacts)
+            } catch (e: RuntimeException) {
+                SearchExtras(query = q, handOffs = listOf(HandOff(HandOff.Kind.WEB, q)))
+            }
+        }
+    }
         .flowOn(Dispatchers.IO)
         .stateIn(scope, SharingStarted.Eagerly, SearchExtras())
 
@@ -136,9 +111,30 @@ class SearchModel(
 
     private fun hasContacts() = app.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
 
-    private fun build(q: String, contacts: Boolean): SearchExtras {
+    private fun build(q: String, contactsOn: Boolean): SearchExtras {
         val calc = Calc.evaluate(q)?.let { Calc.format(it) }
-        val direct = buildList {
+        val labels = appLabels()
+        val command = Commands.parse(q)?.let { resolveInApp(it, labels) } ?: appFirst(q, labels)
+        val top = ArrayList<QuickAction>()
+        var goFirst = false
+        if (command != null) {
+            top += commandActions(command, contactsOn, labels)
+            goFirst = top.isNotEmpty()
+        }
+        // A plain name: the contacts it matches, with their chat app.
+        val contacts = if (contactsOn && calc == null && command == null) safeFind(q, MAX_CONTACTS) else emptyList()
+        if (command == null && calc == null) {
+            QueryKind.address(q)?.let { addr ->
+                top += QuickAction(str(R.string.action_open_maps, addr), null, R.drawable.ph_map_pin, run = open(geo(addr)))
+                top += QuickAction(str(R.string.action_directions, addr), null, R.drawable.ph_navigation_arrow, run = open(directions(addr)))
+                goFirst = true
+            }
+            recommendedChat(q, contacts, labels)?.let {
+                top.add(0, it)
+                goFirst = true
+            }
+        }
+        val direct = if (command != null) emptyList() else buildList {
             QueryKind.phone(q)?.let { add(HandOff(HandOff.Kind.CALL, it)) }
             QueryKind.email(q)?.let { add(HandOff(HandOff.Kind.EMAIL, it)) }
             QueryKind.url(q)?.let { add(HandOff(HandOff.Kind.LINK, it)) }
@@ -146,14 +142,202 @@ class SearchModel(
         val handOffs = listOf(HandOff.Kind.WEB, HandOff.Kind.STORE, HandOff.Kind.MAPS).map { HandOff(it, q) }
         return SearchExtras(
             query = q,
+            top = top,
+            goFirst = goFirst,
             calc = calc,
-            shortcuts = if (calc != null) emptyList() else findShortcuts(q),
-            contacts = if (contacts && calc == null) findContacts(q) else emptyList(),
-            settings = if (calc != null) emptyList() else findSettings(q),
+            shortcuts = if (calc != null || command != null) emptyList() else findShortcuts(q, labels),
+            contacts = contacts,
+            settings = if (calc != null || command != null) emptyList() else findSettings(q),
             direct = direct,
             handOffs = handOffs,
         )
     }
+
+    private fun str(id: Int, vararg args: Any): String = app.getString(id, *args)
+
+    private fun open(intent: Intent) = QuickAction.Run.Open(intent)
+
+    private fun safeFind(name: String, limit: Int): List<ContactResult> = try {
+        people.find(name, limit)
+    } catch (e: SecurityException) {
+        contactsAllowed.value = false
+        emptyList()
+    }
+
+    // --- Commands ----------------------------------------------------------------------------
+
+    /** An InApp command whose app part names no app is no command (plain text with "on" in it). */
+    private fun resolveInApp(c: Command, labels: Map<String, String>): Command? =
+        if (c is Command.InApp && findApp(c.app, labels) == null) null else c
+
+    /** "instagram stories": an app's name, then what to do in it. */
+    private fun appFirst(q: String, labels: Map<String, String>): Command? {
+        val nq = AppSearch.normalize(q)
+        val hit = labels.values
+            .map { it to AppSearch.normalize(it) }
+            .filter { (_, n) -> n.isNotEmpty() && nq.startsWith("$n ") && nq.length > n.length + 1 }
+            .maxByOrNull { it.second.length } ?: return null
+        val rest = q.trim().substring(hit.first.length.coerceAtMost(q.trim().length)).trim()
+        return if (rest.isEmpty()) null else Command.InApp(rest, hit.first)
+    }
+
+    /** The package of the app called [name] (exact, else the shortest label starting with it). */
+    private fun findApp(name: String, labels: Map<String, String>): String? {
+        val n = AppSearch.normalize(name)
+        if (n.isEmpty()) return null
+        labels.entries.firstOrNull { AppSearch.normalize(it.value) == n }?.let { return it.key }
+        return labels.entries.filter { AppSearch.rank(it.value, n) == 0 }.minByOrNull { it.value.length }?.key
+    }
+
+    private fun commandActions(c: Command, contactsOn: Boolean, labels: Map<String, String>): List<QuickAction> = when (c) {
+        is Command.Call -> people(c.who, contactsOn) { p ->
+            when (c.via) {
+                Command.Via.WHATSAPP -> p.app(ContactApp.Kind.CALL, null)?.takeIf { it.pkg in ContactResult.WHATSAPP }?.let {
+                    QuickAction(str(R.string.action_call, p.name), it.appLabel, R.drawable.ph_phone, p.photo, open(it.intent()))
+                }
+                else -> p.phone?.let { QuickAction(str(R.string.action_call, p.name), it, R.drawable.ph_phone, p.photo, QuickAction.Run.Call(it)) }
+            }
+        } ?: QueryKind.phone(c.who)?.let { listOf(QuickAction(str(R.string.action_call, it), null, R.drawable.ph_phone, run = QuickAction.Run.Call(it))) }.orEmpty()
+        is Command.VideoCall -> people(c.who, contactsOn) { p ->
+            p.app(ContactApp.Kind.VIDEO)?.let { QuickAction(str(R.string.action_video, p.name), it.appLabel, R.drawable.ph_video_camera, p.photo, open(it.intent())) }
+        }.orEmpty()
+        is Command.Message -> people(c.who, contactsOn) { p -> chat(p, c.via) }
+            ?: listOfNotNull(numberChat(c.who, c.via))
+        is Command.Email -> QueryKind.email(c.who)?.let { listOf(QuickAction(str(R.string.action_email, it), null, R.drawable.ph_envelope_simple, run = open(HandOff(HandOff.Kind.EMAIL, it).intent()))) }
+            ?: people(c.who, contactsOn) { p ->
+                p.emails.firstOrNull()?.let { QuickAction(str(R.string.action_email, p.name), it, R.drawable.ph_envelope_simple, p.photo, open(HandOff(HandOff.Kind.EMAIL, it).intent())) }
+            }.orEmpty()
+        is Command.Play -> {
+            val pkg = c.app?.let { findApp(it, labels) }
+            val what = if (c.app != null && pkg == null) "${c.what} ${c.app}" else c.what
+            val intent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH)
+                .putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
+                .putExtra(SearchManager.QUERY, what)
+                .apply { if (pkg != null) setPackage(pkg) }
+            listOf(QuickAction(str(R.string.action_play, what), pkg?.let { labels[it] }, R.drawable.ph_play, run = open(intent)))
+        }
+        is Command.Directions -> listOf(
+            QuickAction(str(R.string.action_directions, c.place), null, R.drawable.ph_navigation_arrow, run = open(directions(c.place))),
+            QuickAction(str(R.string.action_open_maps, c.place), null, R.drawable.ph_map_pin, run = open(geo(c.place))),
+        )
+        is Command.Timer -> listOf(
+            QuickAction(
+                str(R.string.action_timer, durationText(c.seconds)), null, R.drawable.ph_timer,
+                run = open(Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH, c.seconds).putExtra(AlarmClock.EXTRA_SKIP_UI, false)),
+            ),
+        )
+        is Command.Alarm -> listOf(
+            QuickAction(
+                str(R.string.action_alarm, String.format(java.util.Locale.ROOT, "%d:%02d", c.hour, c.minute)), null, R.drawable.ph_alarm,
+                run = open(Intent(AlarmClock.ACTION_SET_ALARM).putExtra(AlarmClock.EXTRA_HOUR, c.hour).putExtra(AlarmClock.EXTRA_MINUTES, c.minute)),
+            ),
+        )
+        is Command.InApp -> inApp(c, contactsOn, labels)
+    }
+
+    /**
+     * The contacts named [who] turned into actions by [action] (up to three); null when [who] is
+     * no contact (a number, or contacts are not allowed — then the action asks for them).
+     */
+    private fun people(who: String, contactsOn: Boolean, action: (ContactResult) -> QuickAction?): List<QuickAction>? {
+        if (QueryKind.phone(who) != null) return null
+        if (!contactsOn) return listOf(QuickAction(str(R.string.action_allow_contacts, who), null, R.drawable.ph_user, run = QuickAction.Run.AllowContacts))
+        return safeFind(who, 3).mapNotNull(action).takeIf { it.isNotEmpty() }
+    }
+
+    /** Message a contact: WhatsApp (or another chat app) when it has one, else SMS. */
+    private fun chat(p: ContactResult, via: Command.Via?): QuickAction? {
+        val viaApp = when (via) {
+            Command.Via.SMS -> null
+            Command.Via.WHATSAPP -> p.app(ContactApp.Kind.CHAT)?.takeIf { it.pkg in ContactResult.WHATSAPP }
+            null -> p.app(ContactApp.Kind.CHAT)
+        }
+        if (viaApp != null) return QuickAction(str(R.string.action_message, p.name), viaApp.appLabel, R.drawable.ph_chat_circle, p.photo, open(viaApp.intent()))
+        if (via == Command.Via.WHATSAPP) return null
+        val number = p.phone ?: return null
+        return QuickAction(str(R.string.action_message, p.name), str(R.string.search_sms), R.drawable.ph_chat_circle, p.photo, open(sms(number)))
+    }
+
+    /** "zap 11 91234 5678": a chat with a number that is not a contact. */
+    private fun numberChat(who: String, via: Command.Via?): QuickAction? {
+        val number = QueryKind.phone(who) ?: return null
+        val intent = if (via == Command.Via.WHATSAPP) {
+            Intent(Intent.ACTION_VIEW, "https://wa.me/${number.filter { it.isDigit() }}".toUri())
+        } else {
+            sms(number)
+        }
+        return QuickAction(str(R.string.action_message, number), null, R.drawable.ph_chat_circle, run = open(intent))
+    }
+
+    private fun sms(number: String) = Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null))
+    private fun geo(place: String) = Intent(Intent.ACTION_VIEW, ("geo:0,0?q=" + Uri.encode(place)).toUri())
+    private fun directions(place: String) =
+        Intent(Intent.ACTION_VIEW, ("https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(place)).toUri())
+
+    private fun durationText(seconds: Int): String {
+        val h = seconds / 3600
+        val m = seconds % 3600 / 60
+        val s = seconds % 60
+        return listOfNotNull(
+            h.takeIf { it > 0 }?.let { "$it h" },
+            m.takeIf { it > 0 }?.let { "$it min" },
+            s.takeIf { it > 0 }?.let { "$it s" },
+        ).joinToString(" ")
+    }
+
+    /** "stories on instagram": that app's shortcuts for it, its chats with a person, its own search. */
+    private fun inApp(c: Command.InApp, contactsOn: Boolean, labels: Map<String, String>): List<QuickAction> {
+        val pkg = findApp(c.app, labels) ?: return emptyList()
+        val appLabel = labels[pkg] ?: return emptyList()
+        val out = ArrayList<QuickAction>()
+        // A person in a chat app ("ana on whatsapp").
+        if (contactsOn) {
+            for (p in safeFind(c.what, 3)) {
+                p.apps.firstOrNull { it.pkg == pkg && it.kind == ContactApp.Kind.CHAT }?.let {
+                    out += QuickAction(str(R.string.action_message, p.name), appLabel, R.drawable.ph_chat_circle, p.photo, open(it.intent()))
+                }
+            }
+        }
+        // The app's own shortcuts, with the words people use for them.
+        val terms = AppSearch.normalize(c.what).let { w -> listOf(w) + w.split(' ').flatMap { Commands.SYNONYMS[it].orEmpty() } }.distinct()
+        allShortcuts().filter { it.`package` == pkg }
+            .mapNotNull { s ->
+                val label = (s.shortLabel ?: s.longLabel)?.toString() ?: return@mapNotNull null
+                val names = listOfNotNull(label, s.longLabel?.toString())
+                val r = terms.withIndex().flatMap { (i, t) -> names.map { n -> AppSearch.rank(n, t).let { if (it < 0) -1 else it + i * 3 } } }
+                    .filter { it >= 0 }.minOrNull() ?: return@mapNotNull null
+                r to shortcutResult(s, label, appLabel)
+            }
+            .sortedBy { it.first }
+            .take(3)
+            .forEach { (_, s) -> out += QuickAction(s.label, appLabel, R.drawable.ph_lightning, s.icon, QuickAction.Run.Shortcut(s)) }
+        // Its own search, and playing it when the app plays media.
+        val search = Intent(Intent.ACTION_SEARCH).setPackage(pkg).putExtra(SearchManager.QUERY, c.what)
+        if (handles(search)) out += QuickAction(str(R.string.action_in_app, c.what, appLabel), null, R.drawable.ph_search, run = open(search))
+        val play = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).setPackage(pkg)
+            .putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*").putExtra(SearchManager.QUERY, c.what)
+        if (handles(play)) out += QuickAction(str(R.string.action_play, c.what), appLabel, R.drawable.ph_play, run = open(play))
+        return out
+    }
+
+    private fun handles(intent: Intent) = app.packageManager.queryIntentActivities(intent, 0).isNotEmpty()
+
+    /**
+     * Typing a person's name: messaging them comes first, when the name is a clear match (it or
+     * one of its words starts with the query) and no app's name starts with the query (unless the
+     * query is the person's whole first name).
+     */
+    private fun recommendedChat(q: String, contacts: List<ContactResult>, labels: Map<String, String>): QuickAction? {
+        val nq = AppSearch.normalize(q)
+        if (nq.length < 2) return null
+        val p = contacts.firstOrNull { AppSearch.rank(it.name, nq) in 0..1 } ?: return null
+        val name = AppSearch.normalize(p.name)
+        val exact = name == nq || name.substringBefore(' ') == nq
+        if (!exact && labels.values.any { AppSearch.rank(it, nq) == 0 }) return null
+        return chat(p, null)
+    }
+
+    // --- Other sources -------------------------------------------------------------------------
 
     private fun findSettings(q: String): List<SettingPage> {
         val nq = AppSearch.normalize(q)
@@ -191,9 +375,17 @@ class SearchModel(
         return list
     }
 
-    private fun findShortcuts(q: String): List<ShortcutResult> {
+    private fun shortcutResult(s: ShortcutInfo, label: String, appLabel: String): ShortcutResult {
+        val icon = try {
+            launcherApps.getShortcutIconDrawable(s, app.resources.displayMetrics.densityDpi)?.toBitmap(iconPx, iconPx)?.asImageBitmap()
+        } catch (e: Exception) {
+            null
+        }
+        return ShortcutResult(s, label, appLabel, icon)
+    }
+
+    private fun findShortcuts(q: String, labels: Map<String, String>): List<ShortcutResult> {
         val nq = AppSearch.normalize(q)
-        val labels = appLabels()
         return allShortcuts()
             .mapNotNull { s ->
                 val appLabel = labels[s.`package`] ?: return@mapNotNull null
@@ -206,45 +398,7 @@ class SearchModel(
             .sortedBy { it.first }
             .distinctBy { it.second.`package` + "/" + it.second.id }
             .take(MAX_SHORTCUTS)
-            .map { (_, s, l) ->
-                val icon = try {
-                    launcherApps.getShortcutIconDrawable(s, app.resources.displayMetrics.densityDpi)?.toBitmap(iconPx, iconPx)?.asImageBitmap()
-                } catch (e: Exception) {
-                    null
-                }
-                ShortcutResult(s, l.first, l.second, icon)
-            }
-    }
-
-    private fun findContacts(q: String): List<ContactResult> {
-        val uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_FILTER_URI, Uri.encode(q))
-        val projection = arrayOf(
-            ContactsContract.Contacts._ID,
-            ContactsContract.Contacts.LOOKUP_KEY,
-            ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
-            ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
-        )
-        val out = ArrayList<ContactResult>()
-        try {
-            app.contentResolver.query(uri, projection, null, null, null)?.use { c ->
-                while (c.moveToNext() && out.size < MAX_CONTACTS) {
-                    val name = c.getString(2) ?: continue
-                    val photo = c.getString(3)?.let { loadPhoto(it.toUri()) }
-                    out += ContactResult(c.getLong(0), c.getString(1) ?: continue, name, photo)
-                }
-            }
-        } catch (e: SecurityException) {
-            contactsAllowed.value = false
-        } catch (e: IllegalArgumentException) {
-            // A provider that does not support filtering: no contacts.
-        }
-        return out
-    }
-
-    private fun loadPhoto(uri: Uri): ImageBitmap? = try {
-        app.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
-    } catch (e: Exception) {
-        null
+            .map { (_, s, l) -> shortcutResult(s, l.first, l.second) }
     }
 
     private companion object {

@@ -43,6 +43,9 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
 
     /** Backdrop colour when the folder has no colour of its own (follows the theme). */
     var defaultColor: Int = 0x991C1C1E.toInt()
+
+    /** The folder colour chosen in settings for folders without their own; 0 = [defaultColor]. */
+    var settingsColor: Int = 0
         set(value) { field = value; invalidate() }
 
     /** The icon shape from settings: a normal folder takes it; a large one its corner style. */
@@ -154,8 +157,9 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         // before the picker existed were opaque and get the usual translucency.
         // A colour the user chose is drawn exactly as chosen, opacity included (opaque pink is
         // opaque); only the theme's default colour thins over the glass or blur.
-        val custom = f.color != 0
-        bgPaint.color = if (custom) f.color else defaultColor
+        val own = if (f.color != 0) f.color else settingsColor
+        val custom = own != 0
+        bgPaint.color = if (custom) own else defaultColor
         // Frosted and glass: the blurred wallpaper first, then less of the folder's own colour.
         val outlinePath = if (isLarge) {
             val radius = box.width() * largeCornerShare()

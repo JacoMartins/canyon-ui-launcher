@@ -5,6 +5,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.core.graphics.drawable.toDrawable
 import androidx.compose.foundation.layout.size
@@ -329,6 +334,10 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             )
         }
 
+        SettingsSection(title = stringResource(R.string.folders)) {
+            FolderColorRow(s.folderColor, store, home)
+        }
+
         SettingsSection(title = stringResource(R.string.backup)) {
             BackupSettings()
         }
@@ -531,6 +540,77 @@ private fun RenderModeChoice(mode: RenderMode, onSelect: (RenderMode) -> Unit) {
 @Composable
 private fun pluralHidden(n: Int): String =
     androidx.compose.ui.res.pluralStringResource(R.plurals.hidden_count, n, n)
+
+/**
+ * Folder colour: the colour of every folder without its own (default: the theme's, which follows
+ * light and dark mode). The dialog's "Apply to all folders" also replaces single folders' colours.
+ */
+@Composable
+private fun FolderColorRow(color: Int, store: SettingsStore, home: HomeRepository) {
+    val scope = rememberCoroutineScope()
+    var open by remember { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { open = true }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.folder_color), style = MaterialTheme.typography.titleMedium)
+            Text(
+                stringResource(if (color == 0) R.string.folder_color_default else R.string.folder_color_custom),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+        }
+        Box(
+            Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(if (color == 0) colors.surfaceContainerHighest else Color(color)),
+        )
+    }
+    if (open) {
+        var picked by remember { mutableIntStateOf(color) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(stringResource(R.string.folder_color)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.folder_color_summary), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    io.github.jacomartins.canyonui.ui.design.ColorPicker(
+                        initial = color,
+                        labels = listOf(
+                            stringResource(R.string.color_hue), stringResource(R.string.color_saturation),
+                            stringResource(R.string.color_brightness), stringResource(R.string.color_opacity),
+                        ),
+                        onCommit = { picked = it },
+                        modifier = Modifier.padding(top = Spacing.md),
+                    )
+                }
+            },
+            confirmButton = {
+                PrimaryButton(stringResource(R.string.folder_color_apply_all), {
+                    open = false
+                    scope.launch {
+                        store.setFolderColor(picked)
+                        home.clearFolderColors()
+                    }
+                })
+            },
+            dismissButton = {
+                SecondaryButton(stringResource(R.string.folder_color_use_default), {
+                    open = false
+                    scope.launch { store.setFolderColor(0) }
+                })
+            },
+            shape = RoundedCornerShape(28.dp),
+        )
+    }
+}
 
 @Composable
 private fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit) {

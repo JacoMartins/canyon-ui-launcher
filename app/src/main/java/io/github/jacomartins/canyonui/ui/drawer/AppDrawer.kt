@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -125,6 +127,9 @@ interface DrawerActions {
     fun openIntent(intent: android.content.Intent, bounds: Rect?)
     fun requestContacts()
     fun copyText(text: String)
+
+    /** Calls [number] straight away once allowed (asks the first time; the dialer if refused). */
+    fun placeCall(number: String)
 }
 
 private const val COLUMNS = 4
@@ -146,6 +151,9 @@ private fun drawerTint(): Color {
 }
 private val SearchPillHeight = 56.dp
 
+/** How long Go waits for the results of the text just typed. */
+private const val GO_WAIT_MS = 1000L
+
 /** The Apps screen's top corners while it slides (square when fully open). */
 private val DRAWER_CORNER = 28.dp
 
@@ -161,6 +169,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
     val results by model.results.collectAsState()
     var showHidden by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
+    val goScope = androidx.compose.runtime.rememberCoroutineScope()
 
     // The parent closes the drawer on a downward drag only when the grid is at its top.
     LaunchedEffect(Unit) {
@@ -218,7 +227,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
                 // Apps first, then every other kind of result (the calculator above them).
                 searching -> AppGrid(
                     results, gridState, top, bottom, actions, model,
-                    header = { searchTop(extras, actions, nothing = results.isEmpty() && extras.isEmpty, query = model.query) },
+                    header = { searchTop(extras, model, actions, nothing = results.isEmpty() && extras.isEmpty) },
                     footer = { searchBottom(extras, askContacts, model, actions) },
                 )
                 else -> {
@@ -236,7 +245,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         SearchPill(
             model = model,
             voiceSearch = actions.voiceSearch,
-            onGo = { openTop(results, model, actions) },
+            onGo = { goScope.launch { openTop(model, actions) } },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .windowInsetsPadding(bottomInsets)
@@ -252,13 +261,20 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
 }
 
 /** The keyboard's Go key: the first app, else what the query is (a number, a link), else the first other result, else the web. */
-private fun openTop(results: List<AppInfo>, model: DrawerModel, actions: DrawerActions) {
-    if (model.query.isBlank()) return
-    val extras = model.search.extras.value
+private suspend fun openTop(model: DrawerModel, actions: DrawerActions) {
+    val q = model.query.trim()
+    if (q.isEmpty()) return
+    // The results for exactly this text (Go can come before they are worked out).
+    val extras = kotlinx.coroutines.withTimeoutOrNull(GO_WAIT_MS) { model.search.extras.first { it.query == q } }
+        ?: model.search.extras.value
+    if (model.query.trim() != q) return
     model.rememberQuery()
-    val app = results.firstOrNull()
+    val app = model.results.value.firstOrNull()
+    val current = extras.query == q
     when {
+        current && extras.goFirst && extras.top.isNotEmpty() -> runAction(extras.top.first(), null, actions)
         app != null -> actions.launch(app, null)
+        current && extras.top.isNotEmpty() -> runAction(extras.top.first(), null, actions)
         extras.direct.isNotEmpty() -> actions.openIntent(extras.direct.first().intent(), null)
         extras.shortcuts.isNotEmpty() -> actions.openShortcut(extras.shortcuts.first(), null)
         extras.contacts.isNotEmpty() -> actions.openIntent(android.content.Intent(android.content.Intent.ACTION_VIEW, extras.contacts.first().uri), null)

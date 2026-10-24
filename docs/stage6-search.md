@@ -44,6 +44,11 @@ Transparency setting.
 | 9 | Recent searches (kept on the phone, last 8, "Clear") | 0.6.0 | Done |
 | 10 | Same extra results under the apps in the Apps screen's search | 0.6.0 | Done |
 | 11 | Go opens the top result | 0.6.0 | Done |
+| 16 | Commands, English and Portuguese, any case: `call ana` (Go places the call; the call permission is asked once, otherwise the dialer opens), `whatsapp call ana`, `video call ana`, `message ana` / `zap ana` / `text ana`, `email ana`, `play … on spotify`, `directions to …`, `timer 5 min`, `alarm 7:30`, `open …` | 0.6.1 | Done |
+| 17 | A person's name alone: "Message <name>" first (WhatsApp or another chat app the contact has, else SMS), when no app's name starts with the text or the text is the person's first name | 0.6.1 | Done |
+| 18 | Contacts with message, call and video buttons, through the entries chat apps add to contacts (WhatsApp, Telegram...) | 0.6.1 | Done |
+| 19 | `<thing> on <app>` and `<app> <thing>`: that app's shortcuts with everyday words ("stories" finds Instagram's camera), its chats with a person, its own search, playing in it | 0.6.1 | Done |
+| 20 | Addresses ("Rua Augusta, 1500", "Av. Paulista 1000", "1600 Amphitheatre Parkway", CEP/ZIP): Open in Maps and Directions. No map picture: it needs map tiles from the internet | 0.6.1 | Done |
 | 12 | Typo tolerance ("whatsap", "camrea") | Later | |
 | 13 | Calendar events (`READ_CALENDAR`, opt-in like contacts) | Later | |
 | 14 | Files and photos (MediaStore with the media permissions already used by the wallpaper chooser) | Later | |
@@ -55,5 +60,8 @@ Transparency setting.
 - Searching text messages needs the default SMS app role. Not planned.
 - Searching inside other apps' content (notes, mail) is only possible for data those apps choose to
   share with every app; no common public way exists. Not planned.
+- WhatsApp chats with people who are not saved contacts, groups and messages stay inside
+  WhatsApp. Its recent chats still show when WhatsApp offers them as app shortcuts.
+- A map preview of an address needs map tiles from the internet. The address opens in the maps app instead.
 - Online suggestions while typing need network access, which the launcher does not have. A web
   search is handed to the user's browser instead (item 8).

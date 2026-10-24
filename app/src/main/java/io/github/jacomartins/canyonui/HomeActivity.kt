@@ -236,6 +236,37 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun requestContacts() = contactsPermission.launch(android.Manifest.permission.READ_CONTACTS)
 
+    /** The number waiting for the call permission. */
+    private var pendingCall: String? = null
+
+    private val callPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val number = pendingCall ?: return@registerForActivityResult
+        pendingCall = null
+        call(number, granted)
+    }
+
+    override fun placeCall(number: String) {
+        if (checkSelfPermission(android.Manifest.permission.CALL_PHONE) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            call(number, direct = true)
+        } else {
+            pendingCall = number
+            callPermission.launch(android.Manifest.permission.CALL_PHONE)
+        }
+    }
+
+    /** Calls [number] ([direct]), or opens the dialer with it when calling was not allowed. */
+    private fun call(number: String, direct: Boolean) {
+        val uri = android.net.Uri.fromParts("tel", number, null)
+        try {
+            startActivity(Intent(if (direct) Intent.ACTION_CALL else Intent.ACTION_DIAL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            launchPending = true
+        } catch (e: ActivityNotFoundException) {
+            toast(getString(R.string.search_cannot_open))
+        } catch (e: SecurityException) {
+            toast(getString(R.string.search_cannot_open))
+        }
+    }
+
     override fun openShortcut(shortcut: io.github.jacomartins.canyonui.search.ShortcutResult, bounds: Rect?) {
         val opts = bounds?.let { ActivityOptions.makeScaleUpAnimation(drawerView, it.left, it.top, it.width(), it.height()).toBundle() }
         try {
@@ -427,9 +458,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         state?.let(::applyWidgetSizes)
                     }
                     phonePalette = s.phonePalette
-                    if (iconShape != s.iconStyle.shape) {
+                    if (iconShape != s.iconStyle.shape || folderColor != s.folderColor) {
                         iconShape = s.iconStyle.shape
-                        views.values.forEach { (it as? FolderIconView)?.let(::styleFolder) }
+                        folderColor = s.folderColor
+                        views.values.forEach { (it as? FolderIconView)?.let { f -> styleFolder(f); f.invalidate() } }
                     }
                     swipeUpTarget = s.swipeUpTarget
                     updateDrawerGesture()
@@ -810,6 +842,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     /** Translucent (60%) so the wallpaper shows through the folder. */
+    /** Settings' folder colour (0 = the theme's). */
+    private var folderColor = 0
+
     private fun folderDefaultColor() = if (isNight) 0x991C1C1E.toInt() else 0x99F4F4F6.toInt()
 
     /** Folders take the icon shape and the mode's border values. */
@@ -817,6 +852,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         f.shape = iconShape
         f.darkSurface = isNight
         f.defaultColor = folderDefaultColor()
+        f.settingsColor = folderColor
     }
 
     // --- Long-press: menu, and a drag if the finger moves ------------------------------------

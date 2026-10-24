@@ -75,6 +75,8 @@ data class LauncherSettings(
     val phonePalette: Boolean = false,
     /** Notification badges on icons: "off", "dots" or "numbers". */
     val badges: String = "numbers",
+    /** Colour of folders that have none of their own (ARGB); 0 = the theme's, light or dark. */
+    val folderColor: Int = 0,
     /** Taps on empty home space that lock the phone: 0 (off), 2 or 3. */
     val lockTaps: Int = 0,
     /** A downward swipe on home pulls down the notifications. */
@@ -131,6 +133,7 @@ class SettingsStore(private val context: Context) {
         val RENDER_MODE = stringPreferencesKey("render_mode")
         val LOCK_TAPS = intPreferencesKey("lock_taps")
         val BADGES = stringPreferencesKey("badges")
+        val FOLDER_COLOR = intPreferencesKey("folder_color")
         val SWIPE_DOWN_NOTIFICATIONS = booleanPreferencesKey("swipe_down_notifications")
         val PENDING_SEARCH_WIDGET = booleanPreferencesKey("pending_search_widget")
         val SWIPE_UP_TARGET = stringPreferencesKey("swipe_up_target")
@@ -179,6 +182,7 @@ class SettingsStore(private val context: Context) {
             phonePalette = p[Keys.PHONE_PALETTE] ?: false,
             lockTaps = p[Keys.LOCK_TAPS] ?: 0,
             badges = p[Keys.BADGES] ?: "numbers",
+            folderColor = p[Keys.FOLDER_COLOR] ?: 0,
             swipeDownNotifications = p[Keys.SWIPE_DOWN_NOTIFICATIONS] ?: false,
             renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.GLASS,
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
@@ -299,6 +303,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setPhonePalette(on: Boolean) {
         context.dataStore.edit { it[Keys.PHONE_PALETTE] = on }
+    }
+
+    suspend fun setFolderColor(color: Int) {
+        context.dataStore.edit { if (color == 0) it.remove(Keys.FOLDER_COLOR) else it[Keys.FOLDER_COLOR] = color }
     }
 
     suspend fun setBadges(mode: String) {
