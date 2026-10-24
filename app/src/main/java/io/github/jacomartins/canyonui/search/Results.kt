@@ -11,7 +11,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.core.net.toUri
 
 /** An app shortcut ("New message", "Scan QR code") of an installed app. */
-class ShortcutResult(val info: ShortcutInfo, val label: String, val appLabel: String, val icon: ImageBitmap?)
+class ShortcutResult(val info: ShortcutInfo, val label: String, val appLabel: String, val icon: ImageBitmap?) {
+    companion object {
+        /** Its [ActionStats] key. */
+        fun key(s: ShortcutResult) = key(s.info)
+        fun key(info: ShortcutInfo) = "shortcut:${info.`package`}/${info.id}"
+    }
+}
 
 /** A way to reach a contact that an app added to the contact ("Message +55 11..." from WhatsApp). */
 class ContactApp(

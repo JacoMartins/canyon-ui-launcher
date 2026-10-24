@@ -20,6 +20,9 @@ class SettingPage(
     val action: String?,
     val own: Class<*>? = null,
 ) {
+    /** Its [ActionStats] key. */
+    val key: String get() = "setting:" + (action ?: own?.simpleName)
+
     fun intent(context: Context): Intent =
         if (own != null) Intent(context, own) else Intent(action)
 }

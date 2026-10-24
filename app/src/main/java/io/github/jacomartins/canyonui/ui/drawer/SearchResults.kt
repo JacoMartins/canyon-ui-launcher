@@ -43,6 +43,7 @@ import io.github.jacomartins.canyonui.search.ContactApp
 import io.github.jacomartins.canyonui.search.ContactResult
 import io.github.jacomartins.canyonui.search.HandOff
 import io.github.jacomartins.canyonui.search.QuickAction
+import io.github.jacomartins.canyonui.search.ShortcutResult
 import io.github.jacomartins.canyonui.search.SearchExtras
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
@@ -110,7 +111,8 @@ fun LazyGridScope.searchBottom(extras: SearchExtras, askContacts: Boolean, model
         for (s in extras.shortcuts) {
             full("shortcut:${s.info.`package`}/${s.info.id}") {
                 ResultRow(title = s.label, subtitle = s.appLabel, image = s.icon, icon = R.drawable.ph_lightning) { b ->
-                    opened(); actions.openShortcut(s, b)
+                    opened(); model.search.record(ShortcutResult.key(s), null)
+                    actions.openShortcut(s, b)
                 }
             }
         }
@@ -137,7 +139,10 @@ fun LazyGridScope.searchBottom(extras: SearchExtras, askContacts: Boolean, model
         for (p in extras.settings) {
             full("setting:${p.label}") {
                 val context = androidx.compose.ui.platform.LocalContext.current
-                ResultRow(title = stringResource(p.label), icon = p.icon) { b -> opened(); actions.openIntent(p.intent(context), b) }
+                ResultRow(title = stringResource(p.label), icon = p.icon) { b ->
+                    opened(); model.search.record(p.key, null)
+                    actions.openIntent(p.intent(context), b)
+                }
             }
         }
     }

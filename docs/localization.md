@@ -1,6 +1,6 @@
 # Languages and app coverage
 
-## Where things stand (0.6.7)
+## Where things stand (0.6.8)
 
 | Part | English | Português (Brasil) | Others |
 |---|---|---|---|

@@ -18,8 +18,8 @@ android {
         applicationId = "io.github.jacomartins.canyonui"
         minSdk = 29
         targetSdk = 37
-        versionCode = 67
-        versionName = "0.6.7"
+        versionCode = 68
+        versionName = "0.6.8"
     }
 
     signingConfigs {

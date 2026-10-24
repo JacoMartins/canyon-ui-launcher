@@ -175,9 +175,16 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
     LaunchedEffect(Unit) {
         snapshotFlow { gridState.canScrollBackward }.collect { touch.contentAtTop = !it }
     }
-    // A new query starts at the top.
+    // A new query starts at the top. The other results arrive a moment after the apps and go
+    // above them; the list keeps its first visible item in place, which put them out of sight
+    // above the screen, so it goes back to the top when they arrive too.
     LaunchedEffect(Unit) {
         snapshotFlow { model.query }.collect { gridState.scrollToItem(0) }
+    }
+    LaunchedEffect(Unit) {
+        model.search.extras.collect { e ->
+            if (e.query.isNotEmpty() && e.query == model.query.trim()) gridState.scrollToItem(0)
+        }
     }
 
     val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)

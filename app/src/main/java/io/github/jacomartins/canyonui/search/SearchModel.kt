@@ -355,7 +355,7 @@ class SearchModel(
             }
             .sortedBy { it.first }
             .take(3)
-            .forEach { (_, s) -> out += QuickAction(s.label, appLabel, R.drawable.ph_lightning, s.icon, QuickAction.Run.Shortcut(s), key = "shortcut:$pkg/${s.info.id}") }
+            .forEach { (_, s) -> out += QuickAction(s.label, appLabel, R.drawable.ph_lightning, s.icon, QuickAction.Run.Shortcut(s), key = ShortcutResult.key(s)) }
         // Its own search, and playing it when the app plays media.
         val search = Intent(Intent.ACTION_SEARCH).setPackage(pkg).putExtra(SearchManager.QUERY, c.what)
         // (Not twice when a deep link already searches the app.)
@@ -398,7 +398,7 @@ class SearchModel(
                 val r = if (byLabel >= 0) byLabel else byWord
                 if (r == Int.MAX_VALUE) null else r to p
             }
-            .sortedBy { it.first }
+            .sortedWith(compareByDescending<Pair<Int, SettingPage>> { stats.score(it.second.key) }.thenBy { it.first })
             .take(MAX_SETTINGS)
             .map { it.second }
     }
@@ -444,7 +444,8 @@ class SearchModel(
                     ?: return@mapNotNull null
                 Triple(r, s, label to appLabel)
             }
-            .sortedBy { it.first }
+            // The ones opened often first, then by how well they match.
+            .sortedWith(compareByDescending<Triple<Int, ShortcutInfo, Pair<String, String>>> { stats.score(ShortcutResult.key(it.second)) }.thenBy { it.first })
             .distinctBy { it.second.`package` + "/" + it.second.id }
             .take(MAX_SHORTCUTS)
             .map { (_, s, l) -> shortcutResult(s, l.first, l.second) }
