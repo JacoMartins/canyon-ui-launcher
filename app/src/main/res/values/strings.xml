@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Canyon UI</string>
+    <string name="app_name" translatable="false">Canyon UI</string>
 
     <!-- Home -->
     <string name="hint_swipe_up">Swipe up to see all apps</string>
@@ -84,7 +84,7 @@
     <string name="wallpaper_apps">Wallpaper apps</string>
     <string name="wallpaper_app_summary">What the Wallpaper button in edit mode opens.</string>
     <string name="target_package">Package name</string>
-    <string name="target_package_hint">com.example.app</string>
+    <string name="target_package_hint" translatable="false">com.example.app</string>
     <string name="target_package_use">Use</string>
     <string name="backup">Backup</string>
     <string name="backup_summary">Saves both layouts (pages, folders, widgets), all settings and how often apps are opened in one file. Widgets come back on this phone; on another one each asks to be set up again.</string>
@@ -141,7 +141,7 @@
         <item quantity="one">%d widget</item>
         <item quantity="other">%d widgets</item>
     </plurals>
-    <string name="widget_size">%1$d × %2$d</string>
+    <string name="widget_size" translatable="false">%1$d × %2$d</string>
     <string name="widget_add">Add to home screen</string>
     <string name="widget_add_failed">The widget couldn\'t be added</string>
     <string name="widget_error">This widget stopped working</string>

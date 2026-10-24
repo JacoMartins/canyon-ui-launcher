@@ -152,5 +152,15 @@ object Commands {
         "activity" to listOf("activity", "notifications"),
         "pix" to listOf("pix", "pay", "transfer"),
         "pay" to listOf("pay", "pix", "payment"),
+        // Portuguese.
+        "storys" to listOf("story", "stories", "camera", "status"),
+        "mensagens" to listOf("messages", "direct", "inbox", "chats", "mensagens", "conversas"),
+        "conversas" to listOf("chats", "conversas", "messages"),
+        "postar" to listOf("new post", "post", "create", "publicar"),
+        "publicar" to listOf("new post", "post", "create", "publicar"),
+        "escanear" to listOf("scan", "qr", "camera", "escanear"),
+        "notificacoes" to listOf("activity", "notifications", "notificacoes", "atividade"),
+        "pagar" to listOf("pay", "pix", "pagar", "pagamento"),
+        "transferir" to listOf("transfer", "pix", "transferir"),
     )
 }
