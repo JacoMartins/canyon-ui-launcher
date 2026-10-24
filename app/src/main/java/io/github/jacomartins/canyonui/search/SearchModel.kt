@@ -77,6 +77,11 @@ class SearchModel(
 
     @Volatile private var shortcuts: List<ShortcutInfo>? = null
 
+    // Kept while search is open (cleared when it opens again): shortcut icons already loaded, and
+    // whether an app answers an intent ("its own search"), so typing does not redo them.
+    private val shortcutIcons = android.util.LruCache<String, androidx.compose.ui.graphics.ImageBitmap>(ICON_CACHE)
+    private val answers = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
     val extras: StateFlow<SearchExtras> = combine(
         query.map { it.trim() }.distinctUntilChanged().debounce(EXTRAS_DEBOUNCE_MS),
         contactsAllowed,
@@ -97,6 +102,8 @@ class SearchModel(
     /** Search is opening: shortcuts and the contacts permission may have changed since last time. */
     fun refresh() {
         shortcuts = null
+        shortcutIcons.evictAll()
+        answers.clear()
         contactsAllowed.value = hasContacts()
         _askContacts.value = !contactsAllowed.value && !prefs.getBoolean(KEY_NO_CONTACTS, false)
     }
@@ -368,7 +375,9 @@ class SearchModel(
         return out
     }
 
-    private fun handles(intent: Intent) = app.packageManager.queryIntentActivities(intent, 0).isNotEmpty()
+    private fun handles(intent: Intent): Boolean = answers.getOrPut("${intent.action}|${intent.`package`}") {
+        app.packageManager.queryIntentActivities(intent, 0).isNotEmpty()
+    }
 
     /**
      * Typing a person's name: what is usually done with them comes first (message, call or video
@@ -425,8 +434,10 @@ class SearchModel(
     }
 
     private fun shortcutResult(s: ShortcutInfo, label: String, appLabel: String): ShortcutResult {
-        val icon = try {
+        val key = ShortcutResult.key(s)
+        val icon = shortcutIcons.get(key) ?: try {
             launcherApps.getShortcutIconDrawable(s, app.resources.displayMetrics.densityDpi)?.toBitmap(iconPx, iconPx)?.asImageBitmap()
+                ?.also { shortcutIcons.put(key, it) }
         } catch (e: Exception) {
             null
         }
@@ -457,6 +468,7 @@ class SearchModel(
         const val MAX_SETTINGS = 4
         const val MAX_SHORTCUTS = 6
         const val MAX_CONTACTS = 5
+        const val ICON_CACHE = 64
         const val KEY_RECENTS = "recents"
         const val KEY_NO_CONTACTS = "contacts_declined"
         const val SEP = "\n"

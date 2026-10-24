@@ -185,15 +185,24 @@ fun Modifier.oneDepthTopBorder(maxRadius: Dp, radius: (height: Float) -> Float):
         val mask = Brush.verticalGradient(0f to Color.Black, (maxR / fadeEnd) to Color.Black, 1f to Color.Transparent, startY = 0f, endY = fadeEnd)
         val layer = Paint()
         val path = Path()
+        val stroke = Stroke(w)
+        val layerBounds = Rect(0f, 0f, size.width, fadeEnd)
+        // The tips' gradient depends on the radius: kept while it stays the same (the sheet
+        // resting, or a radius already seen), not rebuilt on every frame of a slide.
+        var tipsFor = -1f
+        var tips: Brush? = null
         onDrawWithContent {
             drawContent()
             val r = radius(size.height).coerceIn(0f, maxR)
             val share = if (maxR > 0f) r / maxR else 0f
             if (share < 0.01f) return@onDrawWithContent
-            val fade = (r / size.width).coerceAtMost(0.5f)
-            val tipStops = TIP_EASE.map { (t, a) -> fade * t to Color.Black.copy(alpha = a) } +
-                TIP_EASE.reversed().map { (t, a) -> 1f - fade * t to Color.Black.copy(alpha = a) }
-            val tips = Brush.horizontalGradient(colorStops = tipStops.toTypedArray(), startX = 0f, endX = size.width)
+            if (r != tipsFor || tips == null) {
+                tipsFor = r
+                val fade = (r / size.width).coerceAtMost(0.5f)
+                val tipStops = TIP_EASE.map { (t, a) -> fade * t to Color.Black.copy(alpha = a) } +
+                    TIP_EASE.reversed().map { (t, a) -> 1f - fade * t to Color.Black.copy(alpha = a) }
+                tips = Brush.horizontalGradient(colorStops = tipStops.toTypedArray(), startX = 0f, endX = size.width)
+            }
             fun outline(inset: Float, left: Float, right: Float) {
                 val cr = CornerRadius((r - inset).coerceAtLeast(0f))
                 path.rewind()
@@ -201,13 +210,13 @@ fun Modifier.oneDepthTopBorder(maxRadius: Dp, radius: (height: Float) -> Float):
                     RoundRect(Rect(left, inset, right, size.height + r + w), topLeft = cr, topRight = cr),
                 )
             }
-            drawContext.canvas.saveLayer(Rect(0f, 0f, size.width, fadeEnd), layer)
+            drawContext.canvas.saveLayer(layerBounds, layer)
             // Lit rim, inset by the tip stroke so a crescent opens at each corner (as in depthRing).
             outline(w / 2f, w + w / 2f, size.width - w - w / 2f)
-            drawPath(path, ringBrush, alpha = alpha * share, style = Stroke(w))
+            drawPath(path, ringBrush, alpha = alpha * share, style = stroke)
             // Dark tips at the corners easing to transparent along the top edge.
             outline(w / 2f, w / 2f, size.width - w / 2f)
-            drawPath(path, tips, alpha = sideAlpha * share, style = Stroke(w))
+            drawPath(path, tips!!, alpha = sideAlpha * share, style = stroke)
             // Fade both down the sides.
             drawRect(mask, size = Size(size.width, fadeEnd), blendMode = BlendMode.DstIn)
             drawContext.canvas.restore()

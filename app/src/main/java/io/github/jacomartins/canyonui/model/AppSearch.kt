@@ -25,14 +25,18 @@ object AppSearch {
      * Instant filter. Ranking: label starts with the query, then a word in the label starts with
      * it, then the label contains it. Order within a rank follows [items].
      */
-    fun <T> filter(items: List<T>, query: String, label: (T) -> String): List<T> {
+    fun <T> filter(items: List<T>, query: String, label: (T) -> String): List<T> =
+        filterNormalized(items, query) { normalize(label(it)) }
+
+    /** [filter] with each item's label already [normalize]d (kept from one key press to the next). */
+    fun <T> filterNormalized(items: List<T>, query: String, normalizedLabel: (T) -> String): List<T> {
         val q = normalize(query)
         if (q.isEmpty()) return items
         val prefix = ArrayList<T>()
         val wordStart = ArrayList<T>()
         val contains = ArrayList<T>()
         for (item in items) {
-            val l = normalize(label(item))
+            val l = normalizedLabel(item)
             when {
                 l.startsWith(q) -> prefix += item
                 hasWordStartingWith(l, q) -> wordStart += item

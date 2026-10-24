@@ -468,7 +468,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launcher.apps.clockTicks.collect {
-                    views.values.forEach { v -> if (v is AppIconView && v.app?.isClock == true || v is FolderIconView) v.invalidate() }
+                    // Only what shows a clock: a clock app, or a folder holding one.
+                    views.values.forEach { v ->
+                        if (v is AppIconView && v.app?.isClock == true || v is FolderIconView && v.folder?.apps?.any { it.app.isClock } == true) v.invalidate()
+                    }
                 }
             }
         }

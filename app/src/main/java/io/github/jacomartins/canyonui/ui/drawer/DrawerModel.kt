@@ -62,14 +62,20 @@ class DrawerModel(
         if (hidden.isEmpty()) list else list.filter { it.key.toString() !in hidden }
     }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    /** Shortcuts, contacts, settings, calculator and hand-offs for the query. */
-    val search = SearchModel(context, scope, snapshotFlow { query }) {
-        visible.value.associate { it.component.packageName to it.label }
-    }
+    // Worked out once per change of the app list, not on every key press: the accent-free
+    // labels the filter compares, and the labels by package that search looks apps up in.
+    private val normalized = visible.map { list -> list.map { it to AppSearch.normalize(it.label) } }
+        .flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.Eagerly, emptyList())
+    private val labelsByPackage = visible.map { list -> list.associate { it.component.packageName to it.label } }
+        .stateIn(scope, SharingStarted.Eagerly, emptyMap())
 
-    val results: StateFlow<List<AppInfo>> = combine(visible, snapshotFlow { query }) { list, q ->
+    /** Shortcuts, contacts, settings, calculator and hand-offs for the query. */
+    val search = SearchModel(context, scope, snapshotFlow { query }) { labelsByPackage.value }
+
+    val results: StateFlow<List<AppInfo>> = combine(normalized, snapshotFlow { query }) { list, q ->
         // "open camera" finds Camera.
-        AppSearch.filter(list, io.github.jacomartins.canyonui.search.Commands.appQuery(q)) { it.label }
+        val appQ = io.github.jacomartins.canyonui.search.Commands.appQuery(q)
+        if (appQ.isBlank()) list.map { it.first } else AppSearch.filterNormalized(list, appQ) { it.second }.map { it.first }
     }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     val hidden: StateFlow<List<AppInfo>> = combine(all, hiddenKeys) { list, hidden ->

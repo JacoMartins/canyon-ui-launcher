@@ -16,6 +16,9 @@ import androidx.core.net.toUri
 class ContactLookup(context: Context, private val appLabels: () -> Map<String, String>) {
     private val resolver = context.applicationContext.contentResolver
 
+    // Contact photos already decoded, by their address: typing decodes each one once.
+    private val photos = android.util.LruCache<String, ImageBitmap>(PHOTO_CACHE)
+
     /** Up to [limit] contacts matching [name], best first. Throws SecurityException without permission. */
     fun find(name: String, limit: Int): List<ContactResult> {
         val uri = Uri.withAppendedPath(ContactsContract.Contacts.CONTENT_FILTER_URI, Uri.encode(name))
@@ -41,7 +44,7 @@ class ContactLookup(context: Context, private val appLabels: () -> Map<String, S
         return rows.map { r ->
             val d = details[r.id]
             ContactResult(
-                r.id, r.lookup, r.name, r.photo?.let { photo(it.toUri()) },
+                r.id, r.lookup, r.name, r.photo?.let { p -> photos.get(p) ?: photo(p.toUri())?.also { photos.put(p, it) } },
                 d?.phones.orEmpty(), d?.emails.orEmpty(), d?.apps.orEmpty(),
             )
         }
@@ -118,5 +121,9 @@ class ContactLookup(context: Context, private val appLabels: () -> Map<String, S
         resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
     } catch (e: Exception) {
         null
+    }
+
+    private companion object {
+        const val PHOTO_CACHE = 48
     }
 }
