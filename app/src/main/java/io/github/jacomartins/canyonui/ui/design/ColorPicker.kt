@@ -55,8 +55,8 @@ fun ColorPicker(initial: Int, labels: List<String>, onCommit: (Int) -> Unit, mod
     var value by remember(initial) { mutableFloatStateOf(start[2]) }
     var alpha by remember(initial) { mutableFloatStateOf(if (initial == 0) DEFAULT_ALPHA else ((initial ushr 24) / 255f)) }
 
-    // 254 at most: a saved 255 means a colour from before the picker (drawn translucent).
-    fun argb(): Int = android.graphics.Color.HSVToColor((alpha * 254).toInt(), floatArrayOf(hue * 360f, sat, value))
+    // The full range: an opaque colour stays opaque on the folder.
+    fun argb(): Int = android.graphics.Color.HSVToColor((alpha * 255).toInt(), floatArrayOf(hue * 360f, sat, value))
     fun commit() = onCommit(argb())
 
     val full = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue * 360f, 1f, 1f)))

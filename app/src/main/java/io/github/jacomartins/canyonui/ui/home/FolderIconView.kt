@@ -152,11 +152,10 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         backdropBounds(box)
         // A chosen colour carries its own transparency (from the colour picker); colours saved
         // before the picker existed were opaque and get the usual translucency.
-        bgPaint.color = when {
-            f.color == 0 -> defaultColor
-            f.color ushr 24 == 0xFF -> (f.color and 0x00FFFFFF) or (0xA6 shl 24)
-            else -> f.color
-        }
+        // A colour the user chose is drawn exactly as chosen, opacity included (opaque pink is
+        // opaque); only the theme's default colour thins over the glass or blur.
+        val custom = f.color != 0
+        bgPaint.color = if (custom) f.color else defaultColor
         // Frosted and glass: the blurred wallpaper first, then less of the folder's own colour.
         val outlinePath = if (isLarge) {
             val radius = box.width() * largeCornerShare()
@@ -168,7 +167,7 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         }
         // The glass lens follows the outline's real corners (a circle bends all round).
         val glassRadius = if (isLarge) box.width() * largeCornerShare() else box.width() * iconCornerShare()
-        if (WallpaperBackdrop.draw(canvas, this, outlinePath, glassRadius)) {
+        if (WallpaperBackdrop.draw(canvas, this, outlinePath, glassRadius) && !custom) {
             // Folders keep less of their tint than other surfaces: clearer glass, less frost.
             bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShareFor(bgPaint.color) * FOLDER_TINT).toInt()
         }

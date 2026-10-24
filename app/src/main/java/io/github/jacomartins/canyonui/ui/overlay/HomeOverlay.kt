@@ -193,13 +193,12 @@ fun HomeOverlay(state: OverlayState, actions: OverlayActions) {
             label = "menu",
         ) { m ->
             if (m != null) {
-                MenuLayer(
-                    m.anchor, m.entries, { state.menu = null },
-                    modifier = Modifier.animateEnterExit(
-                        enter = scaleIn(tween(MENU_MS, easing = FastOutSlowInEasing), initialScale = 0.6f),
-                        exit = scaleOut(tween(MENU_MS, easing = FastOutSlowInEasing), targetScale = 0.6f),
-                    ),
-                )
+                // Zooms out of the pressed item, and back into it.
+                val open by transition.animateFloat(
+                    transitionSpec = { tween(MENU_MS, easing = FastOutSlowInEasing) },
+                    label = "menuOpen",
+                ) { if (it == EnterExitState.Visible) 1f else 0f }
+                MenuLayer(m.anchor, m.entries, { state.menu = null }, progress = { open })
             }
         }
         state.confirmDeletePage?.let { DeletePageDialog(it, state, actions) }
@@ -632,7 +631,7 @@ private const val SNACK_MS = 5000L
 private const val FOLDER_PANEL_ALPHA = 0.72f
 private const val OPEN_MS = 320
 private const val CLOSE_MS = 260
-private const val MENU_MS = 180
+private const val MENU_MS = 220
 
 /** The folder panel's size when it starts out of (and ends back in) the folder icon. */
 private const val FOLDER_START_SCALE = 0.15f

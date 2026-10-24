@@ -372,6 +372,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 WallpaperBackdrop.active.collect {
                     views.values.forEach { v -> if (v is FolderIconView) v.invalidate() }
                     for (i in 0 until home.workspace.childCount) home.workspace.pageAt(i)?.invalidate()
+                    home.editBackdrop.invalidate()
                 }
             }
         }

@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -136,6 +137,9 @@ private fun drawerTint(): Color {
 }
 private val SearchPillHeight = 56.dp
 
+/** The Apps screen's top corners while it slides (square when fully open). */
+private val DRAWER_CORNER = 28.dp
+
 /** The header row (options button) at the top of the Apps screen. */
 private val TopBarHeight = 56.dp
 
@@ -157,8 +161,19 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
     val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
 
     val haze = remember { HazeState() }
+    val cornerPx = with(LocalDensity.current) { DRAWER_CORNER.toPx() }
     CompositionLocalProvider(LocalBackdropHaze provides haze) {
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            // Rounded top corners while the screen slides; square once it is all the way up.
+            // Read in the layer only, so the slide redraws without recomposing.
+            .graphicsLayer {
+                val r = (model.offsetY / size.height.coerceAtLeast(1f) * 6f).coerceIn(0f, 1f) * cornerPx
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = r, topEnd = r)
+                clip = r > 0.5f
+            },
+    ) {
         // Behind the apps, by the Transparency setting: a see-through colour, or the blurred
         // wallpaper (frosted) or glass over it, under a lighter tint.
         BackdropSource(haze) { model.offsetY }

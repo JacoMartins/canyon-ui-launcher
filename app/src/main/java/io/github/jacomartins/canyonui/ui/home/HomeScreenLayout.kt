@@ -67,15 +67,20 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     private var hintColor = 0x40FFFFFF
     private var backdrops = false
 
-    /** Edit mode: every page shows its rounded card. */
+    /** Edit mode's full-screen background (the Transparency effect behind clear pages). */
+    val editBackdrop = EditBackdropView(context)
+
+    /** Edit mode: every page shows its outline, over the faded-in edit background. */
     fun setPageBackdrops(show: Boolean) {
         backdrops = show
+        editBackdrop.show(show)
         for (i in 0 until workspace.childCount) workspace.pageAt(i)?.showBackdrop = show
     }
 
     fun setEditColors(backdrop: Int, hint: Int) {
         backdropColor = backdrop
         hintColor = hint
+        editBackdrop.tintColor = backdrop
         for (i in 0 until workspace.childCount) workspace.pageAt(i)?.setColors(hint, backdrop)
         hotseat.setColors(hint, backdrop)
     }
@@ -99,6 +104,7 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
             alpha = 0f
             visibility = GONE
         }
+        addView(editBackdrop)
         addView(workspace)
         addView(indicator)
         addView(hotseat)
@@ -158,6 +164,7 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         val dockTop = h - insetBottom - dockMarginBottom - dockHeight
         val indicatorTop = dockTop - indicatorHeight
         val workspaceH = (indicatorTop - insetTop).coerceAtLeast(0)
+        editBackdrop.measure(exactly(w), exactly(h))
         workspace.measure(exactly(contentW), exactly(workspaceH))
         indicator.measure(exactly(contentW), exactly(indicatorHeight))
         hotseat.measure(exactly(contentW - 2 * dockMarginH), exactly(dockHeight))
@@ -169,6 +176,7 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         val h = b - t
         val dockTop = h - insetBottom - dockMarginBottom - dockHeight
         val indicatorTop = dockTop - indicatorHeight
+        editBackdrop.layout(0, 0, w, h)
         workspace.layout(insetLeft, insetTop, insetLeft + workspace.measuredWidth, insetTop + workspace.measuredHeight)
         indicator.layout(insetLeft, indicatorTop, insetLeft + indicator.measuredWidth, dockTop)
         val dockLeft = insetLeft + dockMarginH

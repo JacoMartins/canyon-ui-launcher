@@ -40,7 +40,6 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
     private val d = resources.displayMetrics.density
     private val hintRect = android.graphics.RectF()
     private val hintPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-    private val backdropPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
     private val ring = io.github.jacomartins.canyonui.ui.design.DepthRingPainter(resources.displayMetrics.density)
     /** Light hints mean a dark wallpaper behind the page: the ring takes its dark-surface values. */
     private var darkBehind = true
@@ -53,10 +52,8 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
 
     init {
         setWillNotDraw(false)
-        io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.track(this)
     }
 
-    private val backdropPath = android.graphics.Path()
 
     private val plusPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         style = android.graphics.Paint.Style.STROKE
@@ -81,7 +78,6 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
 
     fun setColors(hint: Int, backdrop: Int) {
         hintPaint.color = hint
-        backdropPaint.color = backdrop
         // The plus in the hint's hue, fully opaque: white over dark wallpapers, black over light.
         plusPaint.color = hint or 0xFF000000.toInt()
         darkBehind = (hint and 0xFF) > 0x80
@@ -131,15 +127,8 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
         if (showBackdrop) {
             val r = 28 * d
             hintRect.set(4 * d, 0f, width - 4 * d, height.toFloat())
-            // Frosted and glass: the blurred wallpaper under a lighter card colour.
-            backdropPath.reset()
-            backdropPath.addRoundRect(hintRect, r, r, android.graphics.Path.Direction.CW)
-            val blurred = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, backdropPath, r)
-            val alpha = backdropPaint.alpha
-            if (blurred) backdropPaint.alpha = (alpha * io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.fillShareFor(backdropPaint.color)).toInt()
-            canvas.drawRoundRect(hintRect, r, r, backdropPaint)
-            backdropPaint.alpha = alpha
-            // OneDepth's border, the same as the interface's buttons.
+            // The page itself is clear (the effect is edit mode's background behind it); only
+            // OneDepth's border, the same as the interface's buttons, outlines it.
             ring.draw(canvas, hintRect, r, darkBehind)
         }
         if (addPagePlaceholder) {
