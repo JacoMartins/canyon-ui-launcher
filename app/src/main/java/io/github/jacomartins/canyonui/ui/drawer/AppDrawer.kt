@@ -1,5 +1,10 @@
 package io.github.jacomartins.canyonui.ui.drawer
 
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.draw.drawBehind
 import android.graphics.Rect
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -20,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -187,6 +193,8 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
     LaunchedEffect(model.query.isBlank()) { gridState.requestScrollToItem(0) }
 
     val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    val listBottomInsets = WindowInsets.navigationBars.union(WindowInsets.imeAnimationTarget)
 
     val haze = remember { HazeState() }
     val cornerPx = with(LocalDensity.current) { DRAWER_CORNER.toPx() }
@@ -205,12 +213,27 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
             .oneDepthTopBorder(DRAWER_CORNER) { h -> drawerCorner(model.offsetY, h, cornerPx) },
     ) {
         // Behind the apps, by the Transparency setting: a see-through colour, or the blurred
-        // wallpaper (frosted) or glass over it, under a lighter tint.
+        // wallpaper (frosted or glass) under a lighter tint. Drawn from the ready-made blurred
+        // copy, kept still against the wallpaper while the screen slides (offsetY, read while
+        // drawing): computing the effect live over the whole screen on every frame of the slide
+        // was more than slower phones could do, and glass's bending only shows at a surface's
+        // edges, here the screen's own. The search field keeps its live glass.
         BackdropSource(haze) { model.offsetY }
+        val blur by io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState()
+        val blurImage = remember(blur) { blur?.bitmap?.asImageBitmap() }
         Box(
             Modifier
                 .fillMaxSize()
-                .backdrop(RoundedCornerShape(0.dp))
+                .drawBehind {
+                    val b = blur ?: return@drawBehind
+                    val img = blurImage ?: return@drawBehind
+                    drawImage(
+                        img,
+                        dstOffset = IntOffset(0, -model.offsetY.roundToInt()),
+                        dstSize = IntSize(b.screenW, b.screenH),
+                        filterQuality = FilterQuality.Low,
+                    )
+                }
                 .background(drawerTint()),
         )
         // The apps scroll under the header (it floats over them) instead of being cut off at it;
@@ -218,7 +241,9 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + TopBarHeight
         // The apps are a Haze source too, so the glass search field bends the icons under it.
         Box(Modifier.fillMaxSize().hazeSource(haze, zIndex = 1f)) {
-            val bottom = bottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
+            // The room the keyboard will take, not where it is in its slide: following the slide
+            // rebuilt this whole screen and laid the list out again on every frame of it.
+            val bottom = listBottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
             val searching = model.query.isNotBlank()
             val extras = extrasNow
             val askContacts by model.search.askContacts.collectAsState()
