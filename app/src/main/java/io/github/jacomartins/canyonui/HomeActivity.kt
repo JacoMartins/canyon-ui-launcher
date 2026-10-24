@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.graphics.createBitmap
 import androidx.core.view.ViewCompat
+import androidx.core.view.doOnPreDraw
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.core.view.WindowCompat
@@ -810,6 +811,15 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // Keep an open folder in step with changes (renamed, apps added or dragged out).
         ui.folder?.let { open -> ui.folder = st.entry(open.id) as? FolderEntry }
 
+        // A folder just made large or normal: it grows or shrinks from its old tile.
+        resizing?.let { r ->
+            val v = views[r.id] as? FolderIconView
+            if (v != null && (st.entry(r.id) as? FolderEntry)?.isLarge == r.large) {
+                resizing = null
+                v.doOnPreDraw { morphFolder(v, r.from) }
+            }
+        }
+
         if (!boundOnce) {
             boundOnce = true
             for (v in listOf(home.workspace, home.hotseat, home.indicator)) {
@@ -1009,15 +1019,29 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         ViewMap.localToRoot(dragLayer, v, pt)
         val w = (local.width() * scale).toInt().coerceAtLeast(1)
         val h = (local.height() * scale).toInt().coerceAtLeast(1)
+        // A folder's tile without the wallpaper effect: the dragged copy draws that live.
+        val folderView = v as? FolderIconView
         val image: Bitmap = when (entry) {
             is AppEntry -> entry.app.icon
             else -> createBitmap(local.width().toInt().coerceAtLeast(1), local.height().toInt().coerceAtLeast(1)).also { b ->
                 val c = Canvas(b)
                 c.translate(-local.left, -local.top)
-                v.draw(c)
+                folderView?.snapshotting = true
+                try {
+                    v.draw(c)
+                } finally {
+                    folderView?.snapshotting = false
+                }
                 // Widgets: the same rounded shape they have on the page.
                 WidgetFrame.clipSnapshot(v, b, local)
             }
+        }
+        var tile: android.graphics.Path? = null
+        var tileRadius = 0f
+        if (folderView != null) {
+            tile = android.graphics.Path()
+            tileRadius = folderView.tileShape(tile)
+            tile.offset(-local.left, -local.top)
         }
         val touchX = (dragLayer.lastDownX - pt[0]).coerceIn(0f, w.toFloat())
         val touchY = (dragLayer.lastDownY - pt[1]).coerceIn(0f, h.toFloat())
@@ -1032,7 +1056,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             },
             spanX = entry.placed.spanX, spanY = entry.placed.spanY,
             image = image, width = w, height = h, touchX = touchX, touchY = touchY,
-            view = v, app = app,
+            view = v, app = app, backdrop = tile, backdropRadius = tileRadius,
         )
     }
 
@@ -1344,9 +1368,53 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     private fun setLarge(folder: FolderEntry, large: Boolean) {
+        (views[folder.id] as? FolderIconView)?.let { v -> if (Motion.enabled()) resizing = Resize(folder.id, large, tileOnRoot(v)) }
         lifecycleScope.launch {
-            if (!launcher.home.setFolderLarge(folder.id, large)) toast(getString(R.string.folder_no_room))
+            if (!launcher.home.setFolderLarge(folder.id, large)) {
+                resizing = null
+                toast(getString(R.string.folder_no_room))
+            }
         }
+    }
+
+    /** A folder changing size, and where its tile was before (root px). */
+    private class Resize(val id: Long, val large: Boolean, val from: RectF)
+    private var resizing: Resize? = null
+
+    /** [v]'s tile (the folder's square, without its name) in the root's pixels. */
+    private fun tileOnRoot(v: FolderIconView): RectF {
+        val tile = v.backdropBounds(RectF())
+        val scale = ViewMap.scaleOf(dragLayer, v)
+        pt[0] = tile.left; pt[1] = tile.top
+        ViewMap.localToRoot(dragLayer, v, pt)
+        return RectF(pt[0], pt[1], pt[0] + tile.width() * scale, pt[1] + tile.height() * scale)
+    }
+
+    /**
+     * Grows (or shrinks) [v] from the tile it had, [from], to its new one: it starts scaled and
+     * moved onto the old tile and settles into place, so the folder seems to turn into the other
+     * size rather than jump.
+     */
+    private fun morphFolder(v: FolderIconView, from: RectF) {
+        val to = tileOnRoot(v)
+        if (to.width() <= 0f) return
+        val tile = v.backdropBounds(RectF())
+        val parentScale = ViewMap.scaleOf(dragLayer, v)
+        val s = from.width() / to.width()
+        v.pivotX = tile.left
+        v.pivotY = tile.top
+        v.scaleX = s
+        v.scaleY = s
+        v.translationX = (from.left - to.left) / parentScale
+        v.translationY = (from.top - to.top) / parentScale
+        // A large tile shrinking from a small cell draws past that cell meanwhile.
+        val parent = v.parent as? android.view.ViewGroup
+        val clipped = parent?.clipChildren ?: true
+        parent?.clipChildren = false
+        v.animate().scaleX(1f).scaleY(1f).translationX(0f).translationY(0f)
+            .setDuration(RESIZE_MS).setInterpolator(decelerate)
+            .withEndAction { parent?.clipChildren = clipped }
+            .start()
     }
 
     // --- Folders -----------------------------------------------------------------------------
@@ -1954,6 +2022,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** The longest pause between the taps of a double or triple tap. */
         private const val TAP_GAP_MS = 350L
         private const val ENTRY_MS = 480L
+        /** A folder turning large or normal size. */
+        private const val RESIZE_MS = 300L
+
         /** A folder's tile while its panel opens (the panel is opaque after a quarter). */
         private const val TILE_FADE_OUT_MS = 160L
         /** And while it closes: the panel fades only near the end of shrinking into the tile. */

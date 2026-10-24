@@ -37,6 +37,12 @@ class DragSource(
     val app: AppInfo?,
     /** Dragged out of this folder's open popup (0 = not from a folder). */
     val fromFolder: Long = 0,
+    /**
+     * A folder's tile outline in [image]'s pixels: the dragged copy draws the frosted or glass
+     * wallpaper inside it live, so the effect follows the wallpaper as it moves.
+     */
+    val backdrop: android.graphics.Path? = null,
+    val backdropRadius: Float = 0f,
 )
 
 /** Where a drag ended. */
@@ -53,15 +59,34 @@ sealed interface DropResult {
 
 /** The icon under the finger. Moves by translation only. */
 @SuppressLint("ViewConstructor")
-class DragView(context: Context, private val bitmap: Bitmap) : View(context) {
+class DragView(
+    context: Context,
+    private val bitmap: Bitmap,
+    private val backdrop: android.graphics.Path? = null,
+    private val backdropRadius: Float = 0f,
+) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val dst = Rect()
+    private val scaled = android.graphics.Path()
+    private val matrix = android.graphics.Matrix()
+    private var radius = 0f
 
     init {
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        // The wallpaper behind it changes as it moves: redrawn whenever it does.
+        if (backdrop != null) io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.track(this)
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        val b = backdrop ?: return
+        val sx = w / bitmap.width.toFloat()
+        matrix.setScale(sx, h / bitmap.height.toFloat())
+        b.transform(matrix, scaled)
+        radius = backdropRadius * sx
     }
 
     override fun onDraw(canvas: Canvas) {
+        if (backdrop != null) io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.draw(canvas, this, scaled, radius)
         dst.set(0, 0, width, height)
         canvas.drawBitmap(bitmap, null, dst, paint)
     }
@@ -158,7 +183,7 @@ class DragController(
         folderIndex = -1
         callbacks.onDragStarted(s)
         s.view?.visibility = View.INVISIBLE
-        val dv = DragView(root.context, s.image)
+        val dv = DragView(root.context, s.image, s.backdrop, s.backdropRadius)
         root.addView(dv, FrameLayout.LayoutParams(s.width, s.height))
         dragView = dv
         dv.pivotX = s.touchX

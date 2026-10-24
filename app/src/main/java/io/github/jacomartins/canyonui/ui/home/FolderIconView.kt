@@ -161,17 +161,12 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         val custom = own != 0
         bgPaint.color = if (custom) own else defaultColor
         // Frosted and glass: the blurred wallpaper first, then less of the folder's own colour.
-        val outlinePath = if (isLarge) {
-            val radius = box.width() * largeCornerShare()
-            largePath.reset()
-            largePath.addRoundRect(box, radius, radius, Path.Direction.CW)
-            largePath
-        } else {
-            outline()
-        }
+        val outlinePath = tileOutline()
         // The glass lens follows the outline's real corners (a circle bends all round).
-        val glassRadius = if (isLarge) box.width() * largeCornerShare() else box.width() * iconCornerShare()
-        if (WallpaperBackdrop.draw(canvas, this, outlinePath, glassRadius) && !custom) {
+        val glassRadius = tileRadius()
+        // A drag image leaves the wallpaper out: the dragged copy draws it live as it moves.
+        val behind = if (snapshotting) WallpaperBackdrop.active.value != null else WallpaperBackdrop.draw(canvas, this, outlinePath, glassRadius)
+        if (behind && !custom) {
             // Folders keep less of their tint than other surfaces: clearer glass, less frost.
             bgPaint.alpha = (bgPaint.alpha * WallpaperBackdrop.fillShareFor(bgPaint.color) * FOLDER_TINT).toInt()
         }
@@ -264,6 +259,28 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
     }
 
     /** A normal folder's outline: the icon shape (or the phone's icon mask) at [box]. */
+    /** Set while a drag image is drawn: everything but the wallpaper effect behind the tile. */
+    var snapshotting = false
+
+    /** The tile's outline (large: rounded square; small: the icon shape), in view coordinates. */
+    private fun tileOutline(): Path = if (isLarge) {
+        val radius = box.width() * largeCornerShare()
+        largePath.reset()
+        largePath.addRoundRect(box, radius, radius, Path.Direction.CW)
+        largePath
+    } else {
+        outline()
+    }
+
+    private fun tileRadius(): Float = if (isLarge) box.width() * largeCornerShare() else box.width() * iconCornerShare()
+
+    /** The tile's outline into [out] (view coordinates) for a drag image; returns its corner radius. */
+    fun tileShape(out: Path): Float {
+        backdropBounds(box)
+        out.set(tileOutline())
+        return tileRadius()
+    }
+
     private fun outline(): Path {
         val size = box.width()
         if (size == pathSize && box.left == pathLeft && box.top == pathTop) return shapePath
