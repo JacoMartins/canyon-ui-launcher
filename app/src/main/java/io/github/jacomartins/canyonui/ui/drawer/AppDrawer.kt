@@ -19,7 +19,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -175,24 +175,18 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
     LaunchedEffect(Unit) {
         snapshotFlow { gridState.canScrollBackward }.collect { touch.contentAtTop = !it }
     }
-    // A new query starts at the top. The other results arrive a moment after the apps and go
-    // above them; the list keeps its first visible item in place, which put them out of sight
-    // above the screen, so it goes back to the top when they arrive too.
-    LaunchedEffect(Unit) {
-        snapshotFlow { model.query }.collect { gridState.scrollToItem(0) }
+    // A new query starts at the top. The list keeps its first visible row in place when rows
+    // are inserted above it, so results that arrive a moment after the apps (actions, contacts,
+    // shortcuts, the calculator, all placed above or among them) ended up above the screen. The
+    // request to start at the top is now made after the new rows are in the list (this runs
+    // once their composition is applied) and taken at the list's next layout.
+    val extrasNow by model.search.extras.collectAsState()
+    LaunchedEffect(model.query, results, extrasNow) {
+        if (model.query.isNotBlank()) gridState.requestScrollToItem(0)
     }
-    LaunchedEffect(Unit) {
-        model.search.extras.collect { e ->
-            if (e.query.isNotEmpty() && e.query == model.query.trim()) gridState.scrollToItem(0)
-        }
-    }
+    LaunchedEffect(model.query.isBlank()) { gridState.requestScrollToItem(0) }
 
-    // The keyboard's final height from the moment it starts to open (not following its slide):
-    // a search field left behind the opening keyboard for a frame made Android pan the whole
-    // window up to show it, and the pan stayed while the keyboard was open, pushing the top
-    // results above the screen.
-    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-    val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.imeAnimationTarget)
+    val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
 
     val haze = remember { HazeState() }
     val cornerPx = with(LocalDensity.current) { DRAWER_CORNER.toPx() }
@@ -226,7 +220,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         Box(Modifier.fillMaxSize().hazeSource(haze, zIndex = 1f)) {
             val bottom = bottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
             val searching = model.query.isNotBlank()
-            val extras by model.search.extras.collectAsState()
+            val extras = extrasNow
             val askContacts by model.search.askContacts.collectAsState()
             val recents by model.search.recents.collectAsState()
             when {
