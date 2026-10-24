@@ -1,0 +1,53 @@
+# Publishes the code map (site/) to the gh-pages branch, which GitHub Pages serves at
+# https://jacomartins.github.io/claude-launcher/. Runs for every push to dev that changes the map
+# or the Kotlin sources, so the copy of the sources the page falls back to stays current.
+name: Code map
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - site/**
+      - app/src/main/java/**
+      - app/build.gradle.kts
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Build the site
+        run: |
+          SRC=app/src/main/java/io/github/jacomartins/canyonui
+          VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
+          mkdir -p _site/src
+          cp site/index.html _site/
+          # The page reads these when it cannot reach GitHub.
+          (cd "$SRC" && find . -name '*.kt' | while read -r f; do
+            mkdir -p "$GITHUB_WORKSPACE/_site/src/$(dirname "$f")"
+            cp "$f" "$GITHUB_WORKSPACE/_site/src/$f.txt"
+          done)
+          sed -i "s/const SNAPSHOT = \"[^\"]*\"/const SNAPSHOT = \"${GITHUB_SHA::7}\"/" _site/index.html
+          sed -i "s/canyonui · v[0-9.]*</canyonui · v$VERSION</" _site/index.html
+          touch _site/.nojekyll
+
+      - name: Push to gh-pages
+        run: |
+          cd _site
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Code map from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
