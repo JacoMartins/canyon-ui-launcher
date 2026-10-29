@@ -220,7 +220,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         // edges, here the screen's own. The search field keeps its live glass.
         BackdropSource(haze) { model.offsetY }
         val blur by io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState()
-        val blurImage = remember(blur) { blur?.bitmap?.asImageBitmap() }
+        val blurImage = remember(blur) { blur?.screen?.asImageBitmap() }
         Box(
             Modifier
                 .fillMaxSize()

@@ -1,5 +1,8 @@
 package io.github.jacomartins.canyonui.ui.design
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.app.WallpaperManager
 import android.content.Context
 import android.graphics.Bitmap
@@ -20,11 +23,13 @@ import android.util.Log
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import androidx.core.content.edit
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
 import androidx.core.graphics.withClip
 import io.github.jacomartins.canyonui.data.RenderMode
+import io.github.jacomartins.canyonui.util.Motion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,7 +56,13 @@ import kotlin.math.roundToInt
 object WallpaperBackdrop {
 
     /** A blurred, screen-sized wallpaper (stored small; draw it stretched to [screenW] x [screenH]). */
-    class Blur(val bitmap: Bitmap, val screenW: Int, val screenH: Int, val mode: RenderMode)
+    /**
+     * A blurred, screen-sized wallpaper (stored small; draw it stretched to [screenW] x [screenH]).
+     * [screen] is the one to draw behind a whole screen with no lens over it (the Apps screen):
+     * glass's own [bitmap] is only lightly blurred because the lens does the rest, so drawn
+     * plainly it was the wallpaper almost sharp. In the frosted mode they are the same.
+     */
+    class Blur(val bitmap: Bitmap, val screen: Bitmap, val screenW: Int, val screenH: Int, val mode: RenderMode)
 
     private const val TAG = "WallpaperBackdrop"
     private const val FILE = "wallpaper_copy.png"
@@ -292,7 +303,12 @@ object WallpaperBackdrop {
             return
         }
         _source.value = src
-        _active.value = withContext(Dispatchers.Default) { Blur(blur(src, m), src.width, src.height, m) }
+        _active.value = withContext(Dispatchers.Default) {
+            val own = blur(src, m)
+            // Glass behind a whole screen: between glass's light blur and frosted's heavy one.
+            val screen = if (m == RenderMode.GLASS) blur(src, factor = 6, radius = 3, saturation = 1.1f) else own
+            Blur(own, screen, src.width, src.height, m)
+        }
     }
 
     /**
@@ -301,17 +317,20 @@ object WallpaperBackdrop {
      * glass keeps more detail (half the screen's resolution: smooth when stretched, far from
      * full size).
      */
-    private fun blur(src: Bitmap, mode: RenderMode): Bitmap {
+    private fun blur(src: Bitmap, mode: RenderMode): Bitmap =
         // Glass: half the screen's resolution and a light blur (the lens does the rest).
-        val factor = if (mode == RenderMode.FROSTED) 12 else 2
-        val radius = if (mode == RenderMode.FROSTED) 3 else 2
+        if (mode == RenderMode.FROSTED) blur(src, factor = 12, radius = 3, saturation = 1.25f)
+        else blur(src, factor = 2, radius = 2, saturation = 1.1f)
+
+    /** [src] shrunk by [factor], then three box-blur passes of [radius] over the shrunk pixels. */
+    private fun blur(src: Bitmap, factor: Int, radius: Int, saturation: Float): Bitmap {
         val w = (src.width / factor).coerceAtLeast(1)
         val h = (src.height / factor).coerceAtLeast(1)
         val small = createBitmap(w, h)
         Canvas(small).drawBitmap(
             src, null, Rect(0, 0, w, h),
             Paint(Paint.FILTER_BITMAP_FLAG).apply {
-                colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(if (mode == RenderMode.FROSTED) 1.25f else 1.1f) })
+                colorFilter = ColorMatrixColorFilter(ColorMatrix().apply { setSaturation(saturation) })
             },
         )
         val px = IntArray(w * h)
@@ -410,6 +429,14 @@ object WallpaperBackdrop {
             v = v.parent as? View
         }
         if (scale <= 0f) return false
+        // Gliding back into line after a whole-screen animation: from where it was last drawn.
+        val from = settleFrom[view]
+        if (from != null && settle < 1f) {
+            loc[0] = (from[0] + (loc[0] - from[0]) * settle).roundToInt()
+            loc[1] = (from[1] + (loc[1] - from[1]) * settle).roundToInt()
+            scale = from[2] + (scale - from[2]) * settle
+        }
+        drawnAt.getOrPut(view) { FloatArray(3) }.let { it[0] = loc[0].toFloat(); it[1] = loc[1].toFloat(); it[2] = scale }
         // Glass on Android 13+: the lens shader ([radius] is the outline's corner radius).
         if (b.mode == RenderMode.GLASS && Build.VERSION.SDK_INT >= 33 &&
             GlassShader.draw(canvas, view, clip, radius, b.bitmap, b.screenW, b.screenH, loc, scale)
@@ -475,21 +502,70 @@ object WallpaperBackdrop {
     private val tracked: MutableSet<View> = java.util.Collections.newSetFromMap(java.util.WeakHashMap())
     private var held = false
     private var quietUntil = 0L
-    private val realign = Runnable { if (!quiet()) tracked.toList().forEach { it.invalidate() } }
+    // Re-aligning in one frame made every blur jump into place as the animation ended, so each
+    // glides there instead, from where it was last drawn, over a few frames of a still screen.
+    private val realign = Runnable {
+        if (held || SystemClock.uptimeMillis() < quietUntil) return@Runnable
+        pending = false
+        val views = tracked.toList()
+        if (!Motion.enabled()) {
+            views.forEach { it.invalidate() }
+            return@Runnable
+        }
+        settler.cancel()
+        views.forEach { v -> drawnAt[v]?.let { settleFrom[v] = it.copyOf() } }
+        settle = 0f
+        settler.start()
+    }
 
-    private fun quiet() = held || SystemClock.uptimeMillis() < quietUntil
+    /** Where each tracked view's blur was last drawn: screen x, y and scale. */
+    private val drawnAt = java.util.WeakHashMap<View, FloatArray>()
+    private val settleFrom = java.util.WeakHashMap<View, FloatArray>()
+
+    /** Progress of the glide back into line; 1 = lined up. */
+    private var settle = 1f
+    private const val SETTLE_MS = 180L
+    private val settler by lazy {
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = SETTLE_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                settle = it.animatedValue as Float
+                tracked.toList().forEach { v -> v.invalidate() }
+            }
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    settle = 1f
+                    settleFrom.clear()
+                }
+            })
+        }
+    }
+
+    /** Quiet has ended but [realign] has not run yet: views must not snap into line before it. */
+    private var pending = false
+
+    private fun quiet() = held || pending || SystemClock.uptimeMillis() < quietUntil
 
     /** Holds re-alignment while [on] (a gesture-driven whole-screen move, such as the Apps screen). */
     fun hold(on: Boolean) {
         if (held == on) return
         held = on
-        if (!on) main.post(realign)
+        // A new whole-screen move: the glide stops where it is (redrawing on every frame is
+        // what the hold avoids).
+        if (on) settler.cancel()
+        if (!on) {
+            pending = true
+            main.post(realign)
+        }
     }
 
     /** No re-alignment for [ms] (a whole-screen animation of that length), then once. */
     fun quietFor(ms: Long) {
         quietUntil = maxOf(quietUntil, SystemClock.uptimeMillis() + ms)
+        pending = true
         main.removeCallbacks(realign)
+        settler.cancel()
         main.postDelayed(realign, quietUntil - SystemClock.uptimeMillis() + 16)
     }
 }
