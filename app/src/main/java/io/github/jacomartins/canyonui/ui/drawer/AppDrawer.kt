@@ -1,5 +1,6 @@
 package io.github.jacomartins.canyonui.ui.drawer
 
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.unit.IntSize
@@ -213,20 +214,38 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
             .oneDepthTopBorder(DRAWER_CORNER) { h -> drawerCorner(model.offsetY, h, cornerPx) },
     ) {
         // Behind the apps, by the Transparency setting: a see-through colour, or the blurred
-        // wallpaper (frosted or glass) under a lighter tint. Drawn from the ready-made blurred
-        // copy, kept still against the wallpaper while the screen slides (offsetY, read while
-        // drawing): computing the effect live over the whole screen on every frame of the slide
-        // was more than slower phones could do, and glass's bending only shows at a surface's
-        // edges, here the screen's own. The search field keeps its live glass.
+        // wallpaper (frosted) or glass under a lighter tint, kept still against the wallpaper
+        // while the screen slides (offsetY, read while drawing). Glass is the folders' lens
+        // shader over glass's own light blur (light enough for every frame of the slide, unlike
+        // Haze's glass over the whole screen); frosted, and phones without the shader, draw the
+        // whole-screen copy. The search field keeps its own live glass.
         BackdropSource(haze) { model.offsetY }
         val blur by io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState()
         val blurImage = remember(blur) { blur?.screen?.asImageBitmap() }
+        val hostView = androidx.compose.ui.platform.LocalView.current
+        val glassPath = remember { android.graphics.Path() }
+        val glassLoc = remember { IntArray(2) }
         Box(
             Modifier
                 .fillMaxSize()
                 .drawBehind {
                     val b = blur ?: return@drawBehind
                     val img = blurImage ?: return@drawBehind
+                    if (b.mode == io.github.jacomartins.canyonui.data.RenderMode.GLASS && android.os.Build.VERSION.SDK_INT >= 33) {
+                        // Where the screen is now (it slides by translation), and its top corners.
+                        hostView.getLocationOnScreen(glassLoc)
+                        val r = drawerCorner(model.offsetY, size.height, cornerPx)
+                        glassPath.rewind()
+                        glassPath.addRoundRect(
+                            0f, 0f, size.width, size.height,
+                            floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f), android.graphics.Path.Direction.CW,
+                        )
+                        val drew = io.github.jacomartins.canyonui.ui.design.GlassShader.draw(
+                            drawContext.canvas.nativeCanvas, hostView, glassPath, r,
+                            b.bitmap, b.screenW, b.screenH, glassLoc, 1f,
+                        )
+                        if (drew) return@drawBehind
+                    }
                     drawImage(
                         img,
                         dstOffset = IntOffset(0, -model.offsetY.roundToInt()),

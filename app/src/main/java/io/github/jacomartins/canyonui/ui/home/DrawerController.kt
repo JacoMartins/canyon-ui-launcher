@@ -9,7 +9,7 @@ import io.github.jacomartins.canyonui.util.Motion
 
 /**
  * Drives the app drawer between closed (0) and open (1). The drawer slides up with the finger and
- * the home screen fades and shrinks slightly behind it; release settles with a spring that keeps
+ * the home screen fades behind it; release settles with a spring that keeps
  * the finger's velocity. Only view properties change per frame (translation, alpha, scale), and the
  * home screen is drawn from a hardware layer while it moves.
  */
@@ -104,9 +104,9 @@ class DrawerController(
         drawer.translationY = (1f - p) * range
         onOffset?.invoke(drawer.translationY)
         home.alpha = 1f - p
-        val scale = 1f - HOME_SCALE_DELTA * p
-        home.scaleX = scale
-        home.scaleY = scale
+        // Home only fades: it used to shrink a little too, which left the blur in its folders
+        // and widgets lined up for the smaller home (re-alignment waits during the slide) and
+        // correcting itself once home was back to full size.
         val mostly = p > 0.5f
         if (mostly != mostlyOpen) {
             mostlyOpen = mostly
@@ -136,7 +136,6 @@ class DrawerController(
     }
 
     companion object {
-        private const val HOME_SCALE_DELTA = 0.06f
         /** In drawer heights per second. */
         private const val FLING_THRESHOLD = 0.6f
     }
