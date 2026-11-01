@@ -229,6 +229,8 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
             Modifier
                 .fillMaxSize()
                 .drawBehind {
+                    // The system's live blur is behind the whole window: nothing to draw here.
+                    if (model.liveBlur) return@drawBehind
                     val b = blur ?: return@drawBehind
                     val img = blurImage ?: return@drawBehind
                     if (b.mode == io.github.jacomartins.canyonui.data.RenderMode.GLASS && android.os.Build.VERSION.SDK_INT >= 33) {

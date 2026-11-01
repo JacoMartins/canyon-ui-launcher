@@ -1,5 +1,6 @@
 package io.github.jacomartins.canyonui
 
+import kotlin.math.roundToInt
 import android.app.ActivityOptions
 import android.app.WallpaperColors
 import android.app.WallpaperManager
@@ -435,7 +436,17 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.addView(drawerView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         dragLayer.addView(overlayView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         drawer = DrawerController(home, drawerView, this)
-        drawer.onOffset = { drawerModel.offsetY = it }
+        drawer.onOffset = {
+            drawerModel.offsetY = it
+            applyLiveBlur()
+        }
+        // Whether the phone offers live window blur now (it turns off in battery saver, for one).
+        if (Build.VERSION.SDK_INT >= 31) {
+            windowManager.addCrossWindowBlurEnabledListener(mainExecutor) { enabled ->
+                blurAvailable = enabled
+                applyLiveBlur()
+            }
+        }
         // Home holds still under panels (see holdHome).
         lifecycleScope.launch {
             androidx.compose.runtime.snapshotFlow { ui.isModal }.collect { holdHome(it) }
@@ -515,6 +526,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     }
                     swipeUpTarget = s.swipeUpTarget
                     dragEffects = s.dragEffects
+                    if (liveBlurSetting != s.liveBlur || liveBlurMode != s.renderMode) {
+                        liveBlurSetting = s.liveBlur
+                        liveBlurMode = s.renderMode
+                        applyLiveBlur()
+                    }
                     if (WallpaperBackdrop.widgetEffects != s.widgetEffects) {
                         WallpaperBackdrop.widgetEffects = s.widgetEffects
                         views.values.forEach { v -> if (v is io.github.jacomartins.canyonui.ui.widget.LauncherWidgetHostView || v is io.github.jacomartins.canyonui.ui.widget.WidgetStackView) v.invalidate() }
@@ -916,6 +932,25 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     /** A dragged folder draws its wallpaper effect live (Settings > Transparency). */
     private var dragEffects = true
+
+    // Live blur (Settings > Transparency): the system blurs whatever is behind the launcher's
+    // window, a live wallpaper included, as the Apps screen opens; no copy or capture needed.
+    private var blurAvailable = false
+    private var liveBlurSetting = true
+    private var liveBlurMode = io.github.jacomartins.canyonui.data.RenderMode.GLASS
+    private var appliedBlurPx = -1
+
+    private fun applyLiveBlur() {
+        if (Build.VERSION.SDK_INT < 31) return
+        val on = blurAvailable && liveBlurSetting && liveBlurMode != io.github.jacomartins.canyonui.data.RenderMode.TRANSLUCENT
+        drawerModel.liveBlur = on
+        // Grows with the Apps screen: none on home, full once it is open.
+        val maxDp = if (liveBlurMode == io.github.jacomartins.canyonui.data.RenderMode.FROSTED) LIVE_BLUR_FROSTED_DP else LIVE_BLUR_GLASS_DP
+        val px = if (on) (maxDp * resources.displayMetrics.density * drawer.progress).roundToInt() else 0
+        if (px == appliedBlurPx) return
+        appliedBlurPx = px
+        window.setBackgroundBlurRadius(px)
+    }
 
     /**
      * While a panel is open over home (folder, menu, widget sheet...), home holds still: it is
@@ -2056,6 +2091,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** The longest pause between the taps of a double or triple tap. */
         private const val TAP_GAP_MS = 350L
         private const val ENTRY_MS = 480L
+        /** Live blur behind the open Apps screen, by mode (frosted is the heavier blur). */
+        private const val LIVE_BLUR_FROSTED_DP = 36f
+        private const val LIVE_BLUR_GLASS_DP = 20f
+
         /** Edit mode's zoom of the pages, in and out. */
         private const val EDIT_ZOOM_MS = 240L
 

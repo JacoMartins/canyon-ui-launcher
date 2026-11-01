@@ -332,4 +332,7 @@
     <string name="effects_widgets">Transparency on widgets</string>
     <string name="effects_drag">Live effect on dragged folders</string>
     <string name="effects_summary">Live: a dragged folder\'s frosted or glass effect follows the wallpaper as it moves. Off: it keeps the look it had when picked up. Turning either off lightens the work on slower phones.</string>
+    <string name="live_blur">Live blur behind the Apps screen</string>
+    <string name="live_blur_summary">This phone blurs whatever is behind the Apps screen and search itself, live wallpapers included, as they open. It is a blur: without the bending of glass.</string>
+    <string name="live_blur_unavailable">Live blur: this phone does not offer it to apps right now (some phones never do; others turn it off in battery saver).</string>
 </resources>

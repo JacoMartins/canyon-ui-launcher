@@ -268,6 +268,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         SettingsSection(title = stringResource(R.string.render_mode)) {
             RenderModeChoice(s.renderMode, onSelect = { scope.launch { store.setRenderMode(it) } })
             if (s.renderMode != io.github.jacomartins.canyonui.data.RenderMode.TRANSLUCENT) {
+                LiveBlurRow(s.liveBlur) { scope.launch { store.setLiveBlur(it) } }
                 SwitchRow(
                     title = stringResource(R.string.effects_widgets),
                     checked = s.widgetEffects,
@@ -656,6 +657,25 @@ private fun FolderColorRow(color: Int, store: SettingsStore, home: HomeRepositor
             },
         )
     }
+}
+
+/**
+ * Live blur: the switch where the phone offers window blur to apps (Android 12+, not in battery
+ * saver), and in any case a line saying whether it does.
+ */
+@Composable
+private fun LiveBlurRow(on: Boolean, onChange: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val available = remember {
+        android.os.Build.VERSION.SDK_INT >= 31 &&
+            context.getSystemService(android.view.WindowManager::class.java).isCrossWindowBlurEnabled
+    }
+    if (available) SwitchRow(title = stringResource(R.string.live_blur), checked = on, onChange = onChange)
+    Text(
+        stringResource(if (available) R.string.live_blur_summary else R.string.live_blur_unavailable),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

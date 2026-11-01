@@ -39,6 +39,12 @@ class DrawerModel(
     /** How far the Apps screen is slid down (px): its glass stays still against the wallpaper. */
     var offsetY by androidx.compose.runtime.mutableFloatStateOf(0f)
 
+    /**
+     * The system blurs what is behind the screen (live blur): its own background then draws
+     * only the tint over it.
+     */
+    var liveBlur by mutableStateOf(false)
+
     /** An app is being moved (dragged out of the drawer): the letter dots hide meanwhile. */
     var moving by mutableStateOf(false)
 

@@ -87,6 +87,11 @@ data class LauncherSettings(
     val dragEffects: Boolean = true,
     /** Widgets get the frosted or glass wallpaper behind their card. */
     val widgetEffects: Boolean = true,
+    /**
+     * The Apps screen and search blur what is behind them through the system (Android 12+ window
+     * blur), live wallpapers included, where the phone offers it.
+     */
+    val liveBlur: Boolean = true,
     /** Category mode just started and the home page has room for a Google search bar. */
     val pendingSearchWidget: Boolean = false,
     /**
@@ -137,6 +142,7 @@ class SettingsStore(private val context: Context) {
         val RENDER_MODE = stringPreferencesKey("render_mode")
         val DRAG_EFFECTS = booleanPreferencesKey("drag_effects")
         val WIDGET_EFFECTS = booleanPreferencesKey("widget_effects")
+        val LIVE_BLUR = booleanPreferencesKey("live_blur")
         val LOCK_TAPS = intPreferencesKey("lock_taps")
         val BADGES = stringPreferencesKey("badges")
         val FOLDER_COLOR = intPreferencesKey("folder_color")
@@ -193,6 +199,7 @@ class SettingsStore(private val context: Context) {
             renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.GLASS,
             dragEffects = p[Keys.DRAG_EFFECTS] ?: true,
             widgetEffects = p[Keys.WIDGET_EFFECTS] ?: true,
+            liveBlur = p[Keys.LIVE_BLUR] ?: true,
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
             swipeUpTarget = p[Keys.SWIPE_UP_TARGET],
             wallpaperTarget = p[Keys.WALLPAPER_TARGET],
@@ -331,6 +338,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setDragEffects(on: Boolean) {
         context.dataStore.edit { it[Keys.DRAG_EFFECTS] = on }
+    }
+
+    suspend fun setLiveBlur(on: Boolean) {
+        context.dataStore.edit { it[Keys.LIVE_BLUR] = on }
     }
 
     suspend fun setWidgetEffects(on: Boolean) {
