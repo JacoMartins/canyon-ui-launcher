@@ -351,5 +351,5 @@
     <string name="scene_day_gradient">Day gradient</string>
     <string name="scene_day_gradient_summary">A sky that follows the time of day</string>
     <string name="scene_day_linear">Day gradient, linear</string>
-    <string name="scene_day_linear_summary">The same sky in straight bands, drifting slowly</string>
+    <string name="scene_day_linear_summary">The same sky in horizontal bands, drifting slowly</string>
 </resources>

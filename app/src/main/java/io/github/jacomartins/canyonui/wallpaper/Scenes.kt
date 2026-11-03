@@ -22,7 +22,7 @@ enum class Scene(val key: String, val animated: Boolean) {
     /** A sky gradient with a travelling glow, following the time of day ([DayGradient]). */
     DAY_GRADIENT("day_gradient", false),
 
-    /** The same sky as straight bands from the glow's side, moving at a steady pace. */
+    /** The same sky in horizontal bands only, moving at a steady pace. */
     DAY_LINEAR("day_linear", false),
     GRADIENT("gradient", true),
     AURORA("aurora", true),

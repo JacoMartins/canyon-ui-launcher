@@ -85,32 +85,21 @@ object DayGradient {
     }
 
     /**
-     * The linear version: the glow's colour comes in straight bands from the side the glow is on
-     * (seen from the screen's middle), instead of a round light.
+     * The linear version, in horizontal bands only: the colour changes from top to bottom, and
+     * the glow is a soft band across the whole width at its height (along the top by day,
+     * through the middle at dawn, along the bottom at night).
      */
     fun linearColor(sky: Sky, u: Float, v: Float, aspect: Float): FloatArray {
         fun c(x: Int, shift: Int) = ((x shr shift) and 0xFF) / 255f
         var r = c(sky.top, 16) + (c(sky.bottom, 16) - c(sky.top, 16)) * v
         var g = c(sky.top, 8) + (c(sky.bottom, 8) - c(sky.top, 8)) * v
         var b = c(sky.top, 0) + (c(sky.bottom, 0) - c(sky.top, 0)) * v
-        val w = sky.strength * linearBand(sky, u, v, aspect)
+        val dy = (v - sky.gy) * aspect
+        val w = sky.strength * exp(-(dy * dy) / (sky.radius * sky.radius))
         r += (c(sky.glow, 16) - r) * w
         g += (c(sky.glow, 8) - g) * w
         b += (c(sky.glow, 0) - b) * w
         return floatArrayOf(r, g, b)
-    }
-
-    // 0 across the far side of the screen, rising to 1 at the glow's edge, along the line from
-    // the middle towards the glow.
-    private fun linearBand(sky: Sky, u: Float, v: Float, aspect: Float): Float {
-        var dx = sky.gx - 0.5f
-        var dy = (sky.gy - 0.5f) * aspect
-        val len = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1e-3f)
-        dx /= len; dy /= len
-        val reach = 0.5f * kotlin.math.abs(dx) + 0.5f * aspect * kotlin.math.abs(dy)
-        val s = ((u - 0.5f) * dx + (v - 0.5f) * aspect * dy) / reach
-        val k = ((s - (0.6f - sky.radius)) / (1.1f - (0.6f - sky.radius))).coerceIn(0f, 1f)
-        return k * k * (3f - 2f * k)
     }
 
     /** [linearColor] as AGSL, with the same uniforms as [SHADER]. */
@@ -119,19 +108,14 @@ object DayGradient {
         uniform float3 top;
         uniform float3 bottom;
         uniform float3 glow;
-        uniform float4 shape; // gx, gy, radius, strength
+        uniform float4 shape; // gx (unused: bands span the width), gy, radius, strength
         float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
         half4 main(float2 xy) {
-            float u = xy.x / size.x;
             float v = xy.y / size.y;
             float aspect = size.y / size.x;
             float3 c = mix(top, bottom, v);
-            float2 d = float2(shape.x - 0.5, (shape.y - 0.5) * aspect);
-            d = d / max(length(d), 0.001);
-            float reach = 0.5 * abs(d.x) + 0.5 * aspect * abs(d.y);
-            float s = ((u - 0.5) * d.x + (v - 0.5) * aspect * d.y) / reach;
-            float from = 0.6 - shape.z;
-            float w = shape.w * smoothstep(from, 1.1, s);
+            float dy = (v - shape.y) * aspect;
+            float w = shape.w * exp(-(dy * dy) / (shape.z * shape.z));
             c = mix(c, glow, w);
             c += (hash(xy) - 0.5) / 255.0;
             return half4(half3(clamp(c, 0.0, 1.0)), 1.0);
