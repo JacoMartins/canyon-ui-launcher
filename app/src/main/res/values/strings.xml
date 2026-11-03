@@ -244,6 +244,7 @@
     <string name="color_saturation">Saturation</string>
     <string name="color_brightness">Brightness</string>
     <string name="color_opacity">Opacity</string>
+    <string name="color_code">Colour code</string>
 
     <!-- Canyon search (Stage 6) -->
     <string name="search_everything">Search apps, contacts, settings</string>

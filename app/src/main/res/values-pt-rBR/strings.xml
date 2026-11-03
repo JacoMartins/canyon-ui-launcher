@@ -243,6 +243,7 @@
     <string name="color_saturation">Saturação</string>
     <string name="color_brightness">Brilho</string>
     <string name="color_opacity">Opacidade</string>
+    <string name="color_code">Código da cor</string>
 
     <!-- Canyon search (Stage 6) -->
     <string name="search_everything">Buscar apps, contatos, configurações</string>
