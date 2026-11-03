@@ -1,10 +1,6 @@
 package io.github.jacomartins.canyonui.wallpaper
 
 import android.app.WallpaperColors
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -19,7 +15,6 @@ import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
 import android.view.SurfaceHolder
-import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
 import androidx.core.graphics.withScale
@@ -28,8 +23,8 @@ import androidx.core.graphics.withScale
  * Canyon UI's live wallpapers ([Scene]). Animated scenes draw at [FPS] while visible, as an AGSL
  * shader on Android 13+ (a small Kotlin-drawn picture stretched to the screen before that); Day
  * cycle draws the photo once and again each minute. Nothing runs while the wallpaper is hidden
- * (another app in front, screen off). The day scenes open with a short animation each time the
- * screen turns on: the light comes up and the glow (or the photo) settles into place.
+ * (another app in front, screen off). The day scenes open with a short animation each time
+ * they appear: the light comes up and the glow (or the photo) settles into place.
  */
 class CanyonWallpaperService : WallpaperService() {
 
@@ -64,9 +59,10 @@ class CanyonWallpaperService : WallpaperService() {
             }
         }
 
-        // The day scenes' opening: each time the screen turns on, the light comes up into place.
+        // The day scenes' opening: each time the wallpaper appears (screen on, unlock, back home
+        // from an app, a new scene), the light comes up into place.
         private var introStartMs = -1L
-        private var introPending = true // also when the wallpaper is first shown
+        private var introPending = true
         private val intro = object : Choreographer.FrameCallback {
             override fun doFrame(frameTimeNanos: Long) {
                 if (!visible || introStartMs < 0) return
@@ -74,21 +70,6 @@ class CanyonWallpaperService : WallpaperService() {
                 if (introStartMs >= 0) Choreographer.getInstance().postFrameCallback(this)
             }
         }
-        private val screenOn = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                introPending = true
-                if (visible) playIntro()
-            }
-        }
-
-        private fun playIntro() {
-            if (!introPending || scene.animated) return
-            introPending = false
-            introStartMs = SystemClock.uptimeMillis()
-            Choreographer.getInstance().removeFrameCallback(intro)
-            Choreographer.getInstance().postFrameCallback(intro)
-        }
-
         /** How far the opening has come, eased: 0 at its start, 1 when it is over (or none). */
         private fun introProgress(): Float {
             if (introStartMs < 0) return 1f
@@ -121,12 +102,10 @@ class CanyonWallpaperService : WallpaperService() {
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             CanyonWallpaper.prefs(this@CanyonWallpaperService).registerOnSharedPreferenceChangeListener(this)
-            ContextCompat.registerReceiver(this@CanyonWallpaperService, screenOn, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED)
         }
 
         override fun onDestroy() {
             CanyonWallpaper.prefs(this@CanyonWallpaperService).unregisterOnSharedPreferenceChangeListener(this)
-            unregisterReceiver(screenOn)
             stop()
             super.onDestroy()
         }
@@ -154,7 +133,12 @@ class CanyonWallpaperService : WallpaperService() {
 
         override fun onVisibilityChanged(visible: Boolean) {
             this.visible = visible
-            if (visible) start() else stop()
+            if (visible) {
+                introPending = true
+                start()
+            } else {
+                stop()
+            }
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
