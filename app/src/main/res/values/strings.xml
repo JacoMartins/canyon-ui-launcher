@@ -335,4 +335,17 @@
     <string name="live_blur">Live blur behind the Apps screen</string>
     <string name="live_blur_summary">This phone blurs whatever is behind the Apps screen and search itself, live wallpapers included, as they open. It is a blur: without the bending of glass.</string>
     <string name="live_blur_unavailable">Live blur: this phone does not offer it to apps right now (some phones never do; others turn it off in battery saver).</string>
+    <string name="canyon_wallpaper_label" translatable="false">Canyon UI</string>
+    <string name="canyon_wallpaper_description">Canyon UI\'s own live wallpapers: Day cycle, Gradient, Aurora and Waves. Choose one in Canyon UI\'s wallpaper screen; its glass and blur follow it live.</string>
+    <string name="canyon_wallpapers">Canyon live wallpapers</string>
+    <string name="canyon_wallpapers_summary">Drawn by Canyon UI itself, so glass and blur follow them live. They pause when another app is in front or the screen is off.</string>
+    <string name="scene_day_cycle">Day cycle</string>
+    <string name="scene_day_cycle_summary">Your photo, lit by the time of day</string>
+    <string name="scene_gradient">Gradient</string>
+    <string name="scene_gradient_summary">Soft colours drifting slowly</string>
+    <string name="scene_aurora">Aurora</string>
+    <string name="scene_aurora_summary">Northern lights over a night sky</string>
+    <string name="scene_waves">Waves</string>
+    <string name="scene_waves_summary">Layers of waves under a warm sky</string>
+    <string name="scene_on">on</string>
 </resources>

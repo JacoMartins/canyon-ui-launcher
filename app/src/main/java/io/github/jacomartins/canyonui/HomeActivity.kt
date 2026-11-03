@@ -558,6 +558,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun onStart() {
+        // Canyon's own animated wallpaper: the effects follow it only while home is on screen.
+        WallpaperBackdrop.setHomeVisible(this, true)
         super.onStart()
         widgets.host.startListeningSafely()
         // Apps may have been removed or reinstalled while home was not listening.
@@ -689,6 +691,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun onStop() {
+        WallpaperBackdrop.setHomeVisible(this, false)
         if (launchPending) {
             returningFromApp = true
             // Waits small behind the app, for the zoom back in.
@@ -1540,12 +1543,16 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             val out = createBitmap(w, h)
             Canvas(out).apply {
                 val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
-                // The copy covers the screen from the window's top-left, as in BackdropSource.
-                drawBitmap(wall, null, Rect(0, 0, wall.width / SNAPSHOT_SCALE, wall.height / SNAPSHOT_SCALE), paint)
+                // The copy covers the screen from the window's top-left, as in BackdropSource
+                // (stretched: an animated wallpaper's live frame is small).
+                val (sw, sh) = WallpaperBackdrop.screenSize(this@HomeActivity)
+                drawBitmap(wall, null, Rect(0, 0, sw / SNAPSHOT_SCALE, sh / SNAPSHOT_SCALE), paint)
                 drawBitmap(shot, 0f, 0f, null)
                 // [hide] (window px) shows only the wallpaper: the copy's pixels over it.
                 if (hide != null) {
-                    val src = Rect(hide.left.toInt(), hide.top.toInt(), hide.right.toInt(), hide.bottom.toInt())
+                    val fx = wall.width / sw.toFloat()
+                    val fy = wall.height / sh.toFloat()
+                    val src = Rect((hide.left * fx).toInt(), (hide.top * fy).toInt(), (hide.right * fx).toInt(), (hide.bottom * fy).toInt())
                     val dst = RectF(hide.left / SNAPSHOT_SCALE, hide.top / SNAPSHOT_SCALE, hide.right / SNAPSHOT_SCALE, hide.bottom / SNAPSHOT_SCALE)
                     drawBitmap(wall, src, dst, paint)
                 }

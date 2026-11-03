@@ -88,6 +88,9 @@ import io.github.jacomartins.canyonui.ui.design.Spacing
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
 import io.github.jacomartins.canyonui.ui.design.settingsPageColor
 import io.github.jacomartins.canyonui.ui.theme.HomeTheme
+import io.github.jacomartins.canyonui.wallpaper.CanyonWallpaper
+import io.github.jacomartins.canyonui.wallpaper.Scene
+import io.github.jacomartins.canyonui.wallpaper.SceneMath
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -96,6 +99,8 @@ import kotlinx.coroutines.withContext
  * Canyon UI's own wallpaper chooser (the edit mode's Wallpaper button):
  * - Photos: the photo picker or another gallery app, the latest photos and their folders (when
  *   photo access is allowed). A photo then gets the crop screen, to choose the part that shows.
+ * - Canyon UI's own live wallpapers (Day cycle, Gradient, Aurora, Waves), whose glass and blur
+ *   follow them live.
  * - Live wallpapers: installed ones; Android's own preview sets them.
  * - Wallpaper apps: the phone maker's and others, which set the wallpaper themselves.
  *
@@ -161,6 +166,8 @@ private fun WallpaperScreen(onDone: () -> Unit) {
     // A photo chosen: first the part of it to show, then where it goes.
     var chosen by remember { mutableStateOf<Uri?>(null) }
     var cropped by remember { mutableStateOf<RectF?>(null) }
+    // The photo is for the Day cycle wallpaper (not set as a plain wallpaper).
+    var forDayCycle by remember { mutableStateOf(false) }
     var canRead by remember { mutableStateOf(canReadPhotos(context)) }
     var asked by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) chosen = uri }
@@ -185,9 +192,29 @@ private fun WallpaperScreen(onDone: () -> Unit) {
 
     val photo = chosen
     if (photo != null) {
-        CropScreen(photo, onCancel = { chosen = null }, onConfirm = { cropped = it })
+        CropScreen(photo, onCancel = { chosen = null; forDayCycle = false }, onConfirm = { cropped = it })
         cropped?.let { crop ->
-            SetDialog(photo, crop, onDone, onDismiss = { cropped = null }, clear = { cropped = null; chosen = null })
+            if (forDayCycle) {
+                // The Day cycle's photo: kept, then Canyon's wallpaper shows it.
+                LaunchedEffect(crop) {
+                    val app = context.applicationContext
+                    val ok = withContext(Dispatchers.IO) {
+                        try {
+                            CanyonWallpaper.savePhoto(app, WallpaperBackdrop.screenPhoto(app, photo, crop))
+                            true
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    cropped = null
+                    chosen = null
+                    forDayCycle = false
+                    if (ok) useScene(context, Scene.DAY_CYCLE, onDone)
+                    else Toast.makeText(context, R.string.render_photo_failed, Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                SetDialog(photo, crop, onDone, onDismiss = { cropped = null }, clear = { cropped = null; chosen = null })
+            }
         }
         return
     }
@@ -222,6 +249,19 @@ private fun WallpaperScreen(onDone: () -> Unit) {
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
         )
+
+        // Canyon UI's own live wallpapers: glass and blur follow them live.
+        SettingsSection(title = stringResource(R.string.canyon_wallpapers)) {
+            Text(stringResource(R.string.canyon_wallpapers_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SceneGrid { scene ->
+                if (scene == Scene.DAY_CYCLE) {
+                    forDayCycle = true
+                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                } else {
+                    useScene(context, scene, onDone)
+                }
+            }
+        }
 
         // Photos: where to pick from, then the latest ones, then their folders.
         SettingsSection(title = stringResource(R.string.wallpaper_photos)) {
@@ -285,6 +325,91 @@ private fun WallpaperScreen(onDone: () -> Unit) {
             onDismiss = { showSources = false },
         )
     }
+}
+
+/**
+ * Shows [scene]: at once when Canyon's wallpaper is already on (then home), otherwise through
+ * Android's preview, where the user confirms it (an app cannot set a live wallpaper itself).
+ */
+private fun useScene(context: Context, scene: Scene, onDone: () -> Unit) {
+    CanyonWallpaper.setScene(context, scene)
+    if (CanyonWallpaper.isActive(context)) {
+        Toast.makeText(context, R.string.wallpaper_done, Toast.LENGTH_SHORT).show()
+        onDone()
+        return
+    }
+    try {
+        context.startActivity(CanyonWallpaper.previewIntent(context))
+    } catch (e: Exception) {
+        Toast.makeText(context, R.string.wallpaper_live_unavailable, Toast.LENGTH_SHORT).show()
+    }
+}
+
+/** Canyon's scenes, two a row, each with a small picture of it as it is now. */
+@Composable
+private fun SceneGrid(onPick: (Scene) -> Unit) {
+    val context = LocalContext.current
+    val previews by produceState(emptyMap<Scene, ImageBitmap>()) {
+        value = withContext(Dispatchers.Default) { scenePreviews(context) }
+    }
+    val active = remember { CanyonWallpaper.activeScene(context) }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+        for (row in Scene.entries.chunked(2)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                for (scene in row) {
+                    val (title, summary) = when (scene) {
+                        Scene.DAY_CYCLE -> R.string.scene_day_cycle to R.string.scene_day_cycle_summary
+                        Scene.GRADIENT -> R.string.scene_gradient to R.string.scene_gradient_summary
+                        Scene.AURORA -> R.string.scene_aurora to R.string.scene_aurora_summary
+                        Scene.WAVES -> R.string.scene_waves to R.string.scene_waves_summary
+                    }
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button) { onPick(scene) }) {
+                        Box(
+                            Modifier.fillMaxWidth().aspectRatio(0.75f).clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            previews[scene]?.let { Image(it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+                                ?: androidx.compose.material3.Icon(
+                                    androidx.compose.ui.res.painterResource(R.drawable.ph_sun), contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                        }
+                        Text(
+                            stringResource(title) + if (scene == active) " · " + stringResource(R.string.scene_on) else "",
+                            style = MaterialTheme.typography.titleSmall, maxLines = 1,
+                            modifier = Modifier.padding(top = Spacing.xs, start = Spacing.xs),
+                        )
+                        Text(stringResource(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = Spacing.xs))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Small pictures of each scene now (Day cycle: the chosen photo, lit for now, if there is one). */
+private fun scenePreviews(context: Context): Map<Scene, ImageBitmap> {
+    val w = 96
+    val h = 128
+    val out = HashMap<Scene, ImageBitmap>()
+    val t = android.os.SystemClock.elapsedRealtime() / 1000f
+    val px = IntArray(w * h)
+    for (scene in Scene.entries) {
+        if (scene == Scene.DAY_CYCLE) {
+            val photo = CanyonWallpaper.photo(context) ?: continue
+            val bmp = androidx.core.graphics.createBitmap(w, h)
+            io.github.jacomartins.canyonui.wallpaper.DayCycle.draw(
+                android.graphics.Canvas(bmp), photo, android.graphics.Rect(0, 0, w, h),
+                io.github.jacomartins.canyonui.wallpaper.DayCycle.at(CanyonWallpaper.minuteOfDay()),
+            )
+            out[scene] = bmp.asImageBitmap()
+        } else {
+            SceneMath.render(scene, t, w, h, h / w.toFloat(), px)
+            out[scene] = androidx.core.graphics.createBitmap(w, h).apply { setPixels(px, 0, w, 0, 0, w, h) }.asImageBitmap()
+        }
+    }
+    return out
 }
 
 /** Opens [app]: one that hands back an image through [pick], or a wallpaper app. */
@@ -620,6 +745,8 @@ private fun sourceApps(context: Context): List<SourceApp> {
 private fun liveWallpapers(context: Context): List<LiveWallpaper> {
     val pm = context.packageManager
     val services = pm.queryIntentServices(Intent(WallpaperService.SERVICE_INTERFACE), PackageManager.GET_META_DATA)
+        // Canyon's own scenes have their section above.
+        .filter { it.serviceInfo.packageName != context.packageName }
     return services.mapNotNull { ri ->
         try {
             val info = WallpaperInfo(context, ri)

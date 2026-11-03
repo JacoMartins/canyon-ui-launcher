@@ -29,6 +29,10 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
 import androidx.core.graphics.withClip
 import io.github.jacomartins.canyonui.data.RenderMode
+import io.github.jacomartins.canyonui.wallpaper.CanyonWallpaper
+import io.github.jacomartins.canyonui.wallpaper.DayCycle
+import io.github.jacomartins.canyonui.wallpaper.Scene
+import io.github.jacomartins.canyonui.wallpaper.SceneMath
 import io.github.jacomartins.canyonui.util.Motion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,6 +69,13 @@ object WallpaperBackdrop {
     class Blur(val bitmap: Bitmap, val screen: Bitmap, val screenW: Int, val screenH: Int, val mode: RenderMode)
 
     private const val TAG = "WallpaperBackdrop"
+
+    /** Width of the animated scene's live frame for the effects (height by the screen's shape). */
+    private const val FRAME_W = 72
+    /** The effects follow an animated scene ten times a second (the scenes move slowly). */
+    private const val FRAME_MS = 100L
+    /** Day cycle: the effects' copy is lit again when the light has moved this many minutes. */
+    private const val RELIGHT_MIN = 5
     private const val FILE = "wallpaper_copy.png"
     private const val PREFS = "wallpaper_copy"
     private const val KEY_VALID = "valid"
@@ -131,6 +142,13 @@ object WallpaperBackdrop {
         // Our own change: the id is saved once the set finishes (checking before that read the
         // previous id and threw the new copy away).
         if (setting || SystemClock.elapsedRealtime() - setAt < OWN_CHANGE_MS) return
+        // Canyon's own live wallpaper: nothing to check, it is drawn from the same choice.
+        if (syncOwn(context) || ownWas) {
+            ownWas = false
+            if (ownScene == null) load(context)
+            rebuild()
+            return
+        }
         when {
             _hasCopy.value -> if (!stillSame(context)) invalidate(context) else return
             // Colours may have changed while away.
@@ -155,17 +173,7 @@ object WallpaperBackdrop {
         setting = true
         try {
             val (w, h) = screenSize(context)
-            val source = ImageDecoder.createSource(context.contentResolver, uri)
-            val decoded = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                // Decode near the screen size (for the chosen part): enough detail, far less
-                // memory than a full photo.
-                val cw = crop?.width()?.coerceIn(0.01f, 1f) ?: 1f
-                val ch = crop?.height()?.coerceIn(0.01f, 1f) ?: 1f
-                val s = max(w / (info.size.width * cw), h / (info.size.height * ch)).coerceAtMost(1f)
-                decoder.setTargetSize((info.size.width * s).roundToInt().coerceAtLeast(1), (info.size.height * s).roundToInt().coerceAtLeast(1))
-            }
-            val cropped = if (crop == null) centerCrop(decoded, w, h) else region(decoded, crop, w, h)
+            val cropped = screenPhoto(context, uri, crop)
             val wm = WallpaperManager.getInstance(context)
             // Screen-sized wallpaper, so what is on screen is exactly the copy (no scrolling).
             runCatching { wm.suggestDesiredDimensions(w, h) }
@@ -179,6 +187,7 @@ object WallpaperBackdrop {
                 remove(KEY_LIVE)
             }
             copy = cropped
+            ownScene = null
             _hasCopy.value = true
             _colorsOnly.value = false
             rebuild()
@@ -192,6 +201,7 @@ object WallpaperBackdrop {
     }
 
     private suspend fun load(context: Context) = withContext(Dispatchers.IO) {
+        if (syncOwn(context)) return@withContext
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val file = File(context.filesDir, FILE)
         if (prefs.getBoolean(KEY_VALID, false) && file.exists()) {
@@ -259,8 +269,19 @@ object WallpaperBackdrop {
         if (listening) return
         listening = true
         val app = context.applicationContext
+        // A scene or Day cycle photo chosen in Canyon while its wallpaper is on.
+        CanyonWallpaper.prefs(app).registerOnSharedPreferenceChangeListener(ownChoice)
         WallpaperManager.getInstance(app).addOnColorsChangedListener({ _, which ->
             if (which and WallpaperManager.FLAG_SYSTEM == 0) return@addOnColorsChangedListener
+            // Canyon's own live wallpaper set (or replaced by another).
+            if (syncOwn(app) || ownWas) {
+                ownWas = false
+                kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                    if (ownScene == null) load(app)
+                    rebuild()
+                }
+                return@addOnColorsChangedListener
+            }
             if (setting || SystemClock.elapsedRealtime() - setAt <= OWN_CHANGE_MS) return@addOnColorsChangedListener
             when {
                 // Painted from the colours: paint it again.
@@ -289,12 +310,194 @@ object WallpaperBackdrop {
             if (live != null) putString(KEY_LIVE, live) else remove(KEY_LIVE)
         }
         copy = img
+        ownScene = null
         _hasCopy.value = true
         _colorsOnly.value = false
         rebuild()
     }
 
+    // --- Canyon UI's own live wallpaper ------------------------------------------------------
+
+    /** The scene of Canyon's wallpaper on screen; null when the wallpaper is someone else's. */
+    @Volatile
+    private var ownScene: Scene? = null
+
+    /** Canyon's wallpaper was on screen and has just been replaced. */
+    @Volatile
+    private var ownWas = false
+
+    private var appContext: Context? = null
+    private var homeVisible = false
+    private var ticking = false
+    private var lightAt = -1
+
+    // The animated scene's live frame for the effects: small (it is smooth), drawn off the main
+    // thread into [nextPixels] and copied into [frameBitmap] on it.
+    private var frameBitmap: Bitmap? = null
+    private var frameScreenW = 0
+    private var frameScreenH = 0
+    private var nextPixels = IntArray(0)
+    private val frameThread by lazy { java.util.concurrent.Executors.newSingleThreadExecutor() }
+
+    /** Bumped each time the live frame changes: Compose surfaces read it while drawing. */
+    val frame = androidx.compose.runtime.mutableIntStateOf(0)
+
+    private val ownChoice = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        val ctx = appContext ?: return@OnSharedPreferenceChangeListener
+        if (CanyonWallpaper.isActive(ctx)) {
+            lightAt = -1
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                withContext(Dispatchers.IO) { syncOwn(ctx) }
+                rebuild()
+            }
+        }
+    }
+
+    /**
+     * Follows Canyon's own wallpaper when it is on screen: Day cycle's lit photo becomes the
+     * copy, an animated scene gets its live frame. True when it is on screen.
+     */
+    private fun syncOwn(context: Context): Boolean {
+        val app = context.applicationContext
+        appContext = app
+        val scene = CanyonWallpaper.activeScene(app)
+        if (scene == null) {
+            if (ownScene != null) {
+                ownScene = null
+                ownWas = true
+                copy = null
+                _hasCopy.value = false
+            }
+            return false
+        }
+        ownScene = scene
+        _colorsOnly.value = false
+        _hasCopy.value = true
+        if (scene == Scene.DAY_CYCLE) {
+            frameBitmap = null
+            copy = dayCycleCopy(app)
+        } else {
+            copy = null
+            val (w, h) = screenSize(app)
+            frameScreenW = w
+            frameScreenH = h
+            val fh = (FRAME_W * h / w.coerceAtLeast(1)).coerceAtLeast(1)
+            if (frameBitmap?.let { it.width == FRAME_W && it.height == fh } != true) {
+                frameBitmap = createBitmap(FRAME_W, fh)
+                nextPixels = IntArray(FRAME_W * fh)
+            }
+            renderFrame(now = true)
+        }
+        return true
+    }
+
+    /** The Day cycle's photo lit for now, screen sized; null when no photo was chosen. */
+    private fun dayCycleCopy(app: Context): Bitmap? {
+        val photo = CanyonWallpaper.photo(app) ?: return null
+        val (w, h) = screenSize(app)
+        val out = createBitmap(w, h)
+        val minute = CanyonWallpaper.minuteOfDay()
+        lightAt = minute
+        DayCycle.draw(Canvas(out), photo, Rect(0, 0, w, h), DayCycle.at(minute))
+        return out
+    }
+
+    /** Home is on screen ([on]) or not: the live frame runs only while it is. */
+    fun setHomeVisible(context: Context, on: Boolean) {
+        homeVisible = on
+        appContext = context.applicationContext
+        updateTicker()
+        // Day cycle: the light moved on while away.
+        if (on && ownScene == Scene.DAY_CYCLE && lightStale()) relight()
+    }
+
+    private fun lightStale() = lightAt < 0 || kotlin.math.abs(CanyonWallpaper.minuteOfDay() - lightAt) >= RELIGHT_MIN
+
+    private fun relight() {
+        val ctx = appContext ?: return
+        kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+            copy = withContext(Dispatchers.IO) { dayCycleCopy(ctx) }
+            rebuild()
+        }
+    }
+
+    // Day cycle while home is shown: the effects' copy follows the light every few minutes.
+    private val relightTick = object : Runnable {
+        override fun run() {
+            if (ownScene != Scene.DAY_CYCLE || !homeVisible) return
+            if (lightStale()) relight()
+            main.postDelayed(this, RELIGHT_MIN * 60_000L)
+        }
+    }
+
+    private val frameTick = object : Runnable {
+        override fun run() {
+            if (!ticking) return
+            renderFrame(now = false)
+            main.postDelayed(this, FRAME_MS)
+        }
+    }
+
+    private fun updateTicker() {
+        val scene = ownScene
+        val animate = scene != null && scene.animated && homeVisible && mode != RenderMode.TRANSLUCENT
+        if (animate && !ticking) {
+            ticking = true
+            main.post(frameTick)
+        } else if (!animate && ticking) {
+            ticking = false
+            main.removeCallbacks(frameTick)
+        }
+        main.removeCallbacks(relightTick)
+        if (scene == Scene.DAY_CYCLE && homeVisible) main.postDelayed(relightTick, RELIGHT_MIN * 60_000L)
+    }
+
+    /** Draws the scene's frame for now; [now] on this thread, otherwise off the main thread. */
+    private fun renderFrame(now: Boolean) {
+        val scene = ownScene ?: return
+        val bmp = frameBitmap ?: return
+        val w = bmp.width
+        val h = bmp.height
+        val aspect = frameScreenH / frameScreenW.coerceAtLeast(1).toFloat()
+        val px = nextPixels
+        val draw = {
+            SceneMath.render(scene, SystemClock.elapsedRealtime() / 1000f, w, h, aspect, px)
+        }
+        val show = {
+            if (frameBitmap === bmp) {
+                bmp.setPixels(px, 0, w, 0, 0, w, h)
+                // Views redraw their piece of it; Compose surfaces read [frame] while drawing.
+                if (!quiet()) tracked.toList().forEach { it.invalidate() }
+                frame.intValue++
+            }
+        }
+        if (now) {
+            draw()
+            bmp.setPixels(px, 0, w, 0, 0, w, h)
+        } else {
+            frameThread.execute {
+                draw()
+                main.post(show)
+            }
+        }
+    }
+
     private suspend fun rebuild() {
+        updateTicker()
+        // An animated scene of Canyon's own: its live frame is the effect's picture. Smooth by
+        // nature, it needs no blur of its own.
+        val scene = ownScene
+        val f = frameBitmap
+        if (scene != null && scene.animated && f != null) {
+            if (mode == RenderMode.TRANSLUCENT) {
+                _active.value = null
+                _source.value = null
+            } else {
+                _source.value = f
+                _active.value = Blur(f, f, frameScreenW, frameScreenH, mode)
+            }
+            return
+        }
         val src = copy
         val m = mode
         if (src == null || m == RenderMode.TRANSLUCENT) {
@@ -369,6 +572,25 @@ object WallpaperBackdrop {
                 sb += (add and 0xFF) - (sub and 0xFF)
             }
         }
+    }
+
+    /**
+     * [uri] decoded near the screen's size and cut to it: the [crop] part (0..1 fractions), or
+     * its centre. Throws when it cannot be read.
+     */
+    fun screenPhoto(context: Context, uri: Uri, crop: RectF?): Bitmap {
+        val (w, h) = screenSize(context)
+        val source = ImageDecoder.createSource(context.contentResolver, uri)
+        val decoded = ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            // Decode near the screen size (for the chosen part): enough detail, far less
+            // memory than a full photo.
+            val cw = crop?.width()?.coerceIn(0.01f, 1f) ?: 1f
+            val ch = crop?.height()?.coerceIn(0.01f, 1f) ?: 1f
+            val s = max(w / (info.size.width * cw), h / (info.size.height * ch)).coerceAtMost(1f)
+            decoder.setTargetSize((info.size.width * s).roundToInt().coerceAtLeast(1), (info.size.height * s).roundToInt().coerceAtLeast(1))
+        }
+        return if (crop == null) centerCrop(decoded, w, h) else region(decoded, crop, w, h)
     }
 
     /** The [crop] part of [src] (0..1 fractions), scaled to [w] x [h]. */

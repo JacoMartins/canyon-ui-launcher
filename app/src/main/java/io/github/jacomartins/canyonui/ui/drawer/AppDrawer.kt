@@ -231,6 +231,8 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
                 .drawBehind {
                     // The system's live blur is behind the whole window: nothing to draw here.
                     if (model.liveBlur) return@drawBehind
+                    // An animated wallpaper's live frame redraws this.
+                    io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.frame.intValue
                     val b = blur ?: return@drawBehind
                     val img = blurImage ?: return@drawBehind
                     if (b.mode == io.github.jacomartins.canyonui.data.RenderMode.GLASS && android.os.Build.VERSION.SDK_INT >= 33) {

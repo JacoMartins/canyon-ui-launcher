@@ -69,7 +69,14 @@ fun BackdropSource(state: HazeState, content: ImageBitmap? = null, offsetY: () -
     // copy moves the other way and the glass slides over a still wallpaper).
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = 0f }) {
         Canvas(Modifier.fillMaxSize().hazeSource(state, zIndex = 0f, key = WALLPAPER_SOURCE)) {
-            drawImage(image, dstOffset = IntOffset(0, -offsetY().toInt()), dstSize = IntSize(b.width, b.height))
+            // Read while drawing: an animated wallpaper's live frame redraws this (and so the
+            // panels' Haze effects) without recomposing.
+            WallpaperBackdrop.frame.intValue
+            // Stretched to the screen: the live frame of an animated scene is small.
+            drawImage(
+                image, dstOffset = IntOffset(0, -offsetY().toInt()),
+                dstSize = IntSize(size.width.toInt(), size.height.toInt()), filterQuality = FilterQuality.Low,
+            )
         }
     }
 }
@@ -129,6 +136,7 @@ fun Modifier.backdrop(shape: RoundedCornerShape, withContent: Boolean = false): 
             origin = c.positionInRoot() + Offset(loc[0].toFloat(), loc[1].toFloat())
         }
         .drawBehind {
+            WallpaperBackdrop.frame.intValue // An animated wallpaper's live frame redraws this.
             path.reset()
             path.addOutline(shape.createOutline(size, layoutDirection, this))
             clipPath(path) {

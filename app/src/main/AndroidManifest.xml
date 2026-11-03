@@ -23,6 +23,8 @@
     <!-- "call ana" + Go places the call; asked the first time (otherwise the dialer opens). -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <!-- Canyon's live wallpapers are optional: phones without live wallpapers still install it. -->
+    <uses-feature android:name="android.software.live_wallpaper" android:required="false" />
     <!-- "Capture wallpaper": one frame of the screen with Android's screen capture (the user
          agrees each time), which Android runs as a short foreground service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -107,5 +109,19 @@
             android:name=".ui.design.WallpaperCapture"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+        <!-- Canyon UI's own live wallpapers (Day cycle, Gradient, Aurora, Waves): drawn here, so the
+             launcher's glass and blur can follow them live. -->
+        <service
+            android:name=".wallpaper.CanyonWallpaperService"
+            android:exported="true"
+            android:label="@string/canyon_wallpaper_label"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/canyon_wallpaper" />
+        </service>
     </application>
 </manifest>
