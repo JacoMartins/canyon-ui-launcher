@@ -193,10 +193,16 @@ class CanyonWallpaperService : WallpaperService() {
                     val sky = DayGradient.at(minute, eased = scene != Scene.DAY_LINEAR)
                     fun rgb(name: String, c: Int) = s.setFloatUniform(name, ((c shr 16) and 0xFF) / 255f, ((c shr 8) and 0xFF) / 255f, (c and 0xFF) / 255f)
                     s.setFloatUniform("size", width.toFloat(), height.toFloat())
-                    rgb("top", sky.top)
-                    rgb("bottom", sky.bottom)
-                    rgb("glow", sky.glow)
-                    s.setFloatUniform("shape", sky.gx, sky.gy, sky.radius, sky.strength)
+                    if (scene == Scene.DAY_LINEAR) {
+                        val (top, bottom) = DayGradient.linearPair(sky)
+                        s.setFloatUniform("top", top)
+                        s.setFloatUniform("bottom", bottom)
+                    } else {
+                        rgb("top", sky.top)
+                        rgb("bottom", sky.bottom)
+                        rgb("glow", sky.glow)
+                        s.setFloatUniform("shape", sky.gx, sky.gy, sky.radius, sky.strength)
+                    }
                     shaderPaint.shader = s
                     canvas.drawPaint(shaderPaint)
                     return

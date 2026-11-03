@@ -85,38 +85,34 @@ object DayGradient {
     }
 
     /**
-     * The linear version, in horizontal bands only: the colour changes from top to bottom, and
-     * the glow is a soft band across the whole width at its height (along the top by day,
-     * through the middle at dawn, along the bottom at night).
+     * The linear version: two colours only, in horizontal bands from top to bottom. The glow
+     * takes the end on its side (the top by day, the bottom at night) and the sky's colour at
+     * the far end is the other.
      */
     fun linearColor(sky: Sky, u: Float, v: Float, aspect: Float): FloatArray {
-        fun c(x: Int, shift: Int) = ((x shr shift) and 0xFF) / 255f
-        var r = c(sky.top, 16) + (c(sky.bottom, 16) - c(sky.top, 16)) * v
-        var g = c(sky.top, 8) + (c(sky.bottom, 8) - c(sky.top, 8)) * v
-        var b = c(sky.top, 0) + (c(sky.bottom, 0) - c(sky.top, 0)) * v
-        val dy = (v - sky.gy) * aspect
-        val w = sky.strength * exp(-(dy * dy) / (sky.radius * sky.radius))
-        r += (c(sky.glow, 16) - r) * w
-        g += (c(sky.glow, 8) - g) * w
-        b += (c(sky.glow, 0) - b) * w
-        return floatArrayOf(r, g, b)
+        val (a, b) = linearPair(sky)
+        return FloatArray(3) { i -> a[i] + (b[i] - a[i]) * v }
     }
 
-    /** [linearColor] as AGSL, with the same uniforms as [SHADER]. */
+    /** The two colours of [linearColor], top and bottom, as r, g, b in 0..1. */
+    fun linearPair(sky: Sky): Pair<FloatArray, FloatArray> {
+        fun rgb(x: Int) = floatArrayOf(((x shr 16) and 0xFF) / 255f, ((x shr 8) and 0xFF) / 255f, (x and 0xFF) / 255f)
+        val top = rgb(sky.top)
+        val bottom = rgb(sky.bottom)
+        val glow = rgb(sky.glow)
+        val end = if (sky.gy < 0.5f) top else bottom
+        for (i in 0..2) end[i] += (glow[i] - end[i]) * sky.strength
+        return top to bottom
+    }
+
+    /** [linearColor] as AGSL: the two colours arrive as uniforms ([linearPair]). */
     const val LINEAR_SHADER = """
         uniform float2 size;
         uniform float3 top;
         uniform float3 bottom;
-        uniform float3 glow;
-        uniform float4 shape; // gx (unused: bands span the width), gy, radius, strength
         float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
         half4 main(float2 xy) {
-            float v = xy.y / size.y;
-            float aspect = size.y / size.x;
-            float3 c = mix(top, bottom, v);
-            float dy = (v - shape.y) * aspect;
-            float w = shape.w * exp(-(dy * dy) / (shape.z * shape.z));
-            c = mix(c, glow, w);
+            float3 c = mix(top, bottom, xy.y / size.y);
             c += (hash(xy) - 0.5) / 255.0;
             return half4(half3(clamp(c, 0.0, 1.0)), 1.0);
         }
