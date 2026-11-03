@@ -38,7 +38,7 @@ fun settingsPageColor() = if (isDarkSurface()) MaterialTheme.colorScheme.backgro
  */
 @Composable
 fun SettingsSection(title: String? = null, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = if (title != null) Spacing.md else Spacing.none)) {
+    Column(Modifier.fillMaxWidth().padding(top = if (title != null) Spacing.md else Spacing.none).entrance()) {
         if (title != null) SectionHeader(title, Modifier.padding(start = Spacing.mdLg, bottom = Spacing.sm))
         Surface(
             shape = RoundedCornerShape(24.dp),
