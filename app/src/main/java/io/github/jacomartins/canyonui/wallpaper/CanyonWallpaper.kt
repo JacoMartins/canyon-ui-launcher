@@ -56,6 +56,12 @@ object CanyonWallpaper {
         prefs(context).edit { putLong("photo_at", System.currentTimeMillis()) }
     }
 
+    /** Minutes since midnight now, with the seconds as a fraction. */
+    fun minuteNow(): Float {
+        val c = java.util.Calendar.getInstance()
+        return c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE) + c.get(java.util.Calendar.SECOND) / 60f
+    }
+
     /** Minutes since midnight now. */
     fun minuteOfDay(): Int {
         val c = java.util.Calendar.getInstance()

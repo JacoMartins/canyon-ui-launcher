@@ -12,11 +12,14 @@ import kotlin.math.sin
  * small copy needs no blur of its own.
  *
  * Time [t] is in seconds of `SystemClock.elapsedRealtime()`, so the wallpaper and the effects,
- * in the same app, show the same moment.
+ * in the same app, show the same moment; for [Scene.DAY_GRADIENT] it is the minute of the day.
  */
 enum class Scene(val key: String, val animated: Boolean) {
     /** The user's photo, tinted and lit by the time of day. */
     DAY_CYCLE("day_cycle", false),
+
+    /** A sky gradient with a travelling glow, following the time of day ([DayGradient]). */
+    DAY_GRADIENT("day_gradient", false),
     GRADIENT("gradient", true),
     AURORA("aurora", true),
     WAVES("waves", true),
@@ -41,6 +44,7 @@ object SceneMath {
             Scene.GRADIENT -> gradient(u, v, aspect, t)
             Scene.AURORA -> aurora(u, v, t)
             Scene.WAVES -> waves(u, v, t)
+            Scene.DAY_GRADIENT -> DayGradient.color(DayGradient.at(t), u, v, aspect)
             Scene.DAY_CYCLE -> floatArrayOf(0.5f, 0.5f, 0.5f)
         }
         fun ch(x: Float) = (x.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
@@ -49,6 +53,19 @@ object SceneMath {
 
     /** Fills [out] ([w] x [h], row by row) with [scene] at [t]. */
     fun render(scene: Scene, t: Float, w: Int, h: Int, aspect: Float, out: IntArray) {
+        if (scene == Scene.DAY_GRADIENT) {
+            // One sky for the whole picture.
+            val sky = DayGradient.at(t)
+            fun ch(x: Float) = (x.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+            for (y in 0 until h) {
+                val v = (y + 0.5f) / h
+                for (x in 0 until w) {
+                    val c = DayGradient.color(sky, (x + 0.5f) / w, v, aspect)
+                    out[y * w + x] = (0xFF shl 24) or (ch(c[0]) shl 16) or (ch(c[1]) shl 8) or ch(c[2])
+                }
+            }
+            return
+        }
         for (y in 0 until h) {
             val v = (y + 0.5f) / h
             for (x in 0 until w) out[y * w + x] = color(scene, (x + 0.5f) / w, v, aspect, t)
@@ -191,6 +208,6 @@ object SceneShaders {
         Scene.GRADIENT -> GRADIENT
         Scene.AURORA -> AURORA
         Scene.WAVES -> WAVES
-        Scene.DAY_CYCLE -> null
+        Scene.DAY_CYCLE, Scene.DAY_GRADIENT -> null
     }
 }

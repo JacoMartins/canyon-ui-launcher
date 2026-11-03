@@ -373,9 +373,9 @@ object WallpaperBackdrop {
         ownScene = scene
         _colorsOnly.value = false
         _hasCopy.value = true
-        if (scene == Scene.DAY_CYCLE) {
+        if (!scene.animated) {
             frameBitmap = null
-            copy = dayCycleCopy(app)
+            copy = stillCopy(app, scene)
         } else {
             copy = null
             val (w, h) = screenSize(app)
@@ -389,6 +389,22 @@ object WallpaperBackdrop {
             renderFrame(now = true)
         }
         return true
+    }
+
+    /** A still scene (Day cycle, Day gradient) as it is now, screen sized; null when there is none. */
+    private fun stillCopy(app: Context, scene: Scene): Bitmap? =
+        if (scene == Scene.DAY_GRADIENT) dayGradientCopy(app) else dayCycleCopy(app)
+
+    /** The Day gradient now: drawn small (it is smooth) and stretched to the screen. */
+    private fun dayGradientCopy(app: Context): Bitmap {
+        val (w, h) = screenSize(app)
+        val sw = (w / 4).coerceAtLeast(1)
+        val sh = (h / 4).coerceAtLeast(1)
+        val px = IntArray(sw * sh)
+        val minute = CanyonWallpaper.minuteOfDay()
+        lightAt = minute
+        SceneMath.render(Scene.DAY_GRADIENT, CanyonWallpaper.minuteNow(), sw, sh, h / w.coerceAtLeast(1).toFloat(), px)
+        return createBitmap(sw, sh).apply { setPixels(px, 0, sw, 0, 0, sw, sh) }.scale(w, h)
     }
 
     /** The Day cycle's photo lit for now, screen sized; null when no photo was chosen. */
@@ -408,15 +424,16 @@ object WallpaperBackdrop {
         appContext = context.applicationContext
         updateTicker()
         // Day cycle: the light moved on while away.
-        if (on && ownScene == Scene.DAY_CYCLE && lightStale()) relight()
+        if (on && ownScene?.animated == false && lightStale()) relight()
     }
 
     private fun lightStale() = lightAt < 0 || kotlin.math.abs(CanyonWallpaper.minuteOfDay() - lightAt) >= RELIGHT_MIN
 
     private fun relight() {
         val ctx = appContext ?: return
+        val scene = ownScene ?: return
         kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
-            copy = withContext(Dispatchers.IO) { dayCycleCopy(ctx) }
+            copy = withContext(Dispatchers.IO) { stillCopy(ctx, scene) }
             rebuild()
         }
     }
@@ -424,7 +441,7 @@ object WallpaperBackdrop {
     // Day cycle while home is shown: the effects' copy follows the light every few minutes.
     private val relightTick = object : Runnable {
         override fun run() {
-            if (ownScene != Scene.DAY_CYCLE || !homeVisible) return
+            if (ownScene?.animated != false || !homeVisible) return
             if (lightStale()) relight()
             main.postDelayed(this, RELIGHT_MIN * 60_000L)
         }
@@ -449,7 +466,7 @@ object WallpaperBackdrop {
             main.removeCallbacks(frameTick)
         }
         main.removeCallbacks(relightTick)
-        if (scene == Scene.DAY_CYCLE && homeVisible) main.postDelayed(relightTick, RELIGHT_MIN * 60_000L)
+        if (scene != null && !scene.animated && homeVisible) main.postDelayed(relightTick, RELIGHT_MIN * 60_000L)
     }
 
     /** Draws the scene's frame for now; [now] on this thread, otherwise off the main thread. */

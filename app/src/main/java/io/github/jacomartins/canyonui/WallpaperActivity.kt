@@ -359,6 +359,7 @@ private fun SceneGrid(onPick: (Scene) -> Unit) {
                 for (scene in row) {
                     val (title, summary) = when (scene) {
                         Scene.DAY_CYCLE -> R.string.scene_day_cycle to R.string.scene_day_cycle_summary
+                        Scene.DAY_GRADIENT -> R.string.scene_day_gradient to R.string.scene_day_gradient_summary
                         Scene.GRADIENT -> R.string.scene_gradient to R.string.scene_gradient_summary
                         Scene.AURORA -> R.string.scene_aurora to R.string.scene_aurora_summary
                         Scene.WAVES -> R.string.scene_waves to R.string.scene_waves_summary
@@ -405,7 +406,7 @@ private fun scenePreviews(context: Context): Map<Scene, ImageBitmap> {
             )
             out[scene] = bmp.asImageBitmap()
         } else {
-            SceneMath.render(scene, t, w, h, h / w.toFloat(), px)
+            SceneMath.render(scene, if (scene == Scene.DAY_GRADIENT) CanyonWallpaper.minuteNow() else t, w, h, h / w.toFloat(), px)
             out[scene] = androidx.core.graphics.createBitmap(w, h).apply { setPixels(px, 0, w, 0, 0, w, h) }.asImageBitmap()
         }
     }

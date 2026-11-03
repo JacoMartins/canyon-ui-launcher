@@ -60,7 +60,7 @@ class CanyonWallpaperService : WallpaperService() {
         // Day cycle: the light changes by the minute.
         private val minuteTick = object : Runnable {
             override fun run() {
-                if (!visible || scene != Scene.DAY_CYCLE) return
+                if (!visible || scene.animated) return
                 draw()
                 main.postDelayed(this, msToNextMinute())
             }
@@ -131,7 +131,11 @@ class CanyonWallpaperService : WallpaperService() {
                 null
             } ?: return
             try {
-                if (scene == Scene.DAY_CYCLE) drawDayCycle(canvas) else drawScene(canvas)
+                when (scene) {
+                    Scene.DAY_CYCLE -> drawDayCycle(canvas)
+                    Scene.DAY_GRADIENT -> drawDayGradient(canvas)
+                    else -> drawScene(canvas)
+                }
             } finally {
                 holder.unlockCanvasAndPost(canvas)
             }
@@ -156,7 +160,11 @@ class CanyonWallpaperService : WallpaperService() {
                     return
                 }
             }
-            // No runtime shaders: the same maths, drawn small and stretched (it is smooth).
+            drawSmall(canvas, t)
+        }
+
+        /** No runtime shaders: the same maths, drawn small and stretched (it is smooth). */
+        private fun drawSmall(canvas: Canvas, t: Float) {
             val w = SMALL_W
             val h = (SMALL_W * height / width).coerceAtLeast(1)
             val bmp = small?.takeIf { it.width == w && it.height == h } ?: createBitmap(w, h).also {
@@ -166,6 +174,32 @@ class CanyonWallpaperService : WallpaperService() {
             SceneMath.render(scene, t, w, h, height / width.toFloat(), smallPixels)
             bmp.setPixels(smallPixels, 0, w, 0, 0, w, h)
             canvas.drawBitmap(bmp, null, Rect(0, 0, width, height), bitmapPaint)
+        }
+
+        private fun drawDayGradient(canvas: Canvas) {
+            val minute = CanyonWallpaper.minuteNow()
+            if (Build.VERSION.SDK_INT >= 33 && !shaderBroken) {
+                val s = (shader as? RuntimeShader) ?: try {
+                    RuntimeShader(DayGradient.SHADER).also { shader = it }
+                } catch (e: IllegalArgumentException) {
+                    android.util.Log.w("CanyonWallpaper", "Day gradient shader unavailable", e)
+                    shaderBroken = true
+                    null
+                }
+                if (s != null) {
+                    val sky = DayGradient.at(minute)
+                    fun rgb(name: String, c: Int) = s.setFloatUniform(name, ((c shr 16) and 0xFF) / 255f, ((c shr 8) and 0xFF) / 255f, (c and 0xFF) / 255f)
+                    s.setFloatUniform("size", width.toFloat(), height.toFloat())
+                    rgb("top", sky.top)
+                    rgb("bottom", sky.bottom)
+                    rgb("glow", sky.glow)
+                    s.setFloatUniform("shape", sky.gx, sky.gy, sky.radius, sky.strength)
+                    shaderPaint.shader = s
+                    canvas.drawPaint(shaderPaint)
+                    return
+                }
+            }
+            drawSmall(canvas, minute)
         }
 
         private fun drawDayCycle(canvas: Canvas) {
@@ -190,7 +224,8 @@ class CanyonWallpaperService : WallpaperService() {
                 DayCycle.draw(Canvas(bmp), p, Rect(0, 0, w, h), DayCycle.at(CanyonWallpaper.minuteOfDay()))
             } else {
                 val px = IntArray(w * h)
-                SceneMath.render(scene, SystemClock.elapsedRealtime() / 1000f, w, h, 2f, px)
+                val t = if (scene == Scene.DAY_GRADIENT) CanyonWallpaper.minuteNow() else SystemClock.elapsedRealtime() / 1000f
+                SceneMath.render(scene, t, w, h, 2f, px)
                 bmp.setPixels(px, 0, w, 0, 0, w, h)
             }
             return WallpaperColors.fromBitmap(bmp).also { colors = it }

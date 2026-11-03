@@ -50,4 +50,23 @@ class ScenesTest {
         for (s in Scene.entries) assertEquals(s, Scene.of(s.key))
         assertEquals(null, Scene.of("nope"))
     }
+
+    @Test fun dayGradientFollowsTheDay() {
+        // At a key moment, exactly that sky.
+        val noon = DayGradient.at(678f)
+        assertEquals(0x5A9CF0, noon.top)
+        assertEquals(0.45f, noon.gx, 1e-6f)
+        // Wraps round midnight, and is continuous there.
+        assertEquals(DayGradient.at(10f), DayGradient.at(10f + 1440f))
+        val before = DayGradient.at(1439.99f)
+        val after = DayGradient.at(0f)
+        assertEquals(after.gx, before.gx, 0.01f)
+        // The glow is high by day and low at night.
+        assertTrue(DayGradient.at(720f).gy < 0.3f)
+        assertTrue(DayGradient.at(30f).gy > 0.8f)
+        // The whole picture is opaque.
+        val px = IntArray(8 * 16)
+        SceneMath.render(Scene.DAY_GRADIENT, 800f, 8, 16, 2f, px)
+        assertTrue(px.all { it ushr 24 == 0xFF })
+    }
 }
