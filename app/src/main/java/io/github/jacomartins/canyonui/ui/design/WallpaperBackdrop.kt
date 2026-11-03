@@ -393,17 +393,17 @@ object WallpaperBackdrop {
 
     /** A still scene (Day cycle, Day gradient) as it is now, screen sized; null when there is none. */
     private fun stillCopy(app: Context, scene: Scene): Bitmap? =
-        if (scene == Scene.DAY_GRADIENT) dayGradientCopy(app) else dayCycleCopy(app)
+        if (scene.timeOfDay) dayGradientCopy(app, scene) else dayCycleCopy(app)
 
-    /** The Day gradient now: drawn small (it is smooth) and stretched to the screen. */
-    private fun dayGradientCopy(app: Context): Bitmap {
+    /** A day gradient now: drawn small (it is smooth) and stretched to the screen. */
+    private fun dayGradientCopy(app: Context, scene: Scene): Bitmap {
         val (w, h) = screenSize(app)
         val sw = (w / 4).coerceAtLeast(1)
         val sh = (h / 4).coerceAtLeast(1)
         val px = IntArray(sw * sh)
         val minute = CanyonWallpaper.minuteOfDay()
         lightAt = minute
-        SceneMath.render(Scene.DAY_GRADIENT, CanyonWallpaper.minuteNow(), sw, sh, h / w.coerceAtLeast(1).toFloat(), px)
+        SceneMath.render(scene, CanyonWallpaper.minuteNow(), sw, sh, h / w.coerceAtLeast(1).toFloat(), px)
         return createBitmap(sw, sh).apply { setPixels(px, 0, sw, 0, 0, sw, sh) }.scale(w, h)
     }
 

@@ -12,7 +12,8 @@ import kotlin.math.sin
  * small copy needs no blur of its own.
  *
  * Time [t] is in seconds of `SystemClock.elapsedRealtime()`, so the wallpaper and the effects,
- * in the same app, show the same moment; for [Scene.DAY_GRADIENT] it is the minute of the day.
+ * in the same app, show the same moment; for the day scenes ([Scene.timeOfDay]) it is the minute
+ * of the day.
  */
 enum class Scene(val key: String, val animated: Boolean) {
     /** The user's photo, tinted and lit by the time of day. */
@@ -20,10 +21,16 @@ enum class Scene(val key: String, val animated: Boolean) {
 
     /** A sky gradient with a travelling glow, following the time of day ([DayGradient]). */
     DAY_GRADIENT("day_gradient", false),
+
+    /** The same sky as straight bands from the glow's side, moving at a steady pace. */
+    DAY_LINEAR("day_linear", false),
     GRADIENT("gradient", true),
     AURORA("aurora", true),
     WAVES("waves", true),
     ;
+
+    /** Follows the clock: its [SceneMath] time is the minute of the day. */
+    val timeOfDay get() = this == DAY_GRADIENT || this == DAY_LINEAR
 
     companion object {
         fun of(key: String?): Scene? = entries.firstOrNull { it.key == key }
@@ -45,6 +52,7 @@ object SceneMath {
             Scene.AURORA -> aurora(u, v, t)
             Scene.WAVES -> waves(u, v, t)
             Scene.DAY_GRADIENT -> DayGradient.color(DayGradient.at(t), u, v, aspect)
+            Scene.DAY_LINEAR -> DayGradient.linearColor(DayGradient.at(t, eased = false), u, v, aspect)
             Scene.DAY_CYCLE -> floatArrayOf(0.5f, 0.5f, 0.5f)
         }
         fun ch(x: Float) = (x.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
@@ -53,14 +61,15 @@ object SceneMath {
 
     /** Fills [out] ([w] x [h], row by row) with [scene] at [t]. */
     fun render(scene: Scene, t: Float, w: Int, h: Int, aspect: Float, out: IntArray) {
-        if (scene == Scene.DAY_GRADIENT) {
+        if (scene.timeOfDay) {
             // One sky for the whole picture.
-            val sky = DayGradient.at(t)
+            val linear = scene == Scene.DAY_LINEAR
+            val sky = DayGradient.at(t, eased = !linear)
             fun ch(x: Float) = (x.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
             for (y in 0 until h) {
                 val v = (y + 0.5f) / h
                 for (x in 0 until w) {
-                    val c = DayGradient.color(sky, (x + 0.5f) / w, v, aspect)
+                    val c = if (linear) DayGradient.linearColor(sky, (x + 0.5f) / w, v, aspect) else DayGradient.color(sky, (x + 0.5f) / w, v, aspect)
                     out[y * w + x] = (0xFF shl 24) or (ch(c[0]) shl 16) or (ch(c[1]) shl 8) or ch(c[2])
                 }
             }
@@ -208,6 +217,6 @@ object SceneShaders {
         Scene.GRADIENT -> GRADIENT
         Scene.AURORA -> AURORA
         Scene.WAVES -> WAVES
-        Scene.DAY_CYCLE, Scene.DAY_GRADIENT -> null
+        Scene.DAY_CYCLE, Scene.DAY_GRADIENT, Scene.DAY_LINEAR -> null
     }
 }

@@ -43,8 +43,11 @@ object DayGradient {
 
     private const val DAY = 24 * 60
 
-    /** The sky at [minute] of the day (fractions allowed), blended between the nearest keys. */
-    fun at(minute: Float): Sky {
+    /**
+     * The sky at [minute] of the day (fractions allowed), blended between the nearest keys:
+     * [eased] settles at each key moment; otherwise it moves at a steady pace all day.
+     */
+    fun at(minute: Float, eased: Boolean = true): Sky {
         val m = ((minute % DAY) + DAY) % DAY
         val i = KEYS.indexOfLast { it.first <= m }.coerceAtLeast(0)
         val (m0, a) = KEYS[i]
@@ -52,7 +55,7 @@ object DayGradient {
         val m1 = if (m1raw <= m0) m1raw + DAY else m1raw
         // Eased, so the sky settles at each key moment instead of turning at a corner.
         val lin = ((m - m0) / (m1 - m0)).coerceIn(0f, 1f)
-        val k = lin * lin * (3f - 2f * lin)
+        val k = if (eased) lin * lin * (3f - 2f * lin) else lin
         return Sky(
             mixColor(a.top, b.top, k), mixColor(a.bottom, b.bottom, k), mixColor(a.glow, b.glow, k),
             lerp(a.strength, b.strength, k), lerp(a.gx, b.gx, k), lerp(a.gy, b.gy, k), lerp(a.radius, b.radius, k),
@@ -80,6 +83,60 @@ object DayGradient {
         b += (c(sky.glow, 0) - b) * w
         return floatArrayOf(r, g, b)
     }
+
+    /**
+     * The linear version: the glow's colour comes in straight bands from the side the glow is on
+     * (seen from the screen's middle), instead of a round light.
+     */
+    fun linearColor(sky: Sky, u: Float, v: Float, aspect: Float): FloatArray {
+        fun c(x: Int, shift: Int) = ((x shr shift) and 0xFF) / 255f
+        var r = c(sky.top, 16) + (c(sky.bottom, 16) - c(sky.top, 16)) * v
+        var g = c(sky.top, 8) + (c(sky.bottom, 8) - c(sky.top, 8)) * v
+        var b = c(sky.top, 0) + (c(sky.bottom, 0) - c(sky.top, 0)) * v
+        val w = sky.strength * linearBand(sky, u, v, aspect)
+        r += (c(sky.glow, 16) - r) * w
+        g += (c(sky.glow, 8) - g) * w
+        b += (c(sky.glow, 0) - b) * w
+        return floatArrayOf(r, g, b)
+    }
+
+    // 0 across the far side of the screen, rising to 1 at the glow's edge, along the line from
+    // the middle towards the glow.
+    private fun linearBand(sky: Sky, u: Float, v: Float, aspect: Float): Float {
+        var dx = sky.gx - 0.5f
+        var dy = (sky.gy - 0.5f) * aspect
+        val len = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1e-3f)
+        dx /= len; dy /= len
+        val reach = 0.5f * kotlin.math.abs(dx) + 0.5f * aspect * kotlin.math.abs(dy)
+        val s = ((u - 0.5f) * dx + (v - 0.5f) * aspect * dy) / reach
+        val k = ((s - (0.6f - sky.radius)) / (1.1f - (0.6f - sky.radius))).coerceIn(0f, 1f)
+        return k * k * (3f - 2f * k)
+    }
+
+    /** [linearColor] as AGSL, with the same uniforms as [SHADER]. */
+    const val LINEAR_SHADER = """
+        uniform float2 size;
+        uniform float3 top;
+        uniform float3 bottom;
+        uniform float3 glow;
+        uniform float4 shape; // gx, gy, radius, strength
+        float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+        half4 main(float2 xy) {
+            float u = xy.x / size.x;
+            float v = xy.y / size.y;
+            float aspect = size.y / size.x;
+            float3 c = mix(top, bottom, v);
+            float2 d = float2(shape.x - 0.5, (shape.y - 0.5) * aspect);
+            d = d / max(length(d), 0.001);
+            float reach = 0.5 * abs(d.x) + 0.5 * aspect * abs(d.y);
+            float s = ((u - 0.5) * d.x + (v - 0.5) * aspect * d.y) / reach;
+            float from = 0.6 - shape.z;
+            float w = shape.w * smoothstep(from, 1.1, s);
+            c = mix(c, glow, w);
+            c += (hash(xy) - 0.5) / 255.0;
+            return half4(half3(clamp(c, 0.0, 1.0)), 1.0);
+        }
+    """
 
     /** The same picture as AGSL; the sky arrives as uniforms ([Sky] at the moment drawn). */
     const val SHADER = """

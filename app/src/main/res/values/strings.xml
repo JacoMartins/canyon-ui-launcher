@@ -336,7 +336,7 @@
     <string name="live_blur_summary">This phone blurs whatever is behind the Apps screen and search itself, live wallpapers included, as they open. It is a blur: without the bending of glass.</string>
     <string name="live_blur_unavailable">Live blur: this phone does not offer it to apps right now (some phones never do; others turn it off in battery saver).</string>
     <string name="canyon_wallpaper_label" translatable="false">Canyon UI</string>
-    <string name="canyon_wallpaper_description">Canyon UI\'s own live wallpapers: Day cycle, Day gradient, Gradient, Aurora and Waves. Choose one in Canyon UI\'s wallpaper screen; its glass and blur follow it live.</string>
+    <string name="canyon_wallpaper_description">Canyon UI\'s own live wallpapers: Day cycle, Day gradient (round and linear), Gradient, Aurora and Waves. Choose one in Canyon UI\'s wallpaper screen; its glass and blur follow it live.</string>
     <string name="canyon_wallpapers">Canyon live wallpapers</string>
     <string name="canyon_wallpapers_summary">Drawn by Canyon UI itself, so glass and blur follow them live. They pause when another app is in front or the screen is off.</string>
     <string name="scene_day_cycle">Day cycle</string>
@@ -350,4 +350,6 @@
     <string name="scene_on">on</string>
     <string name="scene_day_gradient">Day gradient</string>
     <string name="scene_day_gradient_summary">A sky that follows the time of day</string>
+    <string name="scene_day_linear">Day gradient, linear</string>
+    <string name="scene_day_linear_summary">The same sky in straight bands, drifting slowly</string>
 </resources>

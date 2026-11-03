@@ -334,7 +334,7 @@
     <string name="live_blur">Desfoque ao vivo atrás da tela de apps</string>
     <string name="live_blur_summary">O próprio celular desfoca o que está atrás da tela de apps e da busca, inclusive papéis de parede animados, enquanto elas abrem. É um desfoque: sem a curvatura do vidro.</string>
     <string name="live_blur_unavailable">Desfoque ao vivo: este celular não o oferece aos apps agora (alguns nunca oferecem; outros o desativam na economia de bateria).</string>
-    <string name="canyon_wallpaper_description">Os papéis de parede animados do próprio Canyon UI: Ciclo do dia, Gradiente do dia, Gradiente, Aurora e Ondas. Escolha um na tela de papéis de parede do Canyon UI; o vidro e o desfoque o acompanham ao vivo.</string>
+    <string name="canyon_wallpaper_description">Os papéis de parede animados do próprio Canyon UI: Ciclo do dia, Gradiente do dia (redondo e linear), Gradiente, Aurora e Ondas. Escolha um na tela de papéis de parede do Canyon UI; o vidro e o desfoque o acompanham ao vivo.</string>
     <string name="canyon_wallpapers">Papéis de parede animados do Canyon</string>
     <string name="canyon_wallpapers_summary">Desenhados pelo próprio Canyon UI, por isso o vidro e o desfoque os acompanham ao vivo. Eles pausam quando outro app está na frente ou a tela está apagada.</string>
     <string name="scene_day_cycle">Ciclo do dia</string>
@@ -348,4 +348,6 @@
     <string name="scene_on">ativo</string>
     <string name="scene_day_gradient">Gradiente do dia</string>
     <string name="scene_day_gradient_summary">Um céu que acompanha a hora do dia</string>
+    <string name="scene_day_linear">Gradiente do dia, linear</string>
+    <string name="scene_day_linear_summary">O mesmo céu em faixas retas, mudando devagar</string>
 </resources>
