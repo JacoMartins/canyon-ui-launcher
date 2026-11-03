@@ -1,6 +1,10 @@
 package io.github.jacomartins.canyonui.wallpaper
 
 import android.app.WallpaperColors
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -15,14 +19,17 @@ import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
 import android.view.SurfaceHolder
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.scale
+import androidx.core.graphics.withScale
 
 /**
  * Canyon UI's live wallpapers ([Scene]). Animated scenes draw at [FPS] while visible, as an AGSL
  * shader on Android 13+ (a small Kotlin-drawn picture stretched to the screen before that); Day
  * cycle draws the photo once and again each minute. Nothing runs while the wallpaper is hidden
- * (another app in front, screen off).
+ * (another app in front, screen off). The day scenes open with a short animation each time the
+ * screen turns on: the light comes up and the glow (or the photo) settles into place.
  */
 class CanyonWallpaperService : WallpaperService() {
 
@@ -57,6 +64,48 @@ class CanyonWallpaperService : WallpaperService() {
             }
         }
 
+        // The day scenes' opening: each time the screen turns on, the light comes up into place.
+        private var introStartMs = -1L
+        private var introPending = true // also when the wallpaper is first shown
+        private val intro = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (!visible || introStartMs < 0) return
+                draw()
+                if (introStartMs >= 0) Choreographer.getInstance().postFrameCallback(this)
+            }
+        }
+        private val screenOn = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                introPending = true
+                if (visible) playIntro()
+            }
+        }
+
+        private fun playIntro() {
+            if (!introPending || scene.animated) return
+            introPending = false
+            introStartMs = SystemClock.uptimeMillis()
+            Choreographer.getInstance().removeFrameCallback(intro)
+            Choreographer.getInstance().postFrameCallback(intro)
+        }
+
+        /** How far the opening has come, eased: 0 at its start, 1 when it is over (or none). */
+        private fun introProgress(): Float {
+            if (introStartMs < 0) return 1f
+            val k = (SystemClock.uptimeMillis() - introStartMs) / INTRO_MS.toFloat()
+            if (k >= 1f) {
+                introStartMs = -1L
+                return 1f
+            }
+            val r = 1f - k
+            return 1f - r * r * r
+        }
+
+        /** The opening's dimming over the whole picture, fading out as it ends. */
+        private fun introShade(canvas: Canvas, e: Float) {
+            if (e < 1f) canvas.drawColor(Color.argb(((1f - e) * INTRO_SHADE * 255f).toInt(), 0, 0, 0))
+        }
+
         // Day cycle: the light changes by the minute.
         private val minuteTick = object : Runnable {
             override fun run() {
@@ -72,10 +121,12 @@ class CanyonWallpaperService : WallpaperService() {
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             CanyonWallpaper.prefs(this@CanyonWallpaperService).registerOnSharedPreferenceChangeListener(this)
+            ContextCompat.registerReceiver(this@CanyonWallpaperService, screenOn, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED)
         }
 
         override fun onDestroy() {
             CanyonWallpaper.prefs(this@CanyonWallpaperService).unregisterOnSharedPreferenceChangeListener(this)
+            unregisterReceiver(screenOn)
             stop()
             super.onDestroy()
         }
@@ -87,6 +138,8 @@ class CanyonWallpaperService : WallpaperService() {
             photo = null
             colors = null
             notifyColorsChanged()
+            // A new scene opens like the screen turning on.
+            introPending = true
             if (visible) start()
         }
 
@@ -112,6 +165,11 @@ class CanyonWallpaperService : WallpaperService() {
 
         private fun start() {
             stop()
+            if (introPending && !scene.animated) {
+                introStartMs = SystemClock.uptimeMillis()
+                introPending = false
+                Choreographer.getInstance().postFrameCallback(intro)
+            }
             draw()
             if (scene.animated) {
                 Choreographer.getInstance().postFrameCallback(frame)
@@ -122,6 +180,8 @@ class CanyonWallpaperService : WallpaperService() {
 
         private fun stop() {
             Choreographer.getInstance().removeFrameCallback(frame)
+            Choreographer.getInstance().removeFrameCallback(intro)
+            introStartMs = -1L
             main.removeCallbacks(minuteTick)
         }
 
@@ -181,6 +241,7 @@ class CanyonWallpaperService : WallpaperService() {
 
         private fun drawDayGradient(canvas: Canvas) {
             val minute = CanyonWallpaper.minuteNow()
+            val e = introProgress()
             if (Build.VERSION.SDK_INT >= 33 && !shaderBroken) {
                 val s = (shader as? RuntimeShader) ?: try {
                     RuntimeShader(if (scene == Scene.DAY_LINEAR) DayGradient.LINEAR_SHADER else DayGradient.SHADER).also { shader = it }
@@ -190,7 +251,10 @@ class CanyonWallpaperService : WallpaperService() {
                     null
                 }
                 if (s != null) {
-                    val sky = DayGradient.at(minute, eased = scene != Scene.DAY_LINEAR)
+                    // Opening: the glow grows and brightens into place.
+                    val sky = DayGradient.at(minute, eased = scene != Scene.DAY_LINEAR).let {
+                        if (e < 1f) it.copy(strength = it.strength * (0.25f + 0.75f * e), radius = it.radius * (0.6f + 0.4f * e)) else it
+                    }
                     fun rgb(name: String, c: Int) = s.setFloatUniform(name, ((c shr 16) and 0xFF) / 255f, ((c shr 8) and 0xFF) / 255f, (c and 0xFF) / 255f)
                     s.setFloatUniform("size", width.toFloat(), height.toFloat())
                     if (scene == Scene.DAY_LINEAR) {
@@ -205,10 +269,12 @@ class CanyonWallpaperService : WallpaperService() {
                     }
                     shaderPaint.shader = s
                     canvas.drawPaint(shaderPaint)
+                    introShade(canvas, e)
                     return
                 }
             }
             drawSmall(canvas, minute)
+            introShade(canvas, e)
         }
 
         private fun drawDayCycle(canvas: Canvas) {
@@ -219,7 +285,13 @@ class CanyonWallpaperService : WallpaperService() {
                 canvas.drawColor(Color.rgb(20, 24, 40))
                 return
             }
-            DayCycle.draw(canvas, p, Rect(0, 0, width, height), DayCycle.at(CanyonWallpaper.minuteOfDay()))
+            // Opening: the photo settles from a touch closer, and the light comes up.
+            val e = introProgress()
+            val zoom = 1f + INTRO_ZOOM * (1f - e)
+            canvas.withScale(zoom, zoom, width / 2f, height / 2f) {
+                DayCycle.draw(this, p, Rect(0, 0, width, height), DayCycle.at(CanyonWallpaper.minuteOfDay()))
+            }
+            introShade(canvas, e)
         }
 
         // The colours the phone's theme (and other apps) see: from a small picture of the scene.
@@ -249,5 +321,8 @@ class CanyonWallpaperService : WallpaperService() {
         const val FRAME_SLACK_NS = 4_000_000L
         const val SMALL_W = 120
         const val LINEAR_REDRAW_MS = 5_000L
+        const val INTRO_MS = 1_400L
+        const val INTRO_SHADE = 0.35f
+        const val INTRO_ZOOM = 0.05f
     }
 }

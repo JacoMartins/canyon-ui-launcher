@@ -84,8 +84,6 @@ import androidx.core.graphics.drawable.toBitmap
 import io.github.jacomartins.canyonui.ui.design.PrimaryButton
 import io.github.jacomartins.canyonui.ui.design.SecondaryButton
 import io.github.jacomartins.canyonui.ui.design.SettingsSection
-import io.github.jacomartins.canyonui.ui.design.EntranceScreen
-import io.github.jacomartins.canyonui.ui.design.entrance
 import io.github.jacomartins.canyonui.ui.design.Spacing
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
 import io.github.jacomartins.canyonui.ui.design.settingsPageColor
@@ -227,21 +225,18 @@ private fun WallpaperScreen(onDone: () -> Unit) {
         val photos by produceState(emptyList<Pair<Uri, ImageBitmap>>(), f.id) {
             value = withContext(Dispatchers.IO) { recentPhotos(context, f.id, FOLDER_LIMIT) }
         }
-        EntranceScreen(f.id) {
-            Column(
-                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-            ) {
-                Text(f.name, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md).entrance())
-                SettingsSection {
-                    ThumbGrid(photos.map { it.second }, aspect = 1f) { i -> chosen = photos[i].first }
-                }
+        Column(
+            Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Text(f.name, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md))
+            SettingsSection {
+                ThumbGrid(photos.map { it.second }, aspect = 1f) { i -> chosen = photos[i].first }
             }
         }
         return
     }
 
-    EntranceScreen("chooser") {
     Column(
         Modifier
             .fillMaxSize()
@@ -252,7 +247,7 @@ private fun WallpaperScreen(onDone: () -> Unit) {
         Text(
             stringResource(R.string.choose_wallpaper),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md).entrance(),
+            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
         )
 
         // Canyon UI's own live wallpapers: glass and blur follow them live.
@@ -318,7 +313,6 @@ private fun WallpaperScreen(onDone: () -> Unit) {
                 }
             }
         }
-    }
     }
 
     if (showSources) {

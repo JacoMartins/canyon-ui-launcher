@@ -80,7 +80,6 @@ import io.github.jacomartins.canyonui.ui.settings.SEARCH_ACTIONS
 import io.github.jacomartins.canyonui.ui.settings.WALLPAPER_ACTIONS
 import io.github.jacomartins.canyonui.ui.settings.targetLabel
 import io.github.jacomartins.canyonui.ui.theme.HomeTheme
-import io.github.jacomartins.canyonui.ui.design.entrance
 import kotlinx.coroutines.launch
 
 /** Home screen settings. Grows in Stage 5; Stage 1.2 has layout mode, grid and hidden apps. */
@@ -96,7 +95,7 @@ class SettingsActivity : ComponentActivity() {
             HomeTheme(phonePalette = settings?.phonePalette == true) {
                 Surface(Modifier.fillMaxSize(), color = settingsPageColor()) {
                     val apps by app.apps.apps.collectAsState()
-                    settings?.let { io.github.jacomartins.canyonui.ui.design.EntranceScreen { SettingsScreen(it, app.settings, hiddenModel, apps.orEmpty(), app.home) } }
+                    settings?.let { SettingsScreen(it, app.settings, hiddenModel, apps.orEmpty(), app.home) }
                 }
             }
         }
@@ -123,7 +122,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         Text(
             stringResource(R.string.home_settings),
             style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md).entrance(),
+            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
         )
         // Radio buttons and switches without Material's extra 48dp touch padding, so they line
         // up with the text; the whole row is the touch target.
