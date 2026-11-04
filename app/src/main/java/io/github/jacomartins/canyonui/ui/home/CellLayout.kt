@@ -29,7 +29,18 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
         var spanY: Int = 1,
         var inset: Int = 0,
         var maxThickness: Int = 0,
-    ) : ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+    ) : ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT) {
+        /** Where the child was last laid out in this layout (for [animateMoves]); unset when new. */
+        internal var laidLeft = Int.MIN_VALUE
+        internal var laidTop = 0
+        internal var laidOwner: CellLayout? = null
+    }
+
+    /**
+     * A child moved to other cells (same size) glides there from where it was seen, its drag
+     * preview offset included ([previewMove]), instead of jumping.
+     */
+    var animateMoves = true
 
     /** Size of a child's area along one axis, and its offset inside its cells. */
     private fun extent(cells: Int, cell: Int, lp: LayoutParams): Int {
@@ -198,8 +209,54 @@ class CellLayout(context: Context, columns: Int, rows: Int) : ViewGroup(context)
             val left = paddingLeft + col * cw + (cw * lp.spanX - child.measuredWidth) / 2
             val freeY = ch * lp.spanY - child.measuredHeight
             val top = paddingTop + lp.cellY * ch + freeY / 2
+            val moved = lp.laidOwner === this && lp.laidLeft != Int.MIN_VALUE && (lp.laidLeft != left || lp.laidTop != top) &&
+                child.width == child.measuredWidth && child.height == child.measuredHeight
             child.layout(left, top, left + child.measuredWidth, top + child.measuredHeight)
+            if (moved) glide(child, lp.laidLeft, lp.laidTop, left, top)
+            lp.laidLeft = left
+            lp.laidTop = top
+            lp.laidOwner = this
         }
+    }
+
+    private fun glide(child: android.view.View, fromLeft: Int, fromTop: Int, left: Int, top: Int) {
+        child.animate().cancel()
+        // Where it is on screen now: its old place plus any preview offset.
+        val dx = fromLeft + child.translationX - left
+        val dy = fromTop + child.translationY - top
+        if (!animateMoves || !io.github.jacomartins.canyonui.util.Motion.enabled() || child.visibility != VISIBLE) {
+            child.translationX = 0f
+            child.translationY = 0f
+            return
+        }
+        child.translationX = dx
+        child.translationY = dy
+        if (dx == 0f && dy == 0f) return
+        child.animate().translationX(0f).translationY(0f).setDuration(MOVE_MS).setInterpolator(moveEase).start()
+    }
+
+    /**
+     * While an item is dragged: [child] slides to cell ([x], [y]) as if moved there (null: back
+     * to its own place). Only an offset; [onLayout] takes over from it when the move is real.
+     */
+    fun previewMove(child: android.view.View, x: Int?, y: Int?) {
+        val lp = child.layoutParams as? LayoutParams ?: return
+        val tx = if (x == null) 0f else (cellLeft(x, lp.spanX) - cellLeft(lp.cellX, lp.spanX)).toFloat()
+        val ty = if (y == null) 0f else (cellTop(y) - cellTop(lp.cellY)).toFloat()
+        if (child.translationX == tx && child.translationY == ty) return
+        child.animate().cancel()
+        if (!io.github.jacomartins.canyonui.util.Motion.enabled()) {
+            child.translationX = tx
+            child.translationY = ty
+            return
+        }
+        child.animate().translationX(tx).translationY(ty).setDuration(MOVE_MS).setInterpolator(moveEase).start()
+    }
+
+    private val moveEase = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)
+
+    private companion object {
+        const val MOVE_MS = 280L
     }
 
     override fun checkLayoutParams(p: ViewGroup.LayoutParams?) = p is LayoutParams

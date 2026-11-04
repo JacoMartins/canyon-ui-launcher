@@ -17,6 +17,7 @@ import kotlin.math.abs
  *   and the touch did not start on the fast scroller ([DrawerTouchState]);
  * - drawer moving: a touch catches it and the finger takes over.
  * Horizontal page swipes are claimed by [Workspace] through requestDisallowInterceptTouchEvent.
+ * A vertical swipe starting on content that can scroll that way (a widget's list) is left to it.
  */
 class DragLayer(context: Context) : FrameLayout(context) {
 
@@ -143,6 +144,7 @@ class DragLayer(context: Context) : FrameLayout(context) {
         if (drag?.armed != null) return false
         // The panel takes the touches, not the swipes to search, the Apps screen or notifications.
         if (drawer.isClosed && homePanelOpen()) return false
+        if (childScrolls(ev)) return false
         if (swipeDown(ev)) return true
         if (!drawerEnabled && drawer.isClosed) return swipeUp(ev)
         when (ev.actionMasked) {
@@ -238,6 +240,56 @@ class DragLayer(context: Context) : FrameLayout(context) {
                     return true
                 }
             }
+        }
+        return false
+    }
+
+    // A vertical swipe that starts on something that can scroll that way (a widget's list) is
+    // that thing's for the whole gesture: the Apps screen, search and notifications wait.
+    private var scrollDecided = false
+    private var scrollOwned = false
+    private var scrollDownX = 0f
+    private var scrollDownY = 0f
+    private val scrollPt = FloatArray(2)
+    private val scrollMatrix = android.graphics.Matrix()
+
+    private fun childScrolls(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                scrollDecided = false
+                scrollOwned = false
+                scrollDownX = ev.x
+                scrollDownY = ev.y
+            }
+            MotionEvent.ACTION_MOVE -> if (!scrollDecided && drawer.isClosed) {
+                val dx = ev.x - scrollDownX
+                val dy = ev.y - scrollDownY
+                if (abs(dy) > slop && abs(dy) >= abs(dx)) {
+                    scrollDecided = true
+                    // Finger up scrolls the content on (down the list), finger down back.
+                    scrollOwned = scrollsAt(this, scrollDownX, scrollDownY, if (dy < 0) 1 else -1)
+                }
+            }
+        }
+        return scrollOwned
+    }
+
+    /** Whether a view under ([x], [y]) in [group] (its own coordinates) can scroll vertically in [direction]. */
+    private fun scrollsAt(group: android.view.ViewGroup, x: Float, y: Float, direction: Int): Boolean {
+        for (i in group.childCount - 1 downTo 0) {
+            val c = group.getChildAt(i)
+            if (c.visibility != VISIBLE) continue
+            scrollPt[0] = x + group.scrollX - c.left
+            scrollPt[1] = y + group.scrollY - c.top
+            if (!c.matrix.isIdentity) {
+                c.matrix.invert(scrollMatrix)
+                scrollMatrix.mapPoints(scrollPt)
+            }
+            val lx = scrollPt[0]
+            val ly = scrollPt[1]
+            if (lx < 0 || ly < 0 || lx >= c.width || ly >= c.height) continue
+            if (c.canScrollVertically(direction)) return true
+            if (c is android.view.ViewGroup && scrollsAt(c, lx, ly, direction)) return true
         }
         return false
     }

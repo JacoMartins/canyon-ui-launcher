@@ -787,8 +787,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             when (entry) {
                 is WidgetEntry -> {
                     widgetIds += entry.id
-                    // Out of a stack (ungrouped): drop the offset its paging left on it.
-                    view.translationX = 0f
+                    // Out of a stack (ungrouped): drop the offset its paging left on it (not a
+                    // move's glide on the page).
+                    if (view.parent is WidgetStackView) view.translationX = 0f
                 }
                 is StackEntry -> {
                     entry.widgets.forEach { widgetIds += it.id }
@@ -1166,6 +1167,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val row = ((y - g.top) / (g.height() / 3f)).toInt().coerceIn(0, 2)
         return (ui.folderPage * 9 + row * 3 + col).coerceAtMost(f.apps.size - 1)
     }
+
+    override fun viewOf(id: Long): View? = views[id]
 
     override fun landingBounds(view: View): Rect? {
         if (!view.isAttachedToWindow) return null

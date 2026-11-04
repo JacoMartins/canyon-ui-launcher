@@ -114,6 +114,69 @@ class DragController(
 
         /** Where [view]'s visible part (icon, folder backdrop, widget) is now, in root coordinates. */
         fun landingBounds(view: View): Rect?
+
+        /** The view of home item [id], if it has one. */
+        fun viewOf(id: Long): View?
+    }
+
+    // Items shown pushed aside (or swapped) while the drag hovers: their view and cell layout.
+    private val previewed = HashMap<Long, Pair<View, CellLayout>>()
+    private var pendingPreview: DropAction? = null
+    private var pendingPreviewIn: CellLayout? = null
+    private val preview = Runnable {
+        val a = pendingPreview
+        val cl = pendingPreviewIn
+        pendingPreview = null
+        if (isDragging && a == lastAction && cl != null) showPushes(a, cl)
+    }
+
+    /**
+     * The items a drop here would push aside or swap slide to their new cells now (the others
+     * go back), so the drop's result is seen before letting go.
+     */
+    private fun showPushes(action: DropAction?, cellLayout: CellLayout) {
+        val moves = (action as? DropAction.Move)?.pushes.orEmpty()
+        val keep = HashSet<Long>()
+        for (m in moves) {
+            val v = callbacks.viewOf(m.id) ?: continue
+            // Only moves within the layout in view; one to another page or the dock is not shown.
+            if (v.parent !== cellLayout) continue
+            val sameHome = (m.container == Container.DOCK) == (cellLayout === home.hotseat) &&
+                (m.container == Container.DOCK || m.pageIndex == home.workspace.currentPage)
+            if (!sameHome) continue
+            keep += m.id
+            previewed[m.id] = v to cellLayout
+            cellLayout.previewMove(v, m.x, m.y)
+        }
+        val it = previewed.entries.iterator()
+        while (it.hasNext()) {
+            val (id, pair) = it.next()
+            if (id in keep) continue
+            pair.second.previewMove(pair.first, null, null)
+            it.remove()
+        }
+    }
+
+    private fun schedulePreview(action: DropAction?, cellLayout: CellLayout) {
+        root.removeCallbacks(preview)
+        // Not at once: the finger crossing an icon on its way does not shuffle the grid.
+        pendingPreview = action
+        pendingPreviewIn = cellLayout
+        if ((action as? DropAction.Move)?.pushes.isNullOrEmpty()) {
+            // Nothing in the way here: whatever was pushed goes back at once.
+            showPushes(null, cellLayout)
+        } else {
+            root.postDelayed(preview, PREVIEW_DELAY_MS)
+        }
+    }
+
+    /** At the drop: previews the drop applies stay (their cells take over), the rest go back. */
+    private fun endPreview(result: DropResult) {
+        root.removeCallbacks(preview)
+        pendingPreview = null
+        val applied = ((result as? DropResult.OnGrid)?.action as? DropAction.Move)?.pushes.orEmpty().map { it.id }.toSet()
+        for ((id, pair) in previewed) if (id !in applied) pair.second.previewMove(pair.first, null, null)
+        previewed.clear()
     }
 
     // A drag from a folder stays in the folder (reordering) until the finger rests outside it.
@@ -219,6 +282,7 @@ class DragController(
     }
 
     private fun finish(s: DragSource, result: DropResult) {
+        endPreview(result)
         root.removeCallbacks(pageFlip)
         root.removeCallbacks(leave)
         leavePending = false
@@ -330,6 +394,7 @@ class DragController(
             lastHintCell?.clearDropHint()
             lastHintCell = null
             lastAction = DropAction.Reject
+            schedulePreview(null, cellLayout)
             return
         }
         val finger = Cell(cellOut[0], cellOut[1])
@@ -364,6 +429,7 @@ class DragController(
         )
         if (action != lastAction) {
             lastAction = action
+            schedulePreview(action, cellLayout)
             shrinkForFolder(action is DropAction.CreateFolder || action is DropAction.AddToFolder)
             if (lastHintCell !== cellLayout) lastHintCell?.clearDropHint()
             lastHintCell = cellLayout
@@ -416,5 +482,8 @@ class DragController(
 
         /** How long the finger must stay outside an open folder before the app leaves it. */
         private const val LEAVE_FOLDER_MS = 450L
+
+        /** How long the finger rests over a cell before the items in the way move aside. */
+        private const val PREVIEW_DELAY_MS = 150L
     }
 }
