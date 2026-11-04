@@ -69,4 +69,18 @@ class ScenesTest {
         SceneMath.render(Scene.DAY_GRADIENT, 800f, 8, 16, 2f, px)
         assertTrue(px.all { it ushr 24 == 0xFF })
     }
+
+    @Test fun oklabRoundTrips() {
+        for (c in listOf(0x000000, 0xFFFFFF, 0x0B0B38, 0xF0806E, 0x9ED23C, 0x3A1A50)) {
+            val lab = Oklab.of(c)
+            assertEquals(c, Oklab.toInt(Oklab.rgb(lab[0], lab[1], lab[2])))
+        }
+    }
+
+    @Test fun transitionsStayColourful() {
+        // Half way from coral (15:18) to purple-over-brown (17:18): a clear colour, not grey.
+        val mid = DayGradient.at(978f)
+        val lab = Oklab.of(mid.glow)
+        assertTrue(kotlin.math.hypot(lab[1], lab[2]) > 0.1f)
+    }
 }

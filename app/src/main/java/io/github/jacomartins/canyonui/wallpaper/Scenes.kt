@@ -66,10 +66,14 @@ object SceneMath {
             val linear = scene == Scene.DAY_LINEAR
             val sky = DayGradient.at(t, eased = !linear)
             fun ch(x: Float) = (x.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+            val palette = DayGradient.palette(sky)
+            val pair = if (linear) DayGradient.linearPair(sky) else null
             for (y in 0 until h) {
                 val v = (y + 0.5f) / h
+                // Bands: one colour per row.
+                val row = pair?.let { DayGradient.linearColor(it, v) }
                 for (x in 0 until w) {
-                    val c = if (linear) DayGradient.linearColor(sky, (x + 0.5f) / w, v, aspect) else DayGradient.color(sky, (x + 0.5f) / w, v, aspect)
+                    val c = row ?: DayGradient.color(palette, sky, (x + 0.5f) / w, v, aspect)
                     out[y * w + x] = (0xFF shl 24) or (ch(c[0]) shl 16) or (ch(c[1]) shl 8) or ch(c[2])
                 }
             }

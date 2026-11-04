@@ -235,20 +235,29 @@ class CanyonWallpaperService : WallpaperService() {
                     null
                 }
                 if (s != null) {
-                    // Opening: the glow grows and brightens into place.
+                    // Opening: the glow rises from lower down, growing and brightening into place.
                     val sky = DayGradient.at(minute, eased = scene != Scene.DAY_LINEAR).let {
-                        if (e < 1f) it.copy(strength = it.strength * (0.25f + 0.75f * e), radius = it.radius * (0.6f + 0.4f * e)) else it
+                        if (e < 1f) {
+                            it.copy(
+                                strength = it.strength * e,
+                                radius = it.radius * (0.35f + 0.65f * e),
+                                // (The linear bands keep their side: the glow end does not swap.)
+                                gy = if (scene == Scene.DAY_LINEAR) it.gy else it.gy + INTRO_RISE * (1f - e),
+                            )
+                        } else {
+                            it
+                        }
                     }
-                    fun rgb(name: String, c: Int) = s.setFloatUniform(name, ((c shr 16) and 0xFF) / 255f, ((c shr 8) and 0xFF) / 255f, (c and 0xFF) / 255f)
                     s.setFloatUniform("size", width.toFloat(), height.toFloat())
                     if (scene == Scene.DAY_LINEAR) {
                         val (top, bottom) = DayGradient.linearPair(sky)
                         s.setFloatUniform("top", top)
                         s.setFloatUniform("bottom", bottom)
                     } else {
-                        rgb("top", sky.top)
-                        rgb("bottom", sky.bottom)
-                        rgb("glow", sky.glow)
+                        val p = DayGradient.palette(sky)
+                        s.setFloatUniform("top", p.top)
+                        s.setFloatUniform("bottom", p.bottom)
+                        s.setFloatUniform("glow", p.glow)
                         s.setFloatUniform("shape", sky.gx, sky.gy, sky.radius, sky.strength)
                     }
                     shaderPaint.shader = s
@@ -305,8 +314,9 @@ class CanyonWallpaperService : WallpaperService() {
         const val FRAME_SLACK_NS = 4_000_000L
         const val SMALL_W = 120
         const val LINEAR_REDRAW_MS = 5_000L
-        const val INTRO_MS = 1_400L
-        const val INTRO_SHADE = 0.35f
-        const val INTRO_ZOOM = 0.05f
+        const val INTRO_MS = 1_800L
+        const val INTRO_SHADE = 0.65f
+        const val INTRO_ZOOM = 0.12f
+        const val INTRO_RISE = 0.35f
     }
 }
