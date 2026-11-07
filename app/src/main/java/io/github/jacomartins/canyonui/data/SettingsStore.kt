@@ -38,7 +38,7 @@ enum class LayoutMode(val storageKey: String) {
  */
 enum class IconSize(val cellFraction: Float, val maxDp: Int) {
     SMALL(0.62f, 64),
-    MEDIUM(0.72f, 72),
+    MEDIUM(0.70f, 70),
     LARGE(0.82f, 80),
 }
 
