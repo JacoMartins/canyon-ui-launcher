@@ -32,12 +32,13 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     private var insetRight = 0
 
     private val dockHeight = (96 * d).toInt()
-    private val dockMarginH = (12 * d).toInt()
-    private val dockMarginBottom = (8 * d).toInt()
+    // Sizes measured on One UI 9 (1080 px wide at 2.8125 px per dp).
+    private val dockMarginH = (10 * d).toInt()
+    private val dockMarginBottom = 0
     private val dotsHeight = (24 * d).toInt()
-    private val barHeight = (52 * d).toInt()
-    private val barArea = (76 * d).toInt()
-    private val barMarginH = (24 * d).toInt()
+    private val barHeight = (49.5f * d).toInt()
+    private val barArea = (61 * d).toInt()
+    private val barMarginH = (27.5f * d).toInt()
     private val indicatorHeight get() = if (searchBarMode) barArea else dotsHeight
 
     /**
@@ -80,9 +81,9 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         postDelayed(hideDots, DOTS_SHOW_MS)
     }
     /** Matches the dock's inset so page columns line up with dock icons, as on One UI. */
-    private val pagePaddingH = (16 * d).toInt()
+    private val pagePaddingH = (14.4f * d).toInt()
     // One UI 9 starts the grid nearer the status bar.
-    private val pagePaddingTop = (8 * d).toInt()
+    private val pagePaddingTop = (12.8f * d).toInt()
     private val pagePaddingBottom = (4 * d).toInt()
 
     var showDockBackground = false

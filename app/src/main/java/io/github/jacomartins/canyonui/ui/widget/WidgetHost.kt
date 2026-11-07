@@ -80,6 +80,14 @@ class LauncherWidgetHost(context: Context, private val onProvidersChanged: () ->
 @SuppressLint("ViewConstructor")
 class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
+    /**
+     * No padding inside the widget: Android adds 8dp on every side for some widgets (Samsung's
+     * clock and calendar among them), which One UI 9 does not; the gap around widgets is the
+     * cells' inset ([WidgetFrame.INSET_DP]) alone.
+     */
+    override fun setPadding(left: Int, top: Int, right: Int, bottom: Int) = super.setPadding(0, 0, 0, 0)
+
+
     var blockContent = false
 
     private val slop = ViewConfiguration.get(context).scaledTouchSlop

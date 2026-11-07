@@ -35,9 +35,10 @@ object DayGradient {
     // Minute of the day -> sky, in order; the day wraps from the last back to the first.
     private val KEYS = listOf(
         0 to Sky(0x0B0B38, 0x0E1A3A, 0x1E6E6A, 0.85f, 1.25f, 0.95f, 1.15f), // 00:00 navy, teal glow low right
-        140 to Sky(0x1A1648, 0x1E1844, 0x3A1A28, 0.60f, 1.00f, 1.00f, 0.81f), // 02:20 indigo, ember
-        180 to Sky(0x1C1850, 0x201A48, 0x8A4A2A, 0.70f, 1.05f, 1.00f, 0.74f), // 03:00 orange ember
-        260 to Sky(0x1E1A4E, 0x24183E, 0x3A1828, 0.40f, 1.00f, 1.00f, 0.68f), // 04:20 last of the night
+        // The small hours: a cool, dim moonlight low on the right (no warm light before dawn).
+        140 to Sky(0x1A1648, 0x1A1A44, 0x22306A, 0.55f, 1.00f, 1.00f, 0.81f), // 02:20 indigo, faint blue moonlight
+        180 to Sky(0x1A1850, 0x1C1C4A, 0x2A3A7A, 0.60f, 1.05f, 1.00f, 0.74f), // 03:00 moonlight, a little brighter
+        260 to Sky(0x1C1A4E, 0x201A40, 0x2A2456, 0.40f, 1.00f, 1.00f, 0.68f), // 04:20 last of the night, violet
         280 to Sky(0x4E7A9A, 0x7E7A86, 0xC8735E, 0.80f, -0.05f, 1.05f, 0.94f), // 04:40 first light, coral low left
         354 to Sky(0x1F86A8, 0x66B7A6, 0xE0A050, 0.90f, -0.10f, 0.55f, 0.74f), // 05:54 teal sky, orange sun left
         507 to Sky(0x3C9EE6, 0x4AA6E2, 0x9ED23C, 0.90f, 0.20f, 0.18f, 0.68f), // 08:27 blue, lime top left
