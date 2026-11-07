@@ -57,6 +57,12 @@ class DrawerModel(
     /** Bumped to put the cursor in the search field and show the keyboard. */
     var focusRequests by mutableIntStateOf(0)
 
+    /** The search field is hidden while home's search bar travels into its place. */
+    var pillHidden by mutableStateOf(false)
+
+    /** Where the search field is, in the Apps screen's own coordinates (set as it is laid out). */
+    val pillBounds = android.graphics.RectF()
+
     /** The most used apps, for an empty search. */
     var suggestions by mutableStateOf<List<AppInfo>>(emptyList())
         private set

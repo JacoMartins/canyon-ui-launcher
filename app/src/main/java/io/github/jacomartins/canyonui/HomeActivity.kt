@@ -232,8 +232,87 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     private val speech = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { drawerModel.query = it }
+        val heard = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        val fromHome = voiceOnHome
+        voiceOnHome = false
+        if (heard != null) {
+            drawerModel.query = heard
+            // Spoken into home's search bar: the search opens with what was said.
+            if (fromHome && drawer.isClosed) drawer.open()
+        }
     }
+
+    private var voiceOnHome = false
+
+    /** The microphone on home's search bar. */
+    private fun voiceFromHome() {
+        if (ui.editMode) { exitEditMode(); return }
+        voiceOnHome = true
+        launchVoiceSearch()
+    }
+
+    /**
+     * Home's search bar stays where it is while the Apps screen (or search) slides up over home,
+     * then goes into the screen's search field as the screen settles; a copy above both does it.
+     */
+    private val travelBar by lazy { io.github.jacomartins.canyonui.ui.home.HomeSearchBar(this, plain = true) }
+    private val travelFrom = android.graphics.RectF()
+    private var travelling = false
+
+    private fun updateTravelBar() {
+        val p = drawer.progress
+        val bar = home.searchBar
+        val on = home.searchBarMode && home.searchWidget == null && !ui.editMode &&
+            (drawerEnabled || canyonSearch) && p > 0f && p < 1f && bar.width > 0
+        if (!on) {
+            if (travelling) {
+                travelling = false
+                travelBar.visibility = View.GONE
+                bar.alpha = 1f
+                drawerModel.pillHidden = false
+            }
+            return
+        }
+        if (!travelling) {
+            travelling = true
+            // Where home's bar is, in this root's coordinates (home only fades; it does not move).
+            val loc = IntArray(2)
+            val root = IntArray(2)
+            bar.getLocationInWindow(loc)
+            dragLayer.getLocationInWindow(root)
+            travelFrom.set((loc[0] - root[0]).toFloat(), (loc[1] - root[1]).toFloat(), 0f, 0f)
+            travelFrom.right = travelFrom.left + bar.width
+            travelFrom.bottom = travelFrom.top + bar.height
+            travelBar.voice = bar.voice
+            travelBar.setColors(homeLabelColor(), bar.darkBehind)
+            travelBar.visibility = View.VISIBLE
+            bar.alpha = 0f
+            drawerModel.pillHidden = true
+        }
+        val pill = drawerModel.pillBounds
+        // Stays put while the screen comes up, then goes into the field over the last stretch.
+        val k = ((p - TRAVEL_FROM) / (1f - TRAVEL_FROM)).coerceIn(0f, 1f)
+        val m = k * k * (3f - 2f * k)
+        val l: Float
+        val t: Float
+        val r: Float
+        val b: Float
+        if (pill.isEmpty || m <= 0f) {
+            l = travelFrom.left; t = travelFrom.top; r = travelFrom.right; b = travelFrom.bottom
+        } else {
+            val dy = drawerView.top + drawerView.translationY
+            val dx = drawerView.left + drawerView.translationX
+            fun mix(a: Float, z: Float) = a + (z - a) * m
+            l = mix(travelFrom.left, pill.left + dx)
+            t = mix(travelFrom.top, pill.top + dy)
+            r = mix(travelFrom.right, pill.right + dx)
+            b = mix(travelFrom.bottom, pill.bottom + dy)
+        }
+        travelBar.layout(l.toInt(), t.toInt(), r.toInt(), b.toInt())
+    }
+
+    /** The label colour home uses now (light over dark wallpapers). */
+    private fun homeLabelColor(): Int = if (home.searchBar.darkBehind) LIGHT_LABEL else DARK_LABEL
 
     private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         drawerModel.search.refresh()
@@ -414,7 +493,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.hotseat.alpha = 0f
         home.indicator.alpha = 0f
         home.workspace.onScroll = home.indicator::setPosition
-        home.searchBar.setOnClickListener { openHomeSearch() }
+        home.searchBar.setOnClickListener { if (home.searchBar.tappedMic()) voiceFromHome() else openHomeSearch() }
+        home.searchBar.voice = voiceSearch != null
         home.searchBar.setOnLongClickListener { v -> showSearchMenu(v); true }
         home.workspace.onPageSettled = { ui.currentPage = it }
         home.onEmptyLongPress = { if (ui.editMode) armPageDrag() else enterEditMode() }
@@ -437,11 +517,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
         dragLayer.addView(home, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         dragLayer.addView(drawerView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        travelBar.visibility = View.GONE
+        dragLayer.addView(travelBar, FrameLayout.LayoutParams(0, 0))
         dragLayer.addView(overlayView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         drawer = DrawerController(home, drawerView, this)
         drawer.onOffset = {
             drawerModel.offsetY = it
             applyLiveBlur()
+            updateTravelBar()
         }
         // Whether the phone offers live window blur now (it turns off in battery saver, for one).
         if (Build.VERSION.SDK_INT >= 31) {
@@ -1986,6 +2069,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     // --- Drawer callbacks --------------------------------------------------------------------
 
     override fun onDrawerOpened() {
+        updateTravelBar()
         drawerBack.isEnabled = true
         drawerModel.search.refresh()
         if (drawerModel.searchOnly || focusSearchOnOpen) drawerModel.focusRequests++
@@ -1996,6 +2080,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun onDrawerClosed() {
+        updateTravelBar()
         drawerBack.isEnabled = false
         // A menu opened from the drawer belongs to it.
         if (ui.menu != null) {
@@ -2189,6 +2274,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     companion object {
         /** A widget being added for the search bar's place (in [HomeWidgets.PendingAdd.restoreItemId]). */
         private const val SEARCH_SLOT = -2L
+
+        /** How far up the Apps screen is when home's search bar starts going into its field. */
+        private const val TRAVEL_FROM = 0.6f
 
         private const val LIGHT_LABEL = 0xFFFFFFFF.toInt()
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()

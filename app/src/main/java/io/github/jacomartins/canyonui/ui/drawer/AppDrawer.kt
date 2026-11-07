@@ -67,6 +67,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -392,6 +394,11 @@ private fun SearchPill(
             .padding(horizontal = 16.dp)
             .fillMaxWidth(widthFraction)
             .height(SearchPillHeight)
+            .onGloballyPositioned { c ->
+                val b = c.boundsInRoot()
+                model.pillBounds.set(b.left, b.top, b.right, b.bottom)
+            }
+            .graphicsLayer { alpha = if (model.pillHidden) 0f else 1f }
             // No shadow under a see-through (blurred) field: it showed through and darkened it.
             .then(
                 if (blurOn) Modifier
