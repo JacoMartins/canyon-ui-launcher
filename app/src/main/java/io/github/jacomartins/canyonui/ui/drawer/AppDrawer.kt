@@ -275,7 +275,13 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         Box(Modifier.fillMaxSize().hazeSource(haze, zIndex = 1f)) {
             // The room the keyboard will take, not where it is in its slide: following the slide
             // rebuilt this whole screen and laid the list out again on every frame of it.
-            val bottom = listBottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
+            // Room under the list for the search field (higher up when it rests where home's bar is).
+            val restBar = model.bar
+            val bottom = if (restBar != null) {
+                with(LocalDensity.current) { maxOf(listBottomInsets.asPaddingValues().calculateBottomPadding(), restBar.bottom.toDp()) + restBar.height.toDp() + 16.dp }
+            } else {
+                listBottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
+            }
             val searching = model.query.isNotBlank()
             val extras = extrasNow
             val askContacts by model.search.askContacts.collectAsState()
@@ -305,14 +311,24 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)) {
             TopBar(onShowHidden = { showHidden = true }, onSettings = actions::openSettings, showMenu = actions::showMenu)
         }
+        val homeBar = model.bar
         SearchPill(
             model = model,
             voiceSearch = actions.voiceSearch,
             onGo = { goScope.launch { openTop(model, actions) } },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .windowInsetsPadding(bottomInsets)
-                .padding(bottom = 12.dp),
+            modifier = if (homeBar != null) {
+                // Where home's search bar is, until the keyboard comes higher.
+                val density = LocalDensity.current
+                val ime = WindowInsets.ime.getBottom(density)
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = with(density) { maxOf(ime, homeBar.bottom).toDp() })
+            } else {
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(bottomInsets)
+                    .padding(bottom = 12.dp)
+            },
         )
     }
 
@@ -396,11 +412,18 @@ private fun SearchPill(
     }
 
     val blurOn = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState().value != null
+    val homeBar = model.bar
+    val density = LocalDensity.current
     Surface(
         modifier = modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth(widthFraction)
-            .height(SearchPillHeight)
+            .then(
+                if (homeBar != null) {
+                    // Home's search bar's exact size.
+                    with(density) { Modifier.padding(horizontal = homeBar.side.toDp()).fillMaxWidth().height(homeBar.height.toDp()) }
+                } else {
+                    Modifier.padding(horizontal = 16.dp).fillMaxWidth(widthFraction).height(SearchPillHeight)
+                },
+            )
             .onGloballyPositioned { c ->
                 val b = c.boundsInRoot()
                 model.pillBounds.set(b.left, b.top, b.right, b.bottom)
@@ -422,24 +445,18 @@ private fun SearchPill(
         else backdropColor(colors.surfaceContainerHighest.copy(alpha = 0.92f)),
         onClick = { focus.requestFocus() },
     ) {
-        val grain = remember {
-            androidx.compose.ui.graphics.ShaderBrush(
-                androidx.compose.ui.graphics.ImageShader(
-                    io.github.jacomartins.canyonui.ui.design.Frost.grain.asImageBitmap(),
-                    androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated,
-                ),
-            )
-        }
         Row(
             Modifier.drawBehind {
-                if (blurOn) {
-                    drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE))
-                    drawRect(grain)
-                }
+                if (blurOn) drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE))
             },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 12.dp).size(20.dp))
+            // With home's bar on, its layout: an icon of 22dp 18dp in, the text 14dp after it.
+            if (homeBar != null) {
+                Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurface, modifier = Modifier.padding(start = 18.dp, end = 14.dp).size(22.dp))
+            } else {
+                Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 12.dp).size(20.dp))
+            }
             BasicTextField(
                 value = model.query,
                 onValueChange = { model.query = it },
@@ -456,7 +473,7 @@ private fun SearchPill(
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (model.query.isEmpty()) {
-                            Text(placeholder, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(placeholder, style = MaterialTheme.typography.titleMedium, color = if (homeBar != null && !expanded) colors.onSurface else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         inner()
                     }
@@ -467,7 +484,11 @@ private fun SearchPill(
                     Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
                 voiceSearch != null -> IconButton(onClick = voiceSearch, modifier = Modifier.padding(end = 4.dp)) {
-                    Icon(painterResource(R.drawable.ph_mic), contentDescription = stringResource(R.string.voice_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Icon(
+                        painterResource(R.drawable.ph_mic), contentDescription = stringResource(R.string.voice_search),
+                        tint = if (homeBar != null) colors.onSurface else colors.onSurfaceVariant,
+                        modifier = Modifier.size(if (homeBar != null) 22.dp else 20.dp),
+                    )
                 }
                 else -> Spacer(Modifier.width(20.dp))
             }

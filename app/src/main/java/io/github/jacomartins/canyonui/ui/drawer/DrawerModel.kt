@@ -63,6 +63,15 @@ class DrawerModel(
     /** Where the search field is, in the Apps screen's own coordinates (set as it is laid out). */
     val pillBounds = android.graphics.RectF()
 
+    /**
+     * Home's search bar, when it is on: the search field then rests exactly where the bar is
+     * (and is its size), and the keyboard pushes it up from there. Pixels: the bar's bottom
+     * above the screen's bottom, its side margins, its height.
+     */
+    class Bar(val bottom: Int, val side: Int, val height: Int)
+
+    var bar by mutableStateOf<Bar?>(null)
+
     /** Called when the search field moves (the keyboard pushing it up, for one). */
     var onPillMoved: (() -> Unit)? = null
 

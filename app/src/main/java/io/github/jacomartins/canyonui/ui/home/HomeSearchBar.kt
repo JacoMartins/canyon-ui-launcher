@@ -2,14 +2,12 @@ package io.github.jacomartins.canyonui.ui.home
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
-import android.graphics.Shader
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.content.ContextCompat
@@ -20,7 +18,7 @@ import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
 /**
  * The search bar above the dock, in place of the page dots (a setting): a frosted pill with the
  * search icon, "Search" in the phone's font, and the voice search microphone. Over the wallpaper
- * effect (frosted or glass) it adds a light frost of its own: a faint haze and a fine grain.
+ * effect (frosted or glass) it adds a light frost of its own: a faint haze.
  *
  * [plain]: drawn without the wallpaper effect (the copy that travels into the Apps screen's
  * search field while it slides up).
@@ -33,9 +31,6 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
     private val ring = DepthRingPainter(d)
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val haze = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = io.github.jacomartins.canyonui.ui.design.Frost.HAZE }
-    private val grain = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = BitmapShader(io.github.jacomartins.canyonui.ui.design.Frost.grain, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-    }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 16f, resources.displayMetrics)
     }
@@ -98,9 +93,8 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         val r = height / 2f
         if (!plain) WallpaperBackdrop.draw(canvas, this, path, r)
         canvas.drawRoundRect(rect, r, r, fill)
-        // The frost: a faint haze and a fine grain over the effect.
+        // The frost: a faint haze over the effect.
         canvas.drawRoundRect(rect, r, r, haze)
-        canvas.drawRoundRect(rect, r, r, grain)
         ring.draw(canvas, rect, r, darkBehind)
         val size = (22 * d).toInt()
         val left = (18 * d).toInt()

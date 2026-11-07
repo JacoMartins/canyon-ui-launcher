@@ -358,6 +358,17 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         drawerModel.pillHidden = false
     }
 
+    private fun updateBarGeometry() {
+        val bar = home.searchBar
+        val on = home.searchBarMode && home.searchWidget == null && bar.isLaidOut && bar.width > 0
+        drawerModel.bar = if (!on) null else {
+            val bottom = home.height - bar.bottom
+            val old = drawerModel.bar
+            if (old != null && old.bottom == bottom && old.side == bar.left && old.height == bar.height) old
+            else io.github.jacomartins.canyonui.ui.drawer.DrawerModel.Bar(bottom, bar.left, bar.height)
+        }
+    }
+
     /** The label colour home uses now (light over dark wallpapers). */
     private fun homeLabelColor(): Int = if (home.searchBar.darkBehind) LIGHT_LABEL else DARK_LABEL
 
@@ -542,6 +553,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.onScroll = home.indicator::setPosition
         home.searchBar.setOnClickListener { if (home.searchBar.tappedMic()) voiceFromHome() else openHomeSearch() }
         home.searchBar.voice = voiceSearch != null
+        // The search field rests where home's bar is (its size too): told whenever the bar moves.
+        home.searchBar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateBarGeometry() }
+        home.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateBarGeometry() }
         home.searchBar.setOnLongClickListener { v -> showSearchMenu(v); true }
         home.workspace.onPageSettled = { ui.currentPage = it }
         home.onEmptyLongPress = { if (ui.editMode) armPageDrag() else enterEditMode() }
@@ -1823,6 +1837,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
         view.setPadding(0, 0, 0, 0)
         view.setOnLongClickListener { v -> showSearchMenu(v); true }
+        // Like the widgets on the pages: the outline and the frosted or glass effect behind its card.
+        val outline = widgetBorder && info.provider.flattenToString() !in noOutline
+        WidgetFrame.apply(view, outline, pill = true)
         widgetSizes()?.let { sizes -> sizes.applySize(view, state?.columns ?: 4, 1, isNight) }
         home.searchWidget = view
     }
