@@ -63,6 +63,12 @@ class DrawerModel(
     /** Where the search field is, in the Apps screen's own coordinates (set as it is laid out). */
     val pillBounds = android.graphics.RectF()
 
+    /** Called when the search field moves (the keyboard pushing it up, for one). */
+    var onPillMoved: (() -> Unit)? = null
+
+    /** Asks the list to start at the top (the screen was opened). */
+    var scrollTopRequests by mutableIntStateOf(0)
+
     /** The most used apps, for an empty search. */
     var suggestions by mutableStateOf<List<AppInfo>>(emptyList())
         private set

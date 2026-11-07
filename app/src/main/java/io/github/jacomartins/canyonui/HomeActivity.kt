@@ -252,28 +252,32 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     /**
-     * Home's search bar stays where it is while the Apps screen (or search) slides up over home,
-     * then goes into the screen's search field as the screen settles; a copy above both does it.
+     * Opening the Apps screen or search from home with the search bar on: the bar stays where it
+     * is, with its effect, above the screen sliding up (a copy of it, over both), until the
+     * screen's own search field, pushed up by the keyboard, reaches it; then the field takes
+     * over. With no keyboard coming (the Apps screen opened by a swipe), the field takes over by a
+     * short crossfade once the screen has settled.
      */
-    private val travelBar by lazy { io.github.jacomartins.canyonui.ui.home.HomeSearchBar(this, plain = true) }
+    private val travelBar by lazy { io.github.jacomartins.canyonui.ui.home.HomeSearchBar(this).apply { isClickable = false } }
     private val travelFrom = android.graphics.RectF()
     private var travelling = false
+    private var travelArmed = true // the next opening from closed may start it
+    private val travelFallback = Runnable { if (travelling) handOver(fade = true) }
 
     private fun updateTravelBar() {
         val p = drawer.progress
         val bar = home.searchBar
-        val on = home.searchBarMode && home.searchWidget == null && !ui.editMode &&
-            (drawerEnabled || canyonSearch) && p > 0f && p < 1f && bar.width > 0
-        if (!on) {
-            if (travelling) {
-                travelling = false
-                travelBar.visibility = View.GONE
-                bar.alpha = 1f
-                drawerModel.pillHidden = false
-            }
+        if (p <= 0f) {
+            // Back on home (or never left): home's own bar again.
+            travelArmed = true
+            if (travelling) endTravel()
             return
         }
         if (!travelling) {
+            val can = travelArmed && home.searchBarMode && home.searchWidget == null && !ui.editMode &&
+                (drawerEnabled || canyonSearch) && bar.width > 0 && bar.isShown
+            travelArmed = false
+            if (!can) return
             travelling = true
             // Where home's bar is, in this root's coordinates (home only fades; it does not move).
             val loc = IntArray(2)
@@ -285,30 +289,41 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             travelFrom.bottom = travelFrom.top + bar.height
             travelBar.voice = bar.voice
             travelBar.setColors(homeLabelColor(), bar.darkBehind)
+            travelBar.animate().cancel()
+            travelBar.alpha = 1f
             travelBar.visibility = View.VISIBLE
+            travelBar.layout(travelFrom.left.toInt(), travelFrom.top.toInt(), travelFrom.right.toInt(), travelFrom.bottom.toInt())
+            travelBar.invalidate()
             bar.alpha = 0f
             drawerModel.pillHidden = true
         }
+        // The field, where it is now: riding the screen up, then the keyboard.
         val pill = drawerModel.pillBounds
-        // Stays put while the screen comes up, then goes into the field over the last stretch.
-        val k = ((p - TRAVEL_FROM) / (1f - TRAVEL_FROM)).coerceIn(0f, 1f)
-        val m = k * k * (3f - 2f * k)
-        val l: Float
-        val t: Float
-        val r: Float
-        val b: Float
-        if (pill.isEmpty || m <= 0f) {
-            l = travelFrom.left; t = travelFrom.top; r = travelFrom.right; b = travelFrom.bottom
+        if (pill.isEmpty) return
+        val top = pill.top + drawerView.top + drawerView.translationY
+        if (top <= travelFrom.top + 1f) handOver(fade = false)
+    }
+
+    /** The screen's field takes over from the bar: at once where they meet, or by a crossfade. */
+    private fun handOver(fade: Boolean) {
+        dragLayer.removeCallbacks(travelFallback)
+        travelling = false
+        drawerModel.pillHidden = false
+        if (fade && Motion.enabled()) {
+            travelBar.animate().alpha(0f).setDuration(HANDOVER_MS).withEndAction { travelBar.visibility = View.GONE }.start()
         } else {
-            val dy = drawerView.top + drawerView.translationY
-            val dx = drawerView.left + drawerView.translationX
-            fun mix(a: Float, z: Float) = a + (z - a) * m
-            l = mix(travelFrom.left, pill.left + dx)
-            t = mix(travelFrom.top, pill.top + dy)
-            r = mix(travelFrom.right, pill.right + dx)
-            b = mix(travelFrom.bottom, pill.bottom + dy)
+            travelBar.visibility = View.GONE
         }
-        travelBar.layout(l.toInt(), t.toInt(), r.toInt(), b.toInt())
+        home.searchBar.alpha = 1f // under the screen, for when home shows again
+    }
+
+    private fun endTravel() {
+        dragLayer.removeCallbacks(travelFallback)
+        travelling = false
+        travelBar.animate().cancel()
+        travelBar.visibility = View.GONE
+        home.searchBar.alpha = 1f
+        drawerModel.pillHidden = false
     }
 
     /** The label colour home uses now (light over dark wallpapers). */
@@ -519,6 +534,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         dragLayer.addView(drawerView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         travelBar.visibility = View.GONE
         dragLayer.addView(travelBar, FrameLayout.LayoutParams(0, 0))
+        drawerModel.onPillMoved = { updateTravelBar() }
         dragLayer.addView(overlayView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         drawer = DrawerController(home, drawerView, this)
         drawer.onOffset = {
@@ -703,7 +719,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     /** Animates the pages, dock and dots to [scale] and [alpha] about the screen centre. */
     private fun homeTo(scale: Float, alpha: Float, ms: Long) {
         if (Motion.enabled()) WallpaperBackdrop.quietFor(ms)
-        for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
+        for (v in zoomedHomeViews()) {
             v.pivotY = home.height / 2f - v.top
             v.pivotX = v.width / 2f
             v.animate().cancel()
@@ -759,9 +775,16 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         setHomeSmall()
     }
 
+    /**
+     * What zooms and fades with home (unlock, an app closing): the pages, the dock, and the page
+     * dots, or the search bar in their place (the dots then stay hidden).
+     */
+    private fun zoomedHomeViews(): List<View> =
+        listOf(home.workspace, if (home.searchBarMode) home.searchView else home.indicator, home.hotseat)
+
     /** Home at two thirds of its size and hidden, ready to zoom in. */
     private fun setHomeSmall() {
-        for (v in listOf(home.workspace, home.indicator, home.hotseat)) {
+        for (v in zoomedHomeViews()) {
             v.animate().cancel()
             v.pivotY = home.height / 2f - v.top
             v.pivotX = v.width / 2f
@@ -2070,6 +2093,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onDrawerOpened() {
         updateTravelBar()
+        // No keyboard to bring the field up to the bar (or it is slow): the field takes over soon.
+        if (travelling) dragLayer.postDelayed(travelFallback, HANDOVER_WAIT_MS)
+        drawerModel.scrollTopRequests++
         drawerBack.isEnabled = true
         drawerModel.search.refresh()
         if (drawerModel.searchOnly || focusSearchOnOpen) drawerModel.focusRequests++
@@ -2276,7 +2302,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         private const val SEARCH_SLOT = -2L
 
         /** How far up the Apps screen is when home's search bar starts going into its field. */
-        private const val TRAVEL_FROM = 0.6f
+        private const val HANDOVER_WAIT_MS = 450L
+        private const val HANDOVER_MS = 160L
 
         private const val LIGHT_LABEL = 0xFFFFFFFF.toInt()
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()

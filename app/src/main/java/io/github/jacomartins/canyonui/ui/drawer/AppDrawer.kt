@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -194,6 +195,12 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         if (model.query.isNotBlank()) gridState.requestScrollToItem(0)
     }
     LaunchedEffect(model.query.isBlank()) { gridState.requestScrollToItem(0) }
+    // Each opening starts at the top, and so does the keyboard coming up over an empty search
+    // (its space below the list must not leave the first rows above the screen).
+    LaunchedEffect(model.scrollTopRequests) { if (model.scrollTopRequests > 0) gridState.requestScrollToItem(0) }
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    val imeUp = WindowInsets.isImeVisible
+    LaunchedEffect(imeUp) { if (imeUp && model.query.isBlank()) gridState.requestScrollToItem(0) }
 
     val bottomInsets = WindowInsets.navigationBars.union(WindowInsets.ime)
     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -397,6 +404,7 @@ private fun SearchPill(
             .onGloballyPositioned { c ->
                 val b = c.boundsInRoot()
                 model.pillBounds.set(b.left, b.top, b.right, b.bottom)
+                model.onPillMoved?.invoke()
             }
             .graphicsLayer { alpha = if (model.pillHidden) 0f else 1f }
             // No shadow under a see-through (blurred) field: it showed through and darkened it.
