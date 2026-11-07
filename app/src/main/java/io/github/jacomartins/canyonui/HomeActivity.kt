@@ -1175,9 +1175,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         val f = ui.folder ?: return null
         val g = ui.folderGrid
         if (g.isEmpty || !g.contains(x, y)) return null
-        val col = ((x - g.left) / (g.width() / 3f)).toInt().coerceIn(0, 2)
-        val row = ((y - g.top) / (g.height() / 3f)).toInt().coerceIn(0, 2)
-        return (ui.folderPage * 9 + row * 3 + col).coerceAtMost(f.apps.size - 1)
+        val columns = io.github.jacomartins.canyonui.ui.overlay.FOLDER_COLUMNS
+        val rows = io.github.jacomartins.canyonui.ui.overlay.FOLDER_ROWS
+        val col = ((x - g.left) / (g.width() / columns)).toInt().coerceIn(0, columns - 1)
+        val row = ((y - g.top) / (g.height() / rows)).toInt().coerceIn(0, rows - 1)
+        return (ui.folderPage * io.github.jacomartins.canyonui.ui.overlay.FOLDER_PER_PAGE + row * columns + col).coerceAtMost(f.apps.size - 1)
     }
 
     override fun viewOf(id: Long): View? = views[id]

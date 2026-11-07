@@ -308,9 +308,10 @@ private class Coords {
     }
 }
 
-/** An open folder is always a 3x3 square of apps, page after page. */
-private const val FOLDER_COLUMNS = 3
-private const val FOLDER_PER_PAGE = 9
+/** An open folder is always three columns by four rows of apps, page after page. */
+internal const val FOLDER_COLUMNS = 3
+internal const val FOLDER_ROWS = 4
+internal const val FOLDER_PER_PAGE = FOLDER_COLUMNS * FOLDER_ROWS
 
 /** Space under an open folder's panel, above the navigation bar. */
 private val FOLDER_BOTTOM = 40.dp
@@ -463,8 +464,8 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                 ) {
                     val pages = (folder.apps.size + FOLDER_PER_PAGE - 1) / FOLDER_PER_PAGE
                     val pager = rememberPagerState { pages.coerceAtLeast(1) }
-                    // Always three rows of three square cells (even with fewer apps), with icons at
-                    // the home screen's size, so every folder opens as the same square.
+                    // Always four rows of three square cells (even with fewer apps), with icons at
+                    // the home screen's size, so every folder opens at the same size.
                     val rowsPerPage = FOLDER_PER_PAGE / FOLDER_COLUMNS
                     HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth()) { page ->
                         val apps = folder.apps.drop(page * FOLDER_PER_PAGE).take(FOLDER_PER_PAGE)
