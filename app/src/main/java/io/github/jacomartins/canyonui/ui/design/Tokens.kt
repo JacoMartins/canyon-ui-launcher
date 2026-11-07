@@ -4,6 +4,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 
 /** Spacing scale from the OneDepth design system: base 16dp with named steps. */
@@ -69,8 +70,30 @@ val LauncherTypography: Typography = Typography(
         titleLarge = t.titleLarge.weight(FontWeight.SemiBold),
         titleMedium = t.titleMedium.weight(FontWeight.Medium),
         titleSmall = t.titleSmall.weight(FontWeight.Medium),
-        labelLarge = t.labelLarge.weight(FontWeight.Bold),
+        // Canyon Orchestrator's scale (OneDepth Kotlin's): titles bold, card and sheet titles
+        // semibold, labels and buttons semibold, reading text regular.
+        labelLarge = t.labelLarge.weight(FontWeight.SemiBold),
         labelMedium = t.labelMedium.weight(FontWeight.Medium),
         labelSmall = t.labelSmall.weight(FontWeight.Medium),
     )
+}.let { t ->
+    // Text sits in the middle of its line (the phone's font has more room above than below), so
+    // it is centred in buttons and fields.
+    val centred = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.None)
+    fun TextStyle.c() = copy(lineHeightStyle = centred)
+    t.copy(
+        displayLarge = t.displayLarge.c(), displayMedium = t.displayMedium.c(), displaySmall = t.displaySmall.c(),
+        headlineLarge = t.headlineLarge.c(), headlineMedium = t.headlineMedium.c(), headlineSmall = t.headlineSmall.c(),
+        titleLarge = t.titleLarge.c(), titleMedium = t.titleMedium.c(), titleSmall = t.titleSmall.c(),
+        bodyLarge = t.bodyLarge.c(), bodyMedium = t.bodyMedium.c(), bodySmall = t.bodySmall.c(),
+        labelLarge = t.labelLarge.c(), labelMedium = t.labelMedium.c(), labelSmall = t.labelSmall.c(),
+    )
 }
+
+/** Text on buttons (Canyon Orchestrator's): body large, semibold. */
+val ButtonText: TextStyle
+    @androidx.compose.runtime.Composable
+    get() = androidx.compose.material3.MaterialTheme.typography.bodyLarge.copy(
+        fontWeight = FontWeight.SemiBold,
+        fontFamily = FontFamily(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 600, false)),
+    )

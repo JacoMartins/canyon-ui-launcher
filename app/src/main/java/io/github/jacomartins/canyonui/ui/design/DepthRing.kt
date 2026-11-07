@@ -82,21 +82,6 @@ object OneDepthBorder {
     const val ALPHA_LIGHT = 0.60f
     const val SIDE_ALPHA_DARK = 0.40f
     const val SIDE_ALPHA_LIGHT = 0.25f
-
-    /**
-     * The inner border (as in Canyon Orchestrator's ring): the next 1dp inward, dark where the
-     * outline faces left or right, gone along the top and bottom; with the ring it makes the
-     * double border.
-     */
-    const val INNER_ALPHA_DARK = 0.40f
-    const val INNER_ALPHA_LIGHT = 0.14f
-
-    /** Opacity of the inner border at [x] along a [width]-wide outline with corner [radius]. */
-    fun innerStops(width: Float, radius: Float): List<Pair<Float, Float>> {
-        if (width <= 0f) return emptyList()
-        val k = (radius / width).coerceIn(0.002f, 0.5f)
-        return listOf(0f to 1f, k to 0f, 1f - k to 0f, 1f to 1f)
-    }
 }
 
 /**
@@ -111,7 +96,6 @@ private fun Modifier.depthRing(
     sideWidth: Dp = 1.dp,
     sideAlpha: Float = 0.20f,
     sideColor: Color = Color.Black,
-    innerAlpha: Float = 0f,
 ): Modifier = this
     .drawWithCache {
         val w = width.toPx()
@@ -140,23 +124,6 @@ private fun Modifier.depthRing(
         val sideRadius = CornerRadius((r - s / 2f).coerceAtLeast(0f))
         val sideStroke = Stroke(s)
 
-        // 3) The inner border's place and brush: one stroke inward, dark facing the sides.
-        val inset = s + w / 2f
-        val innerRadius = (r - inset).coerceAtLeast(0f)
-        val innerW = size.width - 2f * inset
-        val innerBrush = if (innerAlpha > 0f && innerW > 2f && h - 2f * inset > 2f) {
-            Brush.horizontalGradient(
-                colorStops = OneDepthBorder.innerStops(innerW, innerRadius).map { (t, a) -> t to Color.Black.copy(alpha = a) }.toTypedArray(),
-                startX = inset,
-                endX = inset + innerW,
-            )
-        } else {
-            null
-        }
-        val innerTopLeft = Offset(inset, inset)
-        val innerSize = Size(innerW, h - 2f * inset)
-        val innerCorner = CornerRadius(innerRadius)
-
         onDrawWithContent {
             drawContent()
             // 1) Lit ring, inset by the side stroke so a crescent opens at each tip.
@@ -164,10 +131,6 @@ private fun Modifier.depthRing(
             // 2) Dark tips easing to transparent along the straight edges.
             if (sideBrush != null) {
                 drawRoundRect(sideBrush, sideTopLeft, sideSize, sideRadius, style = sideStroke, alpha = sideAlpha)
-            }
-            // 3) Inner border, just inside, dark along the left and right edges.
-            if (innerBrush != null) {
-                drawRoundRect(innerBrush, innerTopLeft, innerSize, innerCorner, style = ringStroke, alpha = innerAlpha)
             }
         }
     }
@@ -191,7 +154,6 @@ fun Modifier.oneDepthBorder(cornerRadius: Dp? = null): Modifier {
         light = OneDepthBorder.Light,
         sideWidth = OneDepthBorder.Width,
         sideAlpha = if (dark) OneDepthBorder.SIDE_ALPHA_DARK else OneDepthBorder.SIDE_ALPHA_LIGHT,
-        innerAlpha = if (dark) OneDepthBorder.INNER_ALPHA_DARK else OneDepthBorder.INNER_ALPHA_LIGHT,
     )
 }
 

@@ -229,7 +229,7 @@ private fun WallpaperScreen(onDone: () -> Unit) {
             Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            io.github.jacomartins.canyonui.ui.design.PageHeader(f.name, onBack = { folder = null })
+            Text(f.name, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md))
             SettingsSection {
                 ThumbGrid(photos.map { it.second }, aspect = 1f) { i -> chosen = photos[i].first }
             }
@@ -244,9 +244,10 @@ private fun WallpaperScreen(onDone: () -> Unit) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        io.github.jacomartins.canyonui.ui.design.PageHeader(
+        Text(
             stringResource(R.string.choose_wallpaper),
-            onBack = { (context as? android.app.Activity)?.finish() },
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
         )
 
         // Canyon UI's own live wallpapers: glass and blur follow them live.

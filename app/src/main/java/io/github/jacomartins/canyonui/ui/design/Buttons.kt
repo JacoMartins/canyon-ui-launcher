@@ -20,6 +20,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
@@ -29,6 +37,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+
+private const val PRESS_MS = 100
 
 /** Which of the two button looks: blue [Primary] for the main action, grey [Secondary] for the rest. */
 enum class ButtonKind { Primary, Secondary }
@@ -45,6 +55,7 @@ fun PillButton(
     kind: ButtonKind = ButtonKind.Primary,
     enabled: Boolean = true,
     contentPadding: PaddingValues = PaddingValues(horizontal = Spacing.mdLg, vertical = Spacing.sm),
+    pressScale: Float = 0.98f,
     content: @Composable RowScope.() -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -55,6 +66,10 @@ fun PillButton(
     // Material grows clickable surfaces to a 48dp touch target, which made the ring trace a larger
     // box than the visible pill (a doubled outline). Turn that off and give the pill a 44dp
     // minimum size instead, so the ring, the fill and the touch area are the same shape.
+    // Canyon Orchestrator's press: the button shrinks a little while held (to [pressScale]).
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) pressScale else 1f, tween(PRESS_MS, easing = FastOutSlowInEasing), label = "press")
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
         Surface(
             onClick = onClick,
@@ -62,10 +77,13 @@ fun PillButton(
             shape = CircleShape,
             color = if (enabled) container else container.copy(alpha = 0.38f),
             contentColor = if (enabled) onContainer else onContainer.copy(alpha = 0.6f),
-            modifier = modifier.heightIn(min = 44.dp).widthIn(min = 44.dp).oneDepthBorder(),
+            interactionSource = interaction,
+            modifier = modifier
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .heightIn(min = 44.dp).widthIn(min = 44.dp).oneDepthBorder(),
         ) {
             // Labels centred everywhere, also when a long one fills a wide button.
-            ProvideTextStyle(MaterialTheme.typography.labelLarge.copy(textAlign = TextAlign.Center)) {
+            ProvideTextStyle(ButtonText.copy(textAlign = TextAlign.Center)) {
                 Row(
                     Modifier.padding(contentPadding),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xsSm, Alignment.CenterHorizontally),
@@ -106,6 +124,8 @@ fun IconPillButton(
     modifier.size(size).semantics { contentDescription = label },
     kind, enabled,
     contentPadding = PaddingValues(0.dp),
+    // Round buttons go further in, as Orchestrator's header buttons do.
+    pressScale = 0.92f,
 ) {
     Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(22.dp))
 }

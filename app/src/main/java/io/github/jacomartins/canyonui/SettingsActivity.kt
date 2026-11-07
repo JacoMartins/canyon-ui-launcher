@@ -118,9 +118,12 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // Page header: a round back button and the title, large and bold.
-        val activity = context as? android.app.Activity
-        io.github.jacomartins.canyonui.ui.design.PageHeader(stringResource(R.string.home_settings), onBack = { activity?.finish() })
+        // Page title (h1): bold, lined up with the text inside the containers.
+        Text(
+            stringResource(R.string.home_settings),
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
+        )
         // Radio buttons and switches without Material's extra 48dp touch padding, so they line
         // up with the text; the whole row is the touch target.
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
@@ -143,7 +146,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     ) {
                         RadioButton(selected = s.layoutMode == mode, onClick = null)
                         Column(Modifier.padding(start = Spacing.smMd)) {
-                            Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
                             Text(stringResource(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -175,7 +178,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                         .clickable { showSwipeUp = true }
                         .padding(vertical = 8.dp),
                 ) {
-                    Text(stringResource(R.string.swipe_up), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.swipe_up), style = MaterialTheme.typography.bodyLarge)
                     val current = s.swipeUpTarget?.let { targetLabel(context, it) } ?: stringResource(R.string.swipe_up_none)
                     Text(current, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(stringResource(R.string.swipe_up_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -196,13 +199,13 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             val maxColumns = if (tablet) SettingsStore.MAX_COLUMNS else maxOf(SettingsStore.PHONE_MAX_COLUMNS, s.columns)
             val minRows = if (tablet) SettingsStore.MIN_ROWS else minOf(SettingsStore.PHONE_MIN_ROWS, s.rows)
             val maxRows = if (tablet) SettingsStore.MAX_ROWS else maxOf(SettingsStore.PHONE_MAX_ROWS, s.rows)
-            Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.bodyLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (c in SettingsStore.MIN_COLUMNS..maxColumns) {
                     ChoiceButton("$c", s.columns == c, { scope.launch { store.setGrid(s.layoutMode, c, s.rows) } }, Modifier.weight(1f))
                 }
             }
-            Text(stringResource(R.string.grid_rows), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.grid_rows), style = MaterialTheme.typography.bodyLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (r in minRows..maxRows) {
                     ChoiceButton("$r", s.rows == r, { scope.launch { store.setGrid(s.layoutMode, s.columns, r) } }, Modifier.weight(1f))
@@ -211,7 +214,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         SettingsSection(onClick = { showPacks = true }) {
-            Text(stringResource(R.string.icon_pack), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.icon_pack), style = MaterialTheme.typography.bodyLarge)
             Text(
                 s.iconPack?.let { pkg ->
                     runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }
@@ -254,7 +257,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         SettingsSection(onClick = { showWallpaperApp = true }) {
-            Text(stringResource(R.string.wallpaper_app), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.wallpaper_app), style = MaterialTheme.typography.bodyLarge)
             Text(
                 s.wallpaperTarget?.let { targetLabel(context, it) } ?: stringResource(R.string.wallpaper_app_own),
                 style = MaterialTheme.typography.bodySmall,
@@ -357,7 +360,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         SettingsSection(onClick = { showHidden = true }) {
-            Text(stringResource(R.string.hidden_apps), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.hidden_apps), style = MaterialTheme.typography.bodyLarge)
             Text(stringResource(R.string.hidden_apps_per_layout), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 pluralHidden(s.hiddenApps.size),
@@ -375,7 +378,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         SettingsSection(onClick = { showLicenses = true }) {
-            Text(stringResource(R.string.licenses), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.licenses), style = MaterialTheme.typography.bodyLarge)
         }
         }
     }
@@ -512,7 +515,7 @@ private fun GestureSettings(s: LauncherSettings, store: SettingsStore) {
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
     }
-    Text(stringResource(R.string.gesture_lock), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.gesture_lock), style = MaterialTheme.typography.bodyLarge)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for ((taps, label) in listOf(0 to R.string.gesture_lock_off, 2 to R.string.gesture_lock_double, 3 to R.string.gesture_lock_triple)) {
             ChoiceButton(stringResource(label), s.lockTaps == taps, { scope.launch { store.setLockTaps(taps) } }, Modifier.weight(1f))
@@ -560,7 +563,7 @@ private fun RenderModeChoice(mode: RenderMode, onSelect: (RenderMode) -> Unit) {
             ) {
                 RadioButton(selected = mode == m, onClick = null)
                 Column(Modifier.padding(start = Spacing.smMd)) {
-                    Text(stringResource(title), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
                     Text(stringResource(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -616,7 +619,7 @@ private fun FolderColorRow(color: Int, store: SettingsStore, home: HomeRepositor
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.folder_color), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.folder_color), style = MaterialTheme.typography.bodyLarge)
             Text(
                 stringResource(if (color == 0) R.string.folder_color_default else R.string.folder_color_custom),
                 style = MaterialTheme.typography.bodySmall,
@@ -699,7 +702,7 @@ private fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Un
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = null)
     }
 }

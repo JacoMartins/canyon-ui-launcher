@@ -20,10 +20,11 @@ import androidx.compose.ui.unit.sp
  */
 @Composable
 fun SectionHeader(text: String, modifier: Modifier = Modifier) {
+    // Canyon Orchestrator's grouped lists: a caption above the panel, in the secondary colour.
     Text(
         text,
-        style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
-        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier,
     )
 }
@@ -39,43 +40,17 @@ fun settingsPageColor() = if (isDarkSurface()) MaterialTheme.colorScheme.backgro
 @Composable
 fun SettingsSection(title: String? = null, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = if (title != null) Spacing.md else Spacing.none)) {
-        if (title != null) SectionHeader(title, Modifier.padding(start = Spacing.mdLg, bottom = Spacing.sm))
+        if (title != null) SectionHeader(title, Modifier.padding(start = Spacing.md, bottom = Spacing.sm))
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            // Orchestrator's grouped list: radius 20.
+            shape = RoundedCornerShape(20.dp),
             color = if (isDarkSurface()) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLowest,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Column(
-                (if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = Spacing.mdLg, vertical = Spacing.md),
+                (if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(horizontal = Spacing.md, vertical = Spacing.smMd),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) { content() }
         }
-    }
-}
-
-/**
- * A page's header, as in Canyon Orchestrator: a round back button with the depth ring, then the
- * page's title, large and bold.
- */
-@Composable
-fun PageHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    androidx.compose.foundation.layout.Row(
-        modifier.padding(start = Spacing.md, top = Spacing.lg, bottom = Spacing.md, end = Spacing.md),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-    ) {
-        IconPillButton(
-            icon = io.github.jacomartins.canyonui.R.drawable.ph_caret_left,
-            label = androidx.compose.ui.res.stringResource(io.github.jacomartins.canyonui.R.string.back),
-            onClick = onBack,
-            size = 48.dp,
-        )
-        Text(
-            title,
-            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 32.sp, lineHeight = 38.sp),
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        )
     }
 }
