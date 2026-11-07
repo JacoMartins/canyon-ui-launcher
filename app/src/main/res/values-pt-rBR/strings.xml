@@ -206,7 +206,9 @@
     <string name="menu_hide_outline">Ocultar contorno</string>
     <string name="menu_show_outline">Mostrar contorno</string>
     <string name="home_search_bar">Barra de pesquisa no lugar dos pontos</string>
-    <string name="home_search_bar_summary">Uma barra de pesquisa acima do dock, com mais espaço na tela inicial. Os pontos das páginas aparecem no lugar dela enquanto você desliza as páginas.</string>
+    <string name="home_search_bar_summary">Uma barra de pesquisa acima do dock no lugar dos pontos das páginas, com mais espaço na tela inicial. Toque e segure nela para colocar um widget de pesquisa no lugar (o do Google, por exemplo).</string>
+    <string name="search_bar_choose_widget">Escolher widget de pesquisa</string>
+    <string name="search_bar_use_own">Usar a barra de pesquisa do Canyon</string>
     <string name="phone_palette">Usar a paleta de cores do celular</string>
     <string name="phone_palette_summary">Desativado: as cores claras e escuras do próprio Canyon UI. Ativado: menus, botões e painéis usam a paleta de cores do celular (Paleta de cores nas configurações do celular).</string>
     <string name="render_mode">Transparência</string>

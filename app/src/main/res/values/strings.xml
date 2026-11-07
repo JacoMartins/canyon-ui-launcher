@@ -207,7 +207,9 @@
     <string name="menu_hide_outline">Hide outline</string>
     <string name="menu_show_outline">Show outline</string>
     <string name="home_search_bar">Search bar instead of page dots</string>
-    <string name="home_search_bar_summary">A search bar above the dock, with more room around home. The page dots show in its place while you swipe pages.</string>
+    <string name="home_search_bar_summary">A search bar above the dock in place of the page dots, with more room around home. Touch and hold it to put a search widget there instead (Google\'s, for example).</string>
+    <string name="search_bar_choose_widget">Choose search widget</string>
+    <string name="search_bar_use_own">Use Canyon search bar</string>
     <string name="phone_palette">Use the phone\'s colour palette</string>
     <string name="phone_palette_summary">Off: Canyon UI\'s own light and dark colours. On: menus, buttons and panels take the colours of the phone\'s palette (Color palette in the phone\'s settings).</string>
     <string name="render_mode">Transparency</string>

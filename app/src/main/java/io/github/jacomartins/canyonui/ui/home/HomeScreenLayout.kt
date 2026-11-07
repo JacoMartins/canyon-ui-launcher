@@ -39,24 +39,41 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     private val barHeight = (49.5f * d).toInt()
     private val barArea = (61 * d).toInt()
     private val barMarginH = (27.5f * d).toInt()
+    private val widgetMarginH = ((14.4f + io.github.jacomartins.canyonui.ui.widget.WidgetFrame.INSET_DP) * d).toInt()
     private val indicatorHeight get() = if (searchBarMode) barArea else dotsHeight
 
-    /**
-     * The search bar takes the page dots' place (a setting); the dots show over it only while the
-     * pages are being swiped ([showDots]).
-     */
+    /** The search bar takes the page dots' place (a setting); the dots are then not shown. */
     var searchBarMode = false
         set(value) {
             if (field == value) return
             field = value
-            searchBar.visibility = if (value) VISIBLE else GONE
-            removeCallbacks(hideDots)
-            searchBar.animate().cancel()
-            indicator.animate().cancel()
-            searchBar.alpha = if (editing) 0f else 1f
+            applySearchViews()
             indicator.alpha = if (editing) 0f else restDotsAlpha
             requestLayout()
         }
+
+    /** A search widget chosen to stand in the bar's place (null: Canyon's own bar). */
+    var searchWidget: android.view.View? = null
+        set(value) {
+            if (field === value) return
+            field?.let { removeView(it) }
+            field = value
+            if (value != null) {
+                (value.parent as? ViewGroup)?.removeView(value)
+                addView(value, indexOfChild(searchBar))
+            }
+            applySearchViews()
+            requestLayout()
+        }
+
+    /** What stands in the dots' place now (Canyon's bar or the chosen widget). */
+    val searchView: android.view.View get() = searchWidget ?: searchBar
+
+    private fun applySearchViews() {
+        searchBar.visibility = if (searchBarMode && searchWidget == null) VISIBLE else GONE
+        searchWidget?.visibility = if (searchBarMode) VISIBLE else GONE
+        searchView.alpha = if (editing) 0f else 1f
+    }
 
     /** Edit mode hides both (the edit bar names the page). */
     var editing = false
@@ -64,22 +81,6 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     /** The page dots' opacity when nothing is moving. */
     val restDotsAlpha get() = if (searchBarMode) 0f else 1f
 
-    private val hideDots = Runnable {
-        if (!searchBarMode || editing) return@Runnable
-        indicator.animate().alpha(0f).setDuration(DOTS_FADE_MS).start()
-        searchBar.animate().alpha(1f).setDuration(DOTS_FADE_MS).start()
-    }
-
-    /** The pages are moving: with the search bar on, the dots show in its place for a moment. */
-    fun showDots() {
-        if (!searchBarMode || editing || !isLaidOut) return
-        removeCallbacks(hideDots)
-        if (indicator.alpha < 1f && indicator.animate() != null) {
-            indicator.animate().alpha(1f).setDuration(DOTS_FADE_MS).start()
-            searchBar.animate().alpha(0f).setDuration(DOTS_FADE_MS).start()
-        }
-        postDelayed(hideDots, DOTS_SHOW_MS)
-    }
     /** Matches the dock's inset so page columns line up with dock icons, as on One UI. */
     private val pagePaddingH = (14.4f * d).toInt()
     // One UI 9 starts the grid nearer the status bar.
@@ -219,6 +220,8 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         workspace.measure(exactly(contentW), exactly(workspaceH))
         indicator.measure(exactly(contentW), exactly(dotsHeight))
         searchBar.measure(exactly(contentW - 2 * barMarginH), exactly(barHeight))
+        // A widget gets the width of a full-width widget on the pages, and the whole area's height.
+        searchWidget?.measure(exactly(contentW - 2 * widgetMarginH), exactly(barArea))
         hotseat.measure(exactly(contentW - 2 * dockMarginH), exactly(dockHeight))
         hint.measure(MeasureSpec.makeMeasureSpec(contentW - 2 * dockMarginH, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
     }
@@ -235,17 +238,15 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         indicator.layout(insetLeft, dotsTop, insetLeft + indicator.measuredWidth, dotsTop + dotsHeight)
         val barTop = indicatorTop + (dockTop - indicatorTop - barHeight) / 2
         searchBar.layout(insetLeft + barMarginH, barTop, insetLeft + barMarginH + searchBar.measuredWidth, barTop + barHeight)
+        searchWidget?.let { v ->
+            v.layout(insetLeft + widgetMarginH, indicatorTop, insetLeft + widgetMarginH + v.measuredWidth, indicatorTop + v.measuredHeight)
+        }
         val dockLeft = insetLeft + dockMarginH
         hotseat.layout(dockLeft, dockTop, dockLeft + hotseat.measuredWidth, dockTop + dockHeight)
         // Centred in the page area, which is empty on first run (default apps sit in the last row).
         val hintLeft = (w - hint.measuredWidth) / 2
         val hintTop = insetTop + (workspace.measuredHeight - hint.measuredHeight) / 2
         hint.layout(hintLeft, hintTop, hintLeft + hint.measuredWidth, hintTop + hint.measuredHeight)
-    }
-
-    private companion object {
-        const val DOTS_FADE_MS = 160L
-        const val DOTS_SHOW_MS = 700L
     }
 
     private fun exactly(size: Int) = MeasureSpec.makeMeasureSpec(size.coerceAtLeast(0), MeasureSpec.EXACTLY)

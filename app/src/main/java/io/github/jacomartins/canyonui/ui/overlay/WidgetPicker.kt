@@ -87,7 +87,7 @@ import kotlin.math.roundToInt
  * What the widget picker shows. With [stackSpan] set it adds to a stack, so only widgets that
  * can be that size are offered.
  */
-class WidgetPickerState(val groups: List<PickerGroup>, val stackSpan: Pair<Int, Int>? = null)
+class WidgetPickerState(val groups: List<PickerGroup>, val stackSpan: Pair<Int, Int>? = null, val title: Int? = null)
 
 private val SheetShape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
 
@@ -102,7 +102,7 @@ fun WidgetPicker(picker: WidgetPickerState, actions: OverlayActions) {
     var expanded by remember { mutableStateOf<PickerGroup?>(null) }
     val groups = remember(picker, query) { filter(picker, query.trim()) }
     val colors = MaterialTheme.colorScheme
-    val title = stringResource(if (picker.stackSpan != null) R.string.widgets_for_stack else R.string.widgets)
+    val title = stringResource(picker.title ?: if (picker.stackSpan != null) R.string.widgets_for_stack else R.string.widgets)
 
     Box(
         Modifier

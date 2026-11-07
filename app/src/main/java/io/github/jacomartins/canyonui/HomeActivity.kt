@@ -115,6 +115,7 @@ import io.github.jacomartins.canyonui.ui.widget.WidgetStackView
 import io.github.jacomartins.canyonui.util.Motion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
@@ -412,11 +413,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.alpha = 0f
         home.hotseat.alpha = 0f
         home.indicator.alpha = 0f
-        home.workspace.onScroll = { p ->
-            home.indicator.setPosition(p)
-            home.showDots()
-        }
+        home.workspace.onScroll = home.indicator::setPosition
         home.searchBar.setOnClickListener { openHomeSearch() }
+        home.searchBar.setOnLongClickListener { v -> showSearchMenu(v); true }
         home.workspace.onPageSettled = { ui.currentPage = it }
         home.onEmptyLongPress = { if (ui.editMode) armPageDrag() else enterEditMode() }
         home.onEmptyTap = { if (ui.editMode) exitEditMode() else countLockTap() }
@@ -512,7 +511,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             }
         }
         // Ids of widgets removed earlier (kept until now so Undo could bring them back).
-        if (savedInstanceState == null) lifecycleScope.launch { widgets.releaseUnused(launcher.home.widgetIdsInUse()) }
+        if (savedInstanceState == null) lifecycleScope.launch {
+            // The search bar's widget is in use too, though it is on no page.
+            val searchId = launcher.settings.settings.first().searchWidgetId
+            widgets.releaseUnused(launcher.home.widgetIdsInUse() + searchId)
+        }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launcher.settings.settings.collect { s ->
@@ -524,6 +527,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     }
                     phonePalette = s.phonePalette
                     if (boundOnce) home.searchBarMode = s.searchBar else searchBarSetting = s.searchBar
+                    if (searchWidgetId != s.searchWidgetId) {
+                        searchWidgetId = s.searchWidgetId
+                        applySearchWidget()
+                    }
                     if (iconShape != s.iconStyle.shape || folderColor != s.folderColor) {
                         iconShape = s.iconStyle.shape
                         folderColor = s.folderColor
@@ -1304,7 +1311,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     // --- Widgets ------------------------------------------------------------------------------
 
     /** Opens the picker for the current page, or ([target]) to add to a widget or stack. */
-    private fun openPicker(target: DropAction?, span: Pair<Int, Int>?) {
+    private fun openPicker(target: DropAction?, span: Pair<Int, Int>?, title: Int? = null) {
         val sizes = widgetSizes() ?: return
         val apps = launcher.apps.apps.value.orEmpty()
         lifecycleScope.launch {
@@ -1313,7 +1320,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             pickerTarget = target
             pickerSpan = span
             ui.menu = null
-            ui.picker = WidgetPickerState(groups, span)
+            ui.picker = WidgetPickerState(groups, span, title)
             updateBackCallbacks()
         }
     }
@@ -1321,6 +1328,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun openWidgets() = openPicker(null, null)
 
     override fun closePicker() {
+        pickingSearchWidget = false
         ui.picker = null
         pickerTarget = null
         pickerSpan = null
@@ -1331,7 +1339,14 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun addWidget(widget: PickerWidget) {
         val target = pickerTarget
         val span = pickerSpan
+        val forSearch = pickingSearchWidget
         closePicker()
+        if (forSearch) {
+            val columns = state?.columns ?: 4
+            val sizes = widgetSizes() ?: return
+            widgets.startAdd(widget.info, columns, 1, DropAction.Reject, sizes.options(columns, 1), restoreItemId = SEARCH_SLOT)
+            return
+        }
         if (target != null && span != null) {
             addPickedWidget(widget, target, span.first, span.second)
             return
@@ -1367,6 +1382,10 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     /** The widget is bound (and set up, if it asked): save it where it was dropped. */
     private fun onWidgetAdded(p: HomeWidgets.PendingAdd) {
+        if (p.restoreItemId == SEARCH_SLOT) {
+            setSearchWidget(p.appWidgetId)
+            return
+        }
         lifecycleScope.launch {
             if (p.restoreItemId != 0L) {
                 launcher.home.rebindWidget(p.restoreItemId, p.appWidgetId)
@@ -1627,7 +1646,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // The edit bar names the page; the dots would only crowd it.
         home.editing = true
         fade(home.indicator, 0f)
-        if (home.searchBarMode) fade(home.searchBar, 0f)
+        if (home.searchBarMode) fade(home.searchView, 0f)
         updateBackCallbacks()
     }
 
@@ -1646,8 +1665,56 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         fade(home.hotseat, 1f)
         home.editing = false
         fade(home.indicator, home.restDotsAlpha)
-        if (home.searchBarMode) fade(home.searchBar, 1f)
+        if (home.searchBarMode) fade(home.searchView, 1f)
         updateBackCallbacks()
+    }
+
+    /** The widget chosen for the search bar's place, or -1 for Canyon's own bar. */
+    private var searchWidgetId = -1
+    private var pickingSearchWidget = false
+
+    /** Shows the chosen search widget in the bar's place (or Canyon's bar when none, or it is gone). */
+    private fun applySearchWidget() {
+        val id = searchWidgetId
+        val info = if (id >= 0) widgets.info(id) else null
+        val view = info?.let { widgets.host.createViewSafely(this, id, it) }
+        if (view == null) {
+            home.searchWidget = null
+            return
+        }
+        view.setPadding(0, 0, 0, 0)
+        view.setOnLongClickListener { v -> showSearchMenu(v); true }
+        widgetSizes()?.let { sizes -> sizes.applySize(view, state?.columns ?: 4, 1, isNight) }
+        home.searchWidget = view
+    }
+
+    /** Long-press on the search bar (or the widget in its place): choose what stands there. */
+    private fun showSearchMenu(v: View) {
+        if (ui.editMode) return
+        v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        val out = ArrayList<MenuEntry>()
+        out += MenuEntry(R.drawable.ph_widgets, getString(R.string.search_bar_choose_widget)) {
+            val columns = state?.columns ?: 4
+            pickingSearchWidget = true
+            openPicker(null, columns to 1, R.string.search_bar_choose_widget)
+        }
+        if (searchWidgetId >= 0) {
+            if (widgets.canReconfigure(searchWidgetId)) {
+                out += MenuEntry(R.drawable.ph_widget_settings, getString(R.string.menu_widget_settings)) { widgets.reconfigure(searchWidgetId) }
+            }
+            out += MenuEntry(R.drawable.ph_search, getString(R.string.search_bar_use_own)) { setSearchWidget(-1) }
+        }
+        ui.menu = ItemMenu(v.visualBounds(), out)
+        updateBackCallbacks()
+    }
+
+    /** Puts [id] in the search bar's place (-1: Canyon's bar), releasing the widget it replaces. */
+    private fun setSearchWidget(id: Int) {
+        val old = searchWidgetId
+        lifecycleScope.launch {
+            launcher.settings.setSearchWidget(id)
+            if (old >= 0 && old != id) widgets.host.deleteIdSafely(old)
+        }
     }
 
     /** The search bar was set before the first bind; applied once home fades in. */
@@ -2120,6 +2187,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     companion object {
+        /** A widget being added for the search bar's place (in [HomeWidgets.PendingAdd.restoreItemId]). */
+        private const val SEARCH_SLOT = -2L
+
         private const val LIGHT_LABEL = 0xFFFFFFFF.toInt()
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()
         private const val FADE_IN_MS = 180L
