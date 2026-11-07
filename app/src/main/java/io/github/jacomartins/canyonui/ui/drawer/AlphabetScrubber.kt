@@ -96,9 +96,22 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
                     }
                     awaitEachGesture {
                         val down = awaitFirstDown()
+                        // Only after a short hold, so the system's back gesture from this edge
+                        // (and a passing swipe) does not jump the list: lifting or moving away
+                        // before then leaves the dots alone.
+                        val slop = viewConfiguration.touchSlop
+                        val leftEarly = withTimeoutOrNull(HOLD_MS) {
+                            while (true) {
+                                val c = awaitPointerEvent().changes.firstOrNull() ?: return@withTimeoutOrNull true
+                                if (!c.pressed || c.isConsumed) return@withTimeoutOrNull true
+                                if ((c.position - down.position).getDistance() > slop) return@withTimeoutOrNull true
+                            }
+                            @Suppress("UNREACHABLE_CODE") true
+                        } ?: false
+                        if (leftEarly) return@awaitEachGesture
                         // The drawer must not take this slide as a close gesture.
                         touch.blockDrag = true
-                        down.consume()
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         pick(down.position.y)
                         while (true) {
                             val e = awaitPointerEvent()
@@ -169,3 +182,5 @@ fun AlphabetScrubber(apps: List<AppInfo>, grid: LazyGridState, touch: DragLayer.
 /** How many dots on each side of the current letter the brightness fades over. */
 private const val GRADIENT_DOTS = 4f
 
+/** How long a finger rests on the dots before they take it. */
+private const val HOLD_MS = 180L

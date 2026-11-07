@@ -252,137 +252,35 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     /**
-     * Opening the Apps screen or search from home with the search bar on: the bar stays where it
-     * is, with its effect, above the screen sliding up (a copy of it, over both), until the
-     * screen's own search field, pushed up by the keyboard, reaches it; then the field takes
-     * over. With no keyboard coming (the Apps screen opened by a swipe), the bar glides down
-     * into the field once the screen has settled (they look the same, so the field then simply
-     * stays).
+     * Opening the Apps screen or search from home with the search bar on, the screen's own search
+     * field is the bar: it holds still over home's bar while the screen slides up under it (its
+     * frosted or glass effect showing the apps passing behind), then goes up with the keyboard
+     * (search) or glides down to its place at the bottom (the Apps screen); closing, it comes
+     * back the same way. Home's bar is hidden meanwhile. The field does the moving itself
+     * ([io.github.jacomartins.canyonui.ui.drawer.DrawerModel.barTravel]); this only starts and
+     * ends it.
      */
-    private val travelBar by lazy { io.github.jacomartins.canyonui.ui.home.HomeSearchBar(this).apply { isClickable = false } }
-    private val travelFrom = android.graphics.RectF()
-    private var travelling = false
-    private var travelArmed = true // the next opening from closed may start it
-    private val travelFallback = Runnable { if (travelling) glideIntoField() }
-    private var glide: android.animation.ValueAnimator? = null
+    private var lastDrawerProgress = 0f
 
-    /** The bar goes down (and narrows) into the field where it rests, then the field takes over. */
-    private fun glideIntoField() {
-        if (!Motion.enabled()) { handOver(fade = false); return }
-        glide?.cancel()
-        glide = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = GLIDE_MS
-            interpolator = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)
-            addUpdateListener {
-                if (!travelling) return@addUpdateListener
-                val m = it.animatedValue as Float
-                val pill = drawerModel.pillBounds
-                val dx = drawerView.left + drawerView.translationX
-                val dy = drawerView.top + drawerView.translationY
-                fun mix(a: Float, z: Float) = a + (z - a) * m
-                placeTravelBar(
-                    mix(travelFrom.left, pill.left + dx), mix(travelFrom.top, pill.top + dy),
-                    mix(travelFrom.right, pill.right + dx), mix(travelFrom.bottom, pill.bottom + dy),
-                )
-            }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (travelling) handOver(fade = false)
-                }
-            })
-            start()
-        }
-    }
-
-    private fun updateTravelBar() {
+    private fun updateBarTravel() {
         val p = drawer.progress
-        val bar = home.searchBar
+        drawerModel.progress = p
+        val from = lastDrawerProgress
+        lastDrawerProgress = p
         if (p <= 0f) {
-            // Back on home (or never left): home's own bar again.
-            travelArmed = true
-            if (travelling) endTravel()
+            if (drawerModel.barTravel) drawerModel.barTravel = false
+            if (home.searchBar.alpha != 1f) home.searchBar.alpha = 1f
             return
         }
-        if (!travelling) {
-            val can = travelArmed && home.searchBarMode && home.searchWidget == null && !ui.editMode &&
-                (drawerEnabled || canyonSearch) && bar.width > 0 && bar.isShown
-            travelArmed = false
-            if (!can) return
-            travelling = true
-            // Where home's bar is, in this root's coordinates (home only fades; it does not move).
-            val loc = IntArray(2)
-            val root = IntArray(2)
-            bar.getLocationInWindow(loc)
-            dragLayer.getLocationInWindow(root)
-            travelFrom.set((loc[0] - root[0]).toFloat(), (loc[1] - root[1]).toFloat(), 0f, 0f)
-            travelFrom.right = travelFrom.left + bar.width
-            travelFrom.bottom = travelFrom.top + bar.height
-            travelBar.voice = bar.voice
-            travelBar.setColors(homeLabelColor(), bar.darkBehind)
-            travelBar.animate().cancel()
-            travelBar.alpha = 1f
-            travelBar.visibility = View.VISIBLE
-            placeTravelBar(travelFrom.left, travelFrom.top, travelFrom.right, travelFrom.bottom)
-            travelBar.invalidate()
-            bar.alpha = 0f
-            drawerModel.pillHidden = true
+        if (from <= 0f && !drawerModel.barTravel) {
+            val can = drawerModel.bar != null && home.searchBarMode && home.searchWidget == null && !ui.editMode &&
+                (drawerEnabled || canyonSearch)
+            if (can) {
+                drawerModel.keyboardTravel = drawerModel.searchOnly || focusSearchOnOpen
+                drawerModel.barTravel = true
+                home.searchBar.alpha = 0f
+            }
         }
-        // The field, where it is now: riding the screen up, then the keyboard.
-        val pill = drawerModel.pillBounds
-        if (pill.isEmpty) return
-        val top = pill.top + drawerView.top + drawerView.translationY
-        if (top <= travelFrom.top + 1f) handOver(fade = false)
-    }
-
-    /**
-     * Puts the travelling bar at ([l], [t], [r], [b]). Its size is kept in its layout params, so a
-     * layout pass of the screen (the keyboard, the sliding screen) keeps it; the place is a
-     * translation, and a size other than the bar's is a scale (no layout pass per frame).
-     */
-    private fun placeTravelBar(l: Float, t: Float, r: Float, b: Float) {
-        val w = travelFrom.width().toInt().coerceAtLeast(1)
-        val h = travelFrom.height().toInt().coerceAtLeast(1)
-        val lp = travelBar.layoutParams as FrameLayout.LayoutParams
-        if (lp.width != w || lp.height != h || lp.gravity != (android.view.Gravity.TOP or android.view.Gravity.START)) {
-            lp.width = w
-            lp.height = h
-            lp.gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            travelBar.layoutParams = lp
-            // This frame too, before the layout pass the params ask for.
-            travelBar.layout(0, 0, w, h)
-        }
-        travelBar.pivotX = 0f
-        travelBar.pivotY = 0f
-        travelBar.translationX = l
-        travelBar.translationY = t
-        travelBar.scaleX = (r - l) / w
-        travelBar.scaleY = (b - t) / h
-    }
-
-    /** The screen's field takes over from the bar: at once where they meet, or by a crossfade. */
-    private fun handOver(fade: Boolean) {
-        glide?.let { g -> glide = null; g.removeAllListeners(); g.cancel() }
-        dragLayer.removeCallbacks(travelFallback)
-        travelling = false
-        drawerModel.pillHidden = false
-        if (fade && Motion.enabled()) {
-            travelBar.animate().alpha(0f).setDuration(HANDOVER_MS).withEndAction { travelBar.visibility = View.GONE }.start()
-        } else {
-            // The field shows from its next drawn frame: the bar goes a frame after that, so
-            // there is never a frame with neither.
-            travelBar.postOnAnimation { travelBar.postOnAnimation { if (!travelling) travelBar.visibility = View.GONE } }
-        }
-        home.searchBar.alpha = 1f // under the screen, for when home shows again
-    }
-
-    private fun endTravel() {
-        glide?.cancel()
-        dragLayer.removeCallbacks(travelFallback)
-        travelling = false
-        travelBar.animate().cancel()
-        travelBar.visibility = View.GONE
-        home.searchBar.alpha = 1f
-        drawerModel.pillHidden = false
     }
 
     private fun updateBarGeometry() {
@@ -396,8 +294,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
     }
 
-    /** The label colour home uses now (light over dark wallpapers). */
-    private fun homeLabelColor(): Int = if (home.searchBar.darkBehind) LIGHT_LABEL else DARK_LABEL
 
     private val contactsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         drawerModel.search.refresh()
@@ -580,6 +476,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.onScroll = home.indicator::setPosition
         home.searchBar.setOnClickListener { if (home.searchBar.tappedMic()) voiceFromHome() else openHomeSearch() }
         home.searchBar.voice = voiceSearch != null
+        // Home's bar wears the screen's search field's look, a little more see-through.
+        drawerModel.onPillStyle = { fill, content -> home.searchBar.setStyle(fill, content) }
         // The search field rests where home's bar is (its size too): told whenever the bar moves.
         home.searchBar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateBarGeometry() }
         home.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateBarGeometry() }
@@ -605,15 +503,15 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         }
         dragLayer.addView(home, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         dragLayer.addView(drawerView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-        travelBar.visibility = View.GONE
-        dragLayer.addView(travelBar, FrameLayout.LayoutParams(0, 0))
-        drawerModel.onPillMoved = { updateTravelBar() }
+        // The search field, holding still over home's bar while the screen slides, draws above
+        // the screen's top edge.
+        dragLayer.clipChildren = false
         dragLayer.addView(overlayView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
         drawer = DrawerController(home, drawerView, this)
         drawer.onOffset = {
             drawerModel.offsetY = it
             applyLiveBlur()
-            updateTravelBar()
+            updateBarTravel()
         }
         // Whether the phone offers live window blur now (it turns off in battery saver, for one).
         if (Build.VERSION.SDK_INT >= 31) {
@@ -2169,13 +2067,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     // --- Drawer callbacks --------------------------------------------------------------------
 
     override fun onDrawerOpened() {
-        updateTravelBar()
-        if (travelling) {
-            // Search (the keyboard is coming): wait for it to bring the field up to the bar, a
-            // moment at most. The Apps screen: no keyboard, the bar goes down into the field now.
-            val keyboardComing = drawerModel.searchOnly || focusSearchOnOpen
-            if (keyboardComing) dragLayer.postDelayed(travelFallback, HANDOVER_WAIT_MS) else glideIntoField()
-        }
+        updateBarTravel()
         drawerModel.scrollTopRequests++
         drawerBack.isEnabled = true
         drawerModel.search.refresh()
@@ -2187,7 +2079,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     override fun onDrawerClosed() {
-        updateTravelBar()
+        updateBarTravel()
         drawerBack.isEnabled = false
         // A menu opened from the drawer belongs to it.
         if (ui.menu != null) {
@@ -2383,9 +2275,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         private const val SEARCH_SLOT = -2L
 
         /** How far up the Apps screen is when home's search bar starts going into its field. */
-        private const val HANDOVER_WAIT_MS = 450L
-        private const val HANDOVER_MS = 160L
-        private const val GLIDE_MS = 260L
+
 
         private const val LIGHT_LABEL = 0xFFFFFFFF.toInt()
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()

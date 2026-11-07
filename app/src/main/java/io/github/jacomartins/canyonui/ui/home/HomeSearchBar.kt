@@ -31,8 +31,10 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
     private val ring = DepthRingPainter(d)
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val haze = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = io.github.jacomartins.canyonui.ui.design.Frost.HAZE }
+    // The field's text: 16sp in the phone's font, medium weight (the theme's titleMedium).
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 16f, resources.displayMetrics)
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 500, false)
     }
     private val icon = ContextCompat.getDrawable(context, R.drawable.ph_search)!!.mutate()
     private val mic = ContextCompat.getDrawable(context, R.drawable.ph_mic)!!.mutate()
@@ -50,12 +52,13 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
 
     private var lastTouchX = -1f
 
+    private var styled = false
+
+    /** Colours by the wallpaper behind, until [setStyle] gives the search field's own. */
     fun setColors(labelColor: Int, darkBehind: Boolean) {
         this.darkBehind = darkBehind
-        text.color = labelColor
-        val filter = PorterDuffColorFilter(labelColor, PorterDuff.Mode.SRC_IN)
-        icon.colorFilter = filter
-        mic.colorFilter = filter
+        if (styled) { invalidate(); return }
+        applyContent(labelColor)
         fill.color = when {
             plain && darkBehind -> 0xB3101216.toInt()
             plain -> 0xB3F4F4F6.toInt()
@@ -63,6 +66,25 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
             else -> io.github.jacomartins.canyonui.ui.design.Frost.TINT_LIGHT
         }
         invalidate()
+    }
+
+    /**
+     * The Apps screen's search field's look ([fill], [content], ARGB), a little more
+     * see-through ([OPACITY]): the same bar on home and in the screen.
+     */
+    fun setStyle(fill: Int, content: Int) {
+        styled = true
+        val a = ((fill ushr 24) * OPACITY).toInt().coerceIn(0, 255)
+        this.fill.color = (a shl 24) or (fill and 0xFFFFFF)
+        applyContent(content)
+        invalidate()
+    }
+
+    private fun applyContent(color: Int) {
+        text.color = color
+        val filter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
+        icon.colorFilter = filter
+        mic.colorFilter = filter
     }
 
     init {
@@ -96,13 +118,15 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         // The frost: a faint haze over the effect.
         canvas.drawRoundRect(rect, r, r, haze)
         ring.draw(canvas, rect, r, darkBehind)
-        val size = (22 * d).toInt()
-        val left = (18 * d).toInt()
+        // The field's layout: a 20dp icon 20dp in, the text 12dp after it, the microphone 18dp
+        // from the end.
+        val size = (20 * d).toInt()
+        val left = (20 * d).toInt()
         val top = (height - size) / 2
         icon.setBounds(left, top, left + size, top + size)
         icon.draw(canvas)
         val baseline = height / 2f - (text.descent() + text.ascent()) / 2f
-        canvas.drawText(label, left + size + 14 * d, baseline, text)
+        canvas.drawText(label, left + size + 12 * d, baseline, text)
         if (voice) {
             val right = width - (18 * d).toInt()
             mic.setBounds(right - size, top, right, top + size)
@@ -112,5 +136,8 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
 
     private companion object {
         const val MIC_AREA_DP = 56
+
+        /** Home's bar keeps this much of the field's opacity. */
+        const val OPACITY = 0.75f
     }
 }

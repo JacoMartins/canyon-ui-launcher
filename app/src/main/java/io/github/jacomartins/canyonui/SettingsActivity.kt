@@ -118,12 +118,9 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // Page title (h1): bold, lined up with the text inside the containers.
-        Text(
-            stringResource(R.string.home_settings),
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
-        )
+        // Page header: a round back button and the title, large and bold.
+        val activity = context as? android.app.Activity
+        io.github.jacomartins.canyonui.ui.design.PageHeader(stringResource(R.string.home_settings), onBack = { activity?.finish() })
         // Radio buttons and switches without Material's extra 48dp touch padding, so they line
         // up with the text; the whole row is the touch target.
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {

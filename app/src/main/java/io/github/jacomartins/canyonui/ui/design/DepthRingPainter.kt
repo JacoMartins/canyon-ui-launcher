@@ -25,6 +25,10 @@ class DepthRingPainter(density: Float) {
         style = Paint.Style.STROKE
         strokeWidth = width
     }
+    private val inner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = width
+    }
     private val tmp = RectF()
     private var cachedW = -1f
     private var cachedH = -1f
@@ -44,6 +48,7 @@ class DepthRingPainter(density: Float) {
             cachedW = w; cachedH = h; cachedR = r; cachedDark = dark; cachedTop = rect.top; cachedLeft = rect.left
             ring.shader = litGradient(rect.top, h, if (dark) BUTTON_ALPHA_DARK else BUTTON_ALPHA_LIGHT)
             side.shader = if (s > 0f) tipGradient(rect.left, w, r, if (dark) SIDE_ALPHA_DARK else SIDE_ALPHA_LIGHT) else null
+            inner.shader = innerGradient(rect.left + s + width / 2f, w - 2f * (s + width / 2f), (r - s - width / 2f).coerceAtLeast(0f), if (dark) INNER_ALPHA_DARK else INNER_ALPHA_LIGHT)
         }
         val half = width / 2f
         tmp.set(rect.left + s + half, rect.top + half, rect.right - s - half, rect.bottom - half)
@@ -54,6 +59,22 @@ class DepthRingPainter(density: Float) {
             val sr = (r - s / 2f).coerceAtLeast(0f)
             canvas.drawRoundRect(tmp, sr, sr, side)
         }
+        // The inner border: one stroke inward, dark facing the sides (the double border).
+        val inset = s + half
+        if (inner.shader != null && w - 2f * inset > 2f && h - 2f * inset > 2f) {
+            tmp.set(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
+            val ir = (r - inset).coerceAtLeast(0f)
+            canvas.drawRoundRect(tmp, ir, ir, inner)
+        }
+    }
+
+    private fun innerGradient(left: Float, w: Float, r: Float, alpha: Float): LinearGradient? {
+        val stops = OneDepthBorder.innerStops(w, r)
+        if (stops.isEmpty()) return null
+        return LinearGradient(
+            left, 0f, left + w, 0f,
+            stops.map { black(it.second * alpha) }.toIntArray(), stops.map { it.first }.toFloatArray(), Shader.TileMode.CLAMP,
+        )
     }
 
     /**
@@ -110,5 +131,7 @@ class DepthRingPainter(density: Float) {
         const val BUTTON_ALPHA_LIGHT = OneDepthBorder.ALPHA_LIGHT
         const val SIDE_ALPHA_DARK = OneDepthBorder.SIDE_ALPHA_DARK
         const val SIDE_ALPHA_LIGHT = OneDepthBorder.SIDE_ALPHA_LIGHT
+        const val INNER_ALPHA_DARK = OneDepthBorder.INNER_ALPHA_DARK
+        const val INNER_ALPHA_LIGHT = OneDepthBorder.INNER_ALPHA_LIGHT
     }
 }

@@ -52,3 +52,30 @@ fun SettingsSection(title: String? = null, onClick: (() -> Unit)? = null, conten
         }
     }
 }
+
+/**
+ * A page's header, as in Canyon Orchestrator: a round back button with the depth ring, then the
+ * page's title, large and bold.
+ */
+@Composable
+fun PageHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.Row(
+        modifier.padding(start = Spacing.md, top = Spacing.lg, bottom = Spacing.md, end = Spacing.md),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+    ) {
+        IconPillButton(
+            icon = io.github.jacomartins.canyonui.R.drawable.ph_caret_left,
+            label = androidx.compose.ui.res.stringResource(io.github.jacomartins.canyonui.R.string.back),
+            onClick = onBack,
+            size = 48.dp,
+        )
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 32.sp, lineHeight = 38.sp),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+    }
+}

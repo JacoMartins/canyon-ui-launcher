@@ -68,6 +68,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
@@ -160,6 +161,12 @@ private fun drawerTint(): Color {
     return MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = alpha)
 }
 private val SearchPillHeight = 56.dp
+
+/** The search field's place above the bottom (or the keyboard). */
+private val PillRest = 12.dp
+
+/** How far open the Apps screen is when the field leaves home's bar for its own place. */
+private const val TRAVEL_DOWN_FROM = 0.55f
 
 /** How long Go waits for the results of the text just typed. */
 private const val GO_WAIT_MS = 1000L
@@ -275,13 +282,10 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         Box(Modifier.fillMaxSize().hazeSource(haze, zIndex = 1f)) {
             // The room the keyboard will take, not where it is in its slide: following the slide
             // rebuilt this whole screen and laid the list out again on every frame of it.
-            // Room under the list for the search field (higher up when it rests where home's bar is).
+            // Room under the list for the search field.
             val restBar = model.bar
-            val bottom = if (restBar != null) {
-                with(LocalDensity.current) { maxOf(listBottomInsets.asPaddingValues().calculateBottomPadding(), restBar.bottom.toDp()) + restBar.height.toDp() + 16.dp }
-            } else {
-                listBottomInsets.asPaddingValues().calculateBottomPadding() + SearchPillHeight + 24.dp
-            }
+            val bottom = listBottomInsets.asPaddingValues().calculateBottomPadding() +
+                (if (restBar != null) with(LocalDensity.current) { restBar.height.toDp() } else SearchPillHeight) + 24.dp
             val searching = model.query.isNotBlank()
             val extras = extrasNow
             val askContacts by model.search.askContacts.collectAsState()
@@ -311,24 +315,14 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)) {
             TopBar(onShowHidden = { showHidden = true }, onSettings = actions::openSettings, showMenu = actions::showMenu)
         }
-        val homeBar = model.bar
         SearchPill(
             model = model,
             voiceSearch = actions.voiceSearch,
             onGo = { goScope.launch { openTop(model, actions) } },
-            modifier = if (homeBar != null) {
-                // Where home's search bar is, until the keyboard comes higher.
-                val density = LocalDensity.current
-                val ime = WindowInsets.ime.getBottom(density)
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = with(density) { maxOf(ime, homeBar.bottom).toDp() })
-            } else {
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .windowInsetsPadding(bottomInsets)
-                    .padding(bottom = 12.dp)
-            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(bottomInsets)
+                .padding(bottom = PillRest),
         )
     }
 
@@ -414,6 +408,12 @@ private fun SearchPill(
     val blurOn = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState().value != null
     val homeBar = model.bar
     val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
+    val navInsets = WindowInsets.navigationBars
+    val pillFill = backdropColor(colors.surfaceContainerHighest.copy(alpha = 0.92f))
+    val pillContent = colors.onSurfaceVariant
+    // Home's bar wears this look.
+    androidx.compose.runtime.SideEffect { model.onPillStyle?.invoke(pillFill.toArgb(), pillContent.toArgb()) }
     Surface(
         modifier = modifier
             .then(
@@ -424,12 +424,25 @@ private fun SearchPill(
                     Modifier.padding(horizontal = 16.dp).fillMaxWidth(widthFraction).height(SearchPillHeight)
                 },
             )
-            .onGloballyPositioned { c ->
-                val b = c.boundsInRoot()
-                model.pillBounds.set(b.left, b.top, b.right, b.bottom)
-                model.onPillMoved?.invoke()
+            .graphicsLayer {
+                // Opening from home with its search bar: over home's bar while the screen slides
+                // (against the slide), then up with the keyboard, or down to its place here.
+                val bar = model.bar
+                translationY = if (bar == null || !model.barTravel) 0f else {
+                    val ime = imeInsets.getBottom(this).toFloat()
+                    val nav = navInsets.getBottom(this).toFloat()
+                    val rest = PillRest.toPx()
+                    val laidOut = maxOf(nav, ime) + rest // where the layout puts it (its bottom's height)
+                    val target = if (model.keyboardTravel) {
+                        maxOf(bar.bottom.toFloat(), laidOut)
+                    } else {
+                        val k = ((model.progress - TRAVEL_DOWN_FROM) / (1f - TRAVEL_DOWN_FROM)).coerceIn(0f, 1f)
+                        val m = k * k * (3f - 2f * k)
+                        maxOf(bar.bottom + (nav + rest - bar.bottom) * m, ime + rest)
+                    }
+                    laidOut - target - model.offsetY
+                }
             }
-            .graphicsLayer { alpha = if (model.pillHidden) 0f else 1f }
             // No shadow under a see-through (blurred) field: it showed through and darkened it.
             .then(
                 if (blurOn) Modifier
@@ -441,8 +454,7 @@ private fun SearchPill(
         shape = CircleShape,
         // Home's search bar's look (its tint and frost), with an effect behind it; the theme's
         // own solid field without one.
-        color = if (blurOn) Color(if (io.github.jacomartins.canyonui.ui.design.isDarkSurface()) io.github.jacomartins.canyonui.ui.design.Frost.TINT_DARK else io.github.jacomartins.canyonui.ui.design.Frost.TINT_LIGHT)
-        else backdropColor(colors.surfaceContainerHighest.copy(alpha = 0.92f)),
+        color = pillFill,
         onClick = { focus.requestFocus() },
     ) {
         Row(
@@ -451,12 +463,7 @@ private fun SearchPill(
             },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // With home's bar on, its layout: an icon of 22dp 18dp in, the text 14dp after it.
-            if (homeBar != null) {
-                Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurface, modifier = Modifier.padding(start = 18.dp, end = 14.dp).size(22.dp))
-            } else {
-                Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 12.dp).size(20.dp))
-            }
+            Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 12.dp).size(20.dp))
             BasicTextField(
                 value = model.query,
                 onValueChange = { model.query = it },
@@ -473,7 +480,7 @@ private fun SearchPill(
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (model.query.isEmpty()) {
-                            Text(placeholder, style = MaterialTheme.typography.titleMedium, color = if (homeBar != null && !expanded) colors.onSurface else colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(placeholder, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         inner()
                     }
@@ -484,11 +491,7 @@ private fun SearchPill(
                     Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
                 voiceSearch != null -> IconButton(onClick = voiceSearch, modifier = Modifier.padding(end = 4.dp)) {
-                    Icon(
-                        painterResource(R.drawable.ph_mic), contentDescription = stringResource(R.string.voice_search),
-                        tint = if (homeBar != null) colors.onSurface else colors.onSurfaceVariant,
-                        modifier = Modifier.size(if (homeBar != null) 22.dp else 20.dp),
-                    )
+                    Icon(painterResource(R.drawable.ph_mic), contentDescription = stringResource(R.string.voice_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
                 else -> Spacer(Modifier.width(20.dp))
             }

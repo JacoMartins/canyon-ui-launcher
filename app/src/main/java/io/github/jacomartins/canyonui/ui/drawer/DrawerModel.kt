@@ -57,12 +57,6 @@ class DrawerModel(
     /** Bumped to put the cursor in the search field and show the keyboard. */
     var focusRequests by mutableIntStateOf(0)
 
-    /** The search field is hidden while home's search bar travels into its place. */
-    var pillHidden by mutableStateOf(false)
-
-    /** Where the search field is, in the Apps screen's own coordinates (set as it is laid out). */
-    val pillBounds = android.graphics.RectF()
-
     /**
      * Home's search bar, when it is on: the search field then rests exactly where the bar is
      * (and is its size), and the keyboard pushes it up from there. Pixels: the bar's bottom
@@ -72,8 +66,18 @@ class DrawerModel(
 
     var bar by mutableStateOf<Bar?>(null)
 
-    /** Called when the search field moves (the keyboard pushing it up, for one). */
-    var onPillMoved: (() -> Unit)? = null
+    /** How far the screen is open (0..1), as it moves. */
+    var progress by androidx.compose.runtime.mutableFloatStateOf(0f)
+
+    /**
+     * The screen is opening (or closing) from home with the search bar on: the field holds
+     * over home's bar, then goes up with the keyboard ([keyboardTravel]) or down to its place.
+     */
+    var barTravel by mutableStateOf(false)
+    var keyboardTravel by mutableStateOf(false)
+
+    /** The field's fill and content colours (ARGB), for home's bar to wear. */
+    var onPillStyle: ((fill: Int, content: Int) -> Unit)? = null
 
     /** Asks the list to start at the top (the screen was opened). */
     var scrollTopRequests by mutableIntStateOf(0)
