@@ -184,15 +184,20 @@ object DayGradient {
 
     /** [color] with [sky]'s [palette] worked out once (for a whole picture). */
     fun color(p: Palette, sky: Sky, u: Float, v: Float, aspect: Float, hardness: Float = HARDNESS): FloatArray {
+        val c = labAt(p, sky, u, v, aspect, hardness)
+        return Oklab.rgb(c[0], c[1], c[2])
+    }
+
+    /** [color] in OKLab. */
+    private fun labAt(p: Palette, sky: Sky, u: Float, v: Float, aspect: Float, hardness: Float = HARDNESS): FloatArray {
         val dx = u - sky.gx
         val dy = (v - sky.gy) * aspect
         val disc = glow((dx * dx + dy * dy) / (sky.radius * sky.radius), hardness)
         val w = sky.strength * (disc + cast(sky, dx, dy, aspect) * (1f - disc))
-        val c = FloatArray(3) { i ->
+        return FloatArray(3) { i ->
             val base = p.top[i] + (p.bottom[i] - p.top[i]) * v
             base + (p.glow[i] - base) * w
         }
-        return Oklab.rgb(c[0], c[1], c[2])
     }
 
     /**
@@ -209,13 +214,43 @@ object DayGradient {
         return Oklab.rgb(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k)
     }
 
-    /** The two colours of [linearColor], top and bottom, in OKLab. */
+    /**
+     * The two colours of [linearColor], top and bottom, in OKLab: the round sky's own colours
+     * over its upper and lower parts, glow and cast light included, so the linear version shows
+     * the same light (as much of the glow's colour as the round one has there, no more).
+     */
     fun linearPair(sky: Sky): Pair<FloatArray, FloatArray> {
         val p = palette(sky)
-        val end = if (sky.gy < 0.5f) p.top else p.bottom
-        for (i in 0..2) end[i] += (p.glow[i] - end[i]) * sky.strength
-        return p.top to p.bottom
+        fun average(from: Float, to: Float): FloatArray {
+            val sum = FloatArray(3)
+            var chroma = 0f
+            var n = 0
+            for (j in 0 until PAIR_ROWS) {
+                val v = from + (to - from) * (j + 0.5f) / PAIR_ROWS
+                for (i in 0 until PAIR_COLUMNS) {
+                    val c = labAt(p, sky, (i + 0.5f) / PAIR_COLUMNS, v, PAIR_ASPECT)
+                    for (k in 0..2) sum[k] += c[k]
+                    chroma += hypot(c[1], c[2])
+                    n++
+                }
+            }
+            for (k in 0..2) sum[k] /= n
+            // Mixing two hues (orange glow on a teal sky) greys the average: it keeps the
+            // colourfulness of the colours it came from.
+            val mixed = hypot(sum[1], sum[2])
+            if (mixed > 1e-4f) {
+                val k = (chroma / n) / mixed
+                sum[1] *= k
+                sum[2] *= k
+            }
+            return sum
+        }
+        return average(0f, 0.4f) to average(0.6f, 1f)
     }
+
+    private const val PAIR_ROWS = 8
+    private const val PAIR_COLUMNS = 8
+    private const val PAIR_ASPECT = 2.1f
 
     /** [linearColor] as AGSL: the two colours (OKLab) arrive as uniforms ([linearPair]). */
     const val LINEAR_SHADER = """

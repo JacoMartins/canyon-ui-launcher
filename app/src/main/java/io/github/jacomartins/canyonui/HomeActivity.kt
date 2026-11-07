@@ -412,7 +412,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.alpha = 0f
         home.hotseat.alpha = 0f
         home.indicator.alpha = 0f
-        home.workspace.onScroll = home.indicator::setPosition
+        home.workspace.onScroll = { p ->
+            home.indicator.setPosition(p)
+            home.showDots()
+        }
+        home.searchBar.setOnClickListener { openHomeSearch() }
         home.workspace.onPageSettled = { ui.currentPage = it }
         home.onEmptyLongPress = { if (ui.editMode) armPageDrag() else enterEditMode() }
         home.onEmptyTap = { if (ui.editMode) exitEditMode() else countLockTap() }
@@ -519,6 +523,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         state?.let(::applyWidgetSizes)
                     }
                     phonePalette = s.phonePalette
+                    if (boundOnce) home.searchBarMode = s.searchBar else searchBarSetting = s.searchBar
                     if (iconShape != s.iconStyle.shape || folderColor != s.folderColor) {
                         iconShape = s.iconStyle.shape
                         folderColor = s.folderColor
@@ -852,8 +857,15 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
         if (!boundOnce) {
             boundOnce = true
-            for (v in listOf(home.workspace, home.hotseat, home.indicator)) {
-                if (Motion.enabled()) v.animate().alpha(1f).setDuration(FADE_IN_MS).start() else v.alpha = 1f
+            home.searchBarMode = searchBarSetting
+            for (v in listOf(home.workspace, home.hotseat, home.indicator, home.searchBar)) {
+                val to = if (v === home.indicator) home.restDotsAlpha else 1f
+                if (Motion.enabled()) {
+                    v.alpha = 0f
+                    v.animate().alpha(to).setDuration(FADE_IN_MS).start()
+                } else {
+                    v.alpha = to
+                }
             }
         }
     }
@@ -1611,7 +1623,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         zoomHome(EDIT_SCALE)
         fade(home.hotseat, 0f)
         // The edit bar names the page; the dots would only crowd it.
+        home.editing = true
         fade(home.indicator, 0f)
+        if (home.searchBarMode) fade(home.searchBar, 0f)
         updateBackCallbacks()
     }
 
@@ -1628,9 +1642,28 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.clipChildren = true
         zoomHome(1f)
         fade(home.hotseat, 1f)
-        fade(home.indicator, 1f)
+        home.editing = false
+        fade(home.indicator, home.restDotsAlpha)
+        if (home.searchBarMode) fade(home.searchBar, 1f)
         updateBackCallbacks()
     }
+
+    /** The search bar was set before the first bind; applied once home fades in. */
+    private var searchBarSetting = false
+
+    /** The home search bar: the search the swipe up opens (an app, Canyon search, or the Apps screen's). */
+    private fun openHomeSearch() {
+        if (ui.editMode) { exitEditMode(); return }
+        when {
+            !drawerEnabled && swipeUpTarget != null -> openSwipeTarget()
+            else -> {
+                focusSearchOnOpen = true
+                drawer.open()
+            }
+        }
+    }
+
+    private var focusSearchOnOpen = false
 
     private fun fade(v: View, to: Float) {
         if (Motion.enabled()) v.animate().alpha(to).setDuration(200).withLayer().start() else v.alpha = to
@@ -1886,7 +1919,8 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     override fun onDrawerOpened() {
         drawerBack.isEnabled = true
         drawerModel.search.refresh()
-        if (drawerModel.searchOnly) drawerModel.focusRequests++
+        if (drawerModel.searchOnly || focusSearchOnOpen) drawerModel.focusRequests++
+        focusSearchOnOpen = false
         drawerView.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
         home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         if (hintVisible) lifecycleScope.launch { launcher.settings.setDrawerHintSeen() }

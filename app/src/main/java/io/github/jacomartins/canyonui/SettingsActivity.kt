@@ -240,6 +240,15 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
 
         SettingsSection {
             SwitchRow(
+                title = stringResource(R.string.home_search_bar),
+                checked = s.searchBar,
+                onChange = { scope.launch { store.setSearchBar(it) } },
+            )
+            Text(stringResource(R.string.home_search_bar_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        SettingsSection {
+            SwitchRow(
                 title = stringResource(R.string.phone_palette),
                 checked = s.phonePalette,
                 onChange = { scope.launch { store.setPhonePalette(it) } },

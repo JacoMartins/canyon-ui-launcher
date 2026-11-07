@@ -73,6 +73,8 @@ data class LauncherSettings(
     val widgetBorder: Boolean = true,
     /** Interface colours from the phone's palette instead of Canyon UI's own. */
     val phonePalette: Boolean = false,
+    /** A search bar above the dock in place of the page dots. */
+    val searchBar: Boolean = false,
     /** Notification badges on icons: "off", "dots" or "numbers". */
     val badges: String = "numbers",
     /** Colour of folders that have none of their own (ARGB); 0 = the theme's, light or dark. */
@@ -139,6 +141,7 @@ class SettingsStore(private val context: Context) {
         val WIDGET_BORDER = booleanPreferencesKey("widget_border")
         val FULL_CELL_WIDGET_SIZES = booleanPreferencesKey("full_cell_widget_sizes")
         val PHONE_PALETTE = booleanPreferencesKey("phone_palette")
+        val SEARCH_BAR = booleanPreferencesKey("home_search_bar")
         val RENDER_MODE = stringPreferencesKey("render_mode")
         val DRAG_EFFECTS = booleanPreferencesKey("drag_effects")
         val WIDGET_EFFECTS = booleanPreferencesKey("widget_effects")
@@ -192,6 +195,7 @@ class SettingsStore(private val context: Context) {
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
             fullCellWidgetSizes = p[Keys.FULL_CELL_WIDGET_SIZES] ?: true,
             phonePalette = p[Keys.PHONE_PALETTE] ?: false,
+            searchBar = p[Keys.SEARCH_BAR] ?: false,
             lockTaps = p[Keys.LOCK_TAPS] ?: 0,
             badges = p[Keys.BADGES] ?: "numbers",
             folderColor = p[Keys.FOLDER_COLOR] ?: 0,
@@ -314,6 +318,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setWallpaperTarget(target: String?) {
         context.dataStore.edit { if (target == null) it.remove(Keys.WALLPAPER_TARGET) else it[Keys.WALLPAPER_TARGET] = target }
+    }
+
+    suspend fun setSearchBar(on: Boolean) {
+        context.dataStore.edit { it[Keys.SEARCH_BAR] = on }
     }
 
     suspend fun setPhonePalette(on: Boolean) {

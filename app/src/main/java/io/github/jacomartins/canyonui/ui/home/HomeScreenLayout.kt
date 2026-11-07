@@ -20,6 +20,7 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
 
     val workspace = Workspace(context)
     val indicator = PageIndicatorView(context)
+    val searchBar = HomeSearchBar(context)
     val hotseat = CellLayout(context, dockSlots, 1)
     val hint = TextView(context)
 
@@ -33,10 +34,55 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     private val dockHeight = (96 * d).toInt()
     private val dockMarginH = (12 * d).toInt()
     private val dockMarginBottom = (8 * d).toInt()
-    private val indicatorHeight = (24 * d).toInt()
+    private val dotsHeight = (24 * d).toInt()
+    private val barHeight = (52 * d).toInt()
+    private val barArea = (76 * d).toInt()
+    private val barMarginH = (24 * d).toInt()
+    private val indicatorHeight get() = if (searchBarMode) barArea else dotsHeight
+
+    /**
+     * The search bar takes the page dots' place (a setting); the dots show over it only while the
+     * pages are being swiped ([showDots]).
+     */
+    var searchBarMode = false
+        set(value) {
+            if (field == value) return
+            field = value
+            searchBar.visibility = if (value) VISIBLE else GONE
+            removeCallbacks(hideDots)
+            searchBar.animate().cancel()
+            indicator.animate().cancel()
+            searchBar.alpha = if (editing) 0f else 1f
+            indicator.alpha = if (editing) 0f else restDotsAlpha
+            requestLayout()
+        }
+
+    /** Edit mode hides both (the edit bar names the page). */
+    var editing = false
+
+    /** The page dots' opacity when nothing is moving. */
+    val restDotsAlpha get() = if (searchBarMode) 0f else 1f
+
+    private val hideDots = Runnable {
+        if (!searchBarMode || editing) return@Runnable
+        indicator.animate().alpha(0f).setDuration(DOTS_FADE_MS).start()
+        searchBar.animate().alpha(1f).setDuration(DOTS_FADE_MS).start()
+    }
+
+    /** The pages are moving: with the search bar on, the dots show in its place for a moment. */
+    fun showDots() {
+        if (!searchBarMode || editing || !isLaidOut) return
+        removeCallbacks(hideDots)
+        if (indicator.alpha < 1f && indicator.animate() != null) {
+            indicator.animate().alpha(1f).setDuration(DOTS_FADE_MS).start()
+            searchBar.animate().alpha(0f).setDuration(DOTS_FADE_MS).start()
+        }
+        postDelayed(hideDots, DOTS_SHOW_MS)
+    }
     /** Matches the dock's inset so page columns line up with dock icons, as on One UI. */
     private val pagePaddingH = (16 * d).toInt()
-    private val pagePaddingTop = (16 * d).toInt()
+    // One UI 9 starts the grid nearer the status bar.
+    private val pagePaddingTop = (8 * d).toInt()
     private val pagePaddingBottom = (4 * d).toInt()
 
     var showDockBackground = false
@@ -107,6 +153,8 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         addView(editBackdrop)
         addView(workspace)
         addView(indicator)
+        searchBar.visibility = GONE
+        addView(searchBar)
         addView(hotseat)
         addView(hint)
 
@@ -154,6 +202,8 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         (hint.background as GradientDrawable).setColor(hintBackground)
         hint.setTextColor(hintText)
         indicator.color = indicatorColor
+        // A light label colour means a dark wallpaper behind.
+        searchBar.setColors(indicatorColor, (indicatorColor and 0xFF) > 0x80)
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -166,7 +216,8 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         val workspaceH = (indicatorTop - insetTop).coerceAtLeast(0)
         editBackdrop.measure(exactly(w), exactly(h))
         workspace.measure(exactly(contentW), exactly(workspaceH))
-        indicator.measure(exactly(contentW), exactly(indicatorHeight))
+        indicator.measure(exactly(contentW), exactly(dotsHeight))
+        searchBar.measure(exactly(contentW - 2 * barMarginH), exactly(barHeight))
         hotseat.measure(exactly(contentW - 2 * dockMarginH), exactly(dockHeight))
         hint.measure(MeasureSpec.makeMeasureSpec(contentW - 2 * dockMarginH, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
     }
@@ -178,13 +229,22 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
         val indicatorTop = dockTop - indicatorHeight
         editBackdrop.layout(0, 0, w, h)
         workspace.layout(insetLeft, insetTop, insetLeft + workspace.measuredWidth, insetTop + workspace.measuredHeight)
-        indicator.layout(insetLeft, indicatorTop, insetLeft + indicator.measuredWidth, dockTop)
+        // The dots in the middle of their area (the bar's, when it is on).
+        val dotsTop = indicatorTop + (dockTop - indicatorTop - dotsHeight) / 2
+        indicator.layout(insetLeft, dotsTop, insetLeft + indicator.measuredWidth, dotsTop + dotsHeight)
+        val barTop = indicatorTop + (dockTop - indicatorTop - barHeight) / 2
+        searchBar.layout(insetLeft + barMarginH, barTop, insetLeft + barMarginH + searchBar.measuredWidth, barTop + barHeight)
         val dockLeft = insetLeft + dockMarginH
         hotseat.layout(dockLeft, dockTop, dockLeft + hotseat.measuredWidth, dockTop + dockHeight)
         // Centred in the page area, which is empty on first run (default apps sit in the last row).
         val hintLeft = (w - hint.measuredWidth) / 2
         val hintTop = insetTop + (workspace.measuredHeight - hint.measuredHeight) / 2
         hint.layout(hintLeft, hintTop, hintLeft + hint.measuredWidth, hintTop + hint.measuredHeight)
+    }
+
+    private companion object {
+        const val DOTS_FADE_MS = 160L
+        const val DOTS_SHOW_MS = 700L
     }
 
     private fun exactly(size: Int) = MeasureSpec.makeMeasureSpec(size.coerceAtLeast(0), MeasureSpec.EXACTLY)

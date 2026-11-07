@@ -312,6 +312,9 @@ private class Coords {
 private const val FOLDER_COLUMNS = 3
 private const val FOLDER_PER_PAGE = 9
 
+/** Space under an open folder's panel, above the navigation bar. */
+private val FOLDER_BOTTOM = 40.dp
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: OverlayActions, open: () -> Float) {
@@ -328,8 +331,11 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
             .fillMaxSize()
             .drawBehind { drawRect(Color.Black.copy(alpha = FOLDER_DIM * open())) }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { close() }
-            .windowInsetsPadding(WindowInsets.ime),
-        contentAlignment = Alignment.Center,
+            .windowInsetsPadding(WindowInsets.ime)
+            // Low on the screen, within a thumb's reach (as One UI 9 does), above the gesture bar.
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(bottom = FOLDER_BOTTOM),
+        contentAlignment = Alignment.BottomCenter,
     ) {
         // The name and colour choice float above the panel, over the dimmed home screen; the
         // panel holds only the apps.

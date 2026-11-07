@@ -33,8 +33,8 @@ import kotlin.math.min
 object WidgetFrame {
     const val MAX_RADIUS_DP = 26f
 
-    /** Gap kept around a widget inside its cells, per side (measured on One UI 8.5: about 8.5dp). */
-    const val INSET_DP = 8.5f
+    /** Gap kept around a widget inside its cells, per side (One UI 9 keeps widgets larger: about 4.5dp). */
+    const val INSET_DP = 4.5f
 
     /** Pills (one cell wide or one row tall) are at most this thick (One UI 8.5: about 76dp). */
     const val PILL_MAX_DP = 74f

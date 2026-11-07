@@ -19,7 +19,8 @@ class PageIndicatorView(context: Context) : View(context) {
 
     private val d = resources.displayMetrics.density
     private val dot = (9 * d).toInt()
-    private val house = (12 * d).toInt()
+    // The house glyph fills more of its box than the circle: a little smaller, so they match.
+    private val house = (10 * d).toInt()
     private val gap = 7 * d
 
     // One drawable per dot: a vector drawable's alpha is read when the frame is rendered, so a
