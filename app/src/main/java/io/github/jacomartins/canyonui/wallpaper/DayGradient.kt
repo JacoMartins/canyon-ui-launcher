@@ -132,11 +132,41 @@ object DayGradient {
      * How much glow at a distance whose square is [q] radii²: a full disc that ends in a short
      * soft edge (a mask), rather than a haze that fades all the way out.
      */
-    private fun glow(q: Float) = exp(-q * q)
+    private fun glow(q: Float, hardness: Float) = exp(-q.pow(hardness))
+
+    /** The glow's edge at rest: a disc with a short soft edge (higher is sharper). */
+    const val HARDNESS = 2f
+
+    /**
+     * The light the glow casts: a soft beam from it towards the middle of the screen, widening
+     * and fading as it goes, like sunlight falling across a room. ([dx], [dy]) is the pixel's
+     * offset from the glow, in widths.
+     */
+    private fun cast(sky: Sky, dx: Float, dy: Float, aspect: Float): Float {
+        var bx = 0.5f - sky.gx
+        var by = (0.5f - sky.gy) * aspect
+        val len = hypot(bx, by)
+        if (len < 1e-3f) return 0f
+        bx /= len; by /= len
+        val along = dx * bx + dy * by
+        if (along <= 0f) return 0f
+        val across = kotlin.math.abs(dx * by - dy * bx)
+        val width = sky.radius * (CAST_WIDTH + CAST_SPREAD * along)
+        val k = across / width
+        return CAST * exp(-k * k) * exp(-along * CAST_FADE)
+    }
+
+    private const val CAST = 0.45f
+    private const val CAST_WIDTH = 0.45f
+    private const val CAST_SPREAD = 0.9f
+    private const val CAST_FADE = 0.9f
 
     /** Where between the two colours of the linear version height [v] is: clear bands, then a step. */
-    internal fun band(v: Float): Float {
-        val k = ((v - BAND_FROM) / (BAND_TO - BAND_FROM)).coerceIn(0f, 1f)
+    internal fun band(v: Float, step: Float = 1f): Float {
+        // [step] below 1 narrows the blend to a sharper step about the middle.
+        val from = 0.5f - (0.5f - BAND_FROM) * step
+        val to = 0.5f + (BAND_TO - 0.5f) * step
+        val k = ((v - from) / (to - from)).coerceIn(0f, 1f)
         return k * k * (3f - 2f * k)
     }
 
@@ -147,10 +177,11 @@ object DayGradient {
     fun color(sky: Sky, u: Float, v: Float, aspect: Float): FloatArray = color(palette(sky), sky, u, v, aspect)
 
     /** [color] with [sky]'s [palette] worked out once (for a whole picture). */
-    fun color(p: Palette, sky: Sky, u: Float, v: Float, aspect: Float): FloatArray {
+    fun color(p: Palette, sky: Sky, u: Float, v: Float, aspect: Float, hardness: Float = HARDNESS): FloatArray {
         val dx = u - sky.gx
         val dy = (v - sky.gy) * aspect
-        val w = sky.strength * glow((dx * dx + dy * dy) / (sky.radius * sky.radius))
+        val disc = glow((dx * dx + dy * dy) / (sky.radius * sky.radius), hardness)
+        val w = sky.strength * (disc + cast(sky, dx, dy, aspect) * (1f - disc))
         val c = FloatArray(3) { i ->
             val base = p.top[i] + (p.bottom[i] - p.top[i]) * v
             base + (p.glow[i] - base) * w
@@ -166,9 +197,9 @@ object DayGradient {
     fun linearColor(sky: Sky, u: Float, v: Float, aspect: Float): FloatArray = linearColor(linearPair(sky), v)
 
     /** [linearColor] from its [linearPair], at height [v]. */
-    fun linearColor(pair: Pair<FloatArray, FloatArray>, v: Float): FloatArray {
+    fun linearColor(pair: Pair<FloatArray, FloatArray>, v: Float, step: Float = 1f): FloatArray {
         val (a, b) = pair
-        val k = band(v)
+        val k = band(v, step)
         return Oklab.rgb(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k)
     }
 
@@ -185,6 +216,7 @@ object DayGradient {
         uniform float2 size;
         uniform float3 top;
         uniform float3 bottom;
+        uniform float edge; // 1 at rest; less is a sharper step (the opening)
         float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
         float3 srgb(float3 lab) {
             float l = lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z;
@@ -200,7 +232,7 @@ object DayGradient {
             return mix(c * 12.92, hi, step(0.0031308, c));
         }
         half4 main(float2 xy) {
-            float3 c = srgb(mix(top, bottom, smoothstep(0.18, 0.82, xy.y / size.y)));
+            float3 c = srgb(mix(top, bottom, smoothstep(0.5 - 0.32 * edge, 0.5 + 0.32 * edge, xy.y / size.y)));
             c += (hash(xy) - 0.5) / 255.0;
             return half4(half3(clamp(c, 0.0, 1.0)), 1.0);
         }
@@ -213,6 +245,7 @@ object DayGradient {
         uniform float3 bottom;
         uniform float3 glow;
         uniform float4 shape; // gx, gy, radius, strength
+        uniform float hardness; // the glow's edge: 2 at rest, sharper above
         float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
         float3 srgb(float3 lab) {
             float l = lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z;
@@ -234,7 +267,18 @@ object DayGradient {
             float3 c = mix(top, bottom, v);
             float2 d = float2(u - shape.x, (v - shape.y) * aspect);
             float q = dot(d, d) / (shape.z * shape.z);
-            float w = shape.w * exp(-q * q);
+            float disc = exp(-pow(q, hardness));
+            // The light it casts towards the middle (DayGradient.cast).
+            float2 b = float2(0.5 - shape.x, (0.5 - shape.y) * aspect);
+            float beam = 0.0;
+            if (length(b) > 0.001) {
+                b = b / length(b);
+                float along = dot(d, b);
+                float across = abs(d.x * b.y - d.y * b.x);
+                float k = across / (shape.z * (0.45 + 0.9 * along));
+                beam = along > 0.0 ? 0.45 * exp(-k * k) * exp(-along * 0.9) : 0.0;
+            }
+            float w = shape.w * (disc + beam * (1.0 - disc));
             c = srgb(mix(c, glow, w));
             c += (hash(xy) - 0.5) / 255.0;
             return half4(half3(clamp(c, 0.0, 1.0)), 1.0);

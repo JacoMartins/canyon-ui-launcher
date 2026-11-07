@@ -273,14 +273,13 @@ class CanyonWallpaperService : WallpaperService() {
                     null
                 }
                 if (s != null) {
-                    // Opening: the glow rises from lower down, growing and brightening into place.
+                    // Opening: the light is cast strong and sharp, then softens and spreads into
+                    // place, like a light just switched on.
                     val sky = DayGradient.at(minute, eased = scene != Scene.DAY_LINEAR).let {
                         if (e < 1f) {
                             it.copy(
-                                strength = it.strength * e,
-                                radius = it.radius * (0.35f + 0.65f * e),
-                                // (The linear bands keep their side: the glow end does not swap.)
-                                gy = if (scene == Scene.DAY_LINEAR) it.gy else it.gy + INTRO_RISE * (1f - e),
+                                strength = (it.strength * (1f + INTRO_BOOST * (1f - e))).coerceAtMost(1f),
+                                radius = it.radius * (INTRO_RADIUS + (1f - INTRO_RADIUS) * e),
                             )
                         } else {
                             it
@@ -291,12 +290,14 @@ class CanyonWallpaperService : WallpaperService() {
                         val (top, bottom) = DayGradient.linearPair(sky)
                         s.setFloatUniform("top", top)
                         s.setFloatUniform("bottom", bottom)
+                        s.setFloatUniform("edge", INTRO_EDGE + (1f - INTRO_EDGE) * e)
                     } else {
                         val p = DayGradient.palette(sky)
                         s.setFloatUniform("top", p.top)
                         s.setFloatUniform("bottom", p.bottom)
                         s.setFloatUniform("glow", p.glow)
                         s.setFloatUniform("shape", sky.gx, sky.gy, sky.radius, sky.strength)
+                        s.setFloatUniform("hardness", DayGradient.HARDNESS + INTRO_HARD * (1f - e))
                     }
                     shaderPaint.shader = s
                     canvas.drawPaint(shaderPaint)
@@ -355,8 +356,14 @@ class CanyonWallpaperService : WallpaperService() {
         const val LINEAR_REDRAW_MS = 5_000L
         const val COLOR_STEP_MIN = 60
         const val INTRO_MS = 1_800L
-        const val INTRO_SHADE = 0.65f
+        const val INTRO_SHADE = 0.2f
         const val INTRO_ZOOM = 0.12f
-        const val INTRO_RISE = 0.35f
+
+        // The day gradients' opening: at its start the glow is this much stronger, this much
+        // smaller (its size, 1 = at rest), and this much sharper-edged; the linear blend this narrow.
+        const val INTRO_BOOST = 0.5f
+        const val INTRO_RADIUS = 0.75f
+        const val INTRO_HARD = 3f
+        const val INTRO_EDGE = 0.2f
     }
 }
