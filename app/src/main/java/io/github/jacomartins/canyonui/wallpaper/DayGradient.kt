@@ -45,8 +45,11 @@ object DayGradient {
         798 to Sky(0x3C74D8, 0x7A90B8, 0xF2924A, 0.85f, 0.80f, 0.20f, 0.68f), // 13:18 orange top right
         918 to Sky(0x4A52C8, 0x6A6AD0, 0xF0806E, 0.90f, 1.00f, 0.25f, 0.88f), // 15:18 violet blue, coral
         1038 to Sky(0x3A1A50, 0x6A2E28, 0xA0503A, 0.90f, 1.10f, 0.35f, 0.94f), // 17:18 purple over brown
-        1159 to Sky(0x0E1E40, 0x2A2A6A, 0x6A2A70, 0.85f, 1.10f, 0.45f, 0.94f), // 19:19 navy, purple glow right
-        1299 to Sky(0x0C1030, 0x0E2A30, 0x1E6E5A, 0.80f, 0.60f, 1.10f, 1.08f), // 21:39 navy, teal glow low
+        // After the orange the light goes down quickly, dimmer and greyer: dusk, not more sunset.
+        1062 to Sky(0x22163A, 0x3A1C1E, 0x6A3626, 0.85f, 1.10f, 0.30f, 1.05f), // 17:42 plum over dark brown, dim ember right
+        1122 to Sky(0x0A1430, 0x221838, 0x48183E, 0.85f, 1.15f, 0.55f, 1.05f), // 18:42 navy, muted magenta right
+        1200 to Sky(0x0A1230, 0x161A40, 0x30204E, 0.75f, 1.10f, 0.65f, 0.94f), // 20:00 night blue, faint violet
+        1299 to Sky(0x0A0E2C, 0x0C2028, 0x18564A, 0.75f, 0.60f, 1.10f, 1.08f), // 21:39 navy, teal glow low
     )
 
     private const val DAY = 24 * 60
@@ -93,7 +96,10 @@ object DayGradient {
         if (dh > PI) dh -= (2 * PI).toFloat()
         if (dh < -PI) dh += (2 * PI).toFloat()
         val h = ha + dh * k
-        val c = lerp(ca, cb, k) * (1f + TRANSITION_LIFT * sin(PI.toFloat() * k))
+        // The lift is for the day's clear colours; dusk and night stay as dim as they are.
+        val light = lerp(x[0], y[0], k)
+        val lift = TRANSITION_LIFT * ((light - 0.35f) / 0.35f).coerceIn(0f, 1f)
+        val c = lerp(ca, cb, k) * (1f + lift * sin(PI.toFloat() * k))
         return Oklab.toInt(Oklab.rgb(lerp(x[0], y[0], k), c * cos(h), c * sin(h)))
     }
 
