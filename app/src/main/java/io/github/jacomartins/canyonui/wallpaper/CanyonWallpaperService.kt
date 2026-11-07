@@ -28,7 +28,15 @@ import androidx.core.graphics.withScale
  */
 class CanyonWallpaperService : WallpaperService() {
 
-    override fun onCreateEngine(): Engine = SceneEngine()
+    private val engines = HashSet<SceneEngine>()
+
+    override fun onCreateEngine(): Engine = SceneEngine().also { engines += it }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Dark mode on or off: the day scenes dim or brighten, and say so to the system.
+        engines.forEach { it.restyle() }
+    }
 
     private inner class SceneEngine : Engine(), SharedPreferences.OnSharedPreferenceChangeListener {
         private val main = Handler(Looper.getMainLooper())
@@ -104,7 +112,34 @@ class CanyonWallpaperService : WallpaperService() {
             CanyonWallpaper.prefs(this@CanyonWallpaperService).registerOnSharedPreferenceChangeListener(this)
         }
 
+        fun restyle() {
+            DayGradient.night = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            if (scene.animated) return
+            colors = null
+            notifyColorsChanged()
+            if (visible) draw()
+        }
+
+        /**
+         * Which stretch of the day the colours told to the system (the lock screen's clock, the
+         * phone's theme) belong to. They are told again when it changes, at most every
+         * [COLOR_STEP_MIN] minutes, so the clock matches the sky without the theme being re-made
+         * all the time.
+         */
+        private var colorsKey = -1
+
+        private fun colorsKeyNow(): Int =
+            if (scene.animated) 0 else CanyonWallpaper.minuteOfDay() / COLOR_STEP_MIN * 2 + if (DayGradient.night) 1 else 0
+
+        private fun refreshColors() {
+            if (colorsKeyNow() == colorsKey) return
+            colors = null
+            notifyColorsChanged()
+        }
+
         override fun onDestroy() {
+            engines -= this
             CanyonWallpaper.prefs(this@CanyonWallpaperService).unregisterOnSharedPreferenceChangeListener(this)
             stop()
             super.onDestroy()
@@ -138,6 +173,9 @@ class CanyonWallpaperService : WallpaperService() {
                 start()
             } else {
                 stop()
+                // Hidden (screen off, an app in front): the colours catch up with the sky, so the
+                // lock screen's clock picks them up before it is seen again.
+                refreshColors()
             }
         }
 
@@ -290,6 +328,7 @@ class CanyonWallpaperService : WallpaperService() {
         // The colours the phone's theme (and other apps) see: from a small picture of the scene.
         override fun onComputeColors(): WallpaperColors? {
             colors?.let { return it }
+            colorsKey = colorsKeyNow()
             val w = 48
             val h = 96
             val bmp = createBitmap(w, h)
@@ -314,6 +353,7 @@ class CanyonWallpaperService : WallpaperService() {
         const val FRAME_SLACK_NS = 4_000_000L
         const val SMALL_W = 120
         const val LINEAR_REDRAW_MS = 5_000L
+        const val COLOR_STEP_MIN = 60
         const val INTRO_MS = 1_800L
         const val INTRO_SHADE = 0.65f
         const val INTRO_ZOOM = 0.12f

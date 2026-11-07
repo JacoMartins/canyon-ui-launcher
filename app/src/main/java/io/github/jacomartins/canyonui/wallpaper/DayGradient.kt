@@ -109,10 +109,39 @@ object DayGradient {
      */
     class Palette(val top: FloatArray, val bottom: FloatArray, val glow: FloatArray)
 
+    /**
+     * The phone is in dark mode: the sky is dimmed, its bright colours most (night is already
+     * dark and stays as it is). Set by the app as the mode changes.
+     */
+    @Volatile
+    var night = false
+
+    private const val NIGHT_DIM = 0.25f
+
     fun palette(sky: Sky): Palette {
-        fun lab(c: Int) = Oklab.of(c).also { it[1] *= CHROMA; it[2] *= CHROMA }
+        val dark = night
+        fun lab(c: Int) = Oklab.of(c).also {
+            it[1] *= CHROMA
+            it[2] *= CHROMA
+            if (dark) it[0] *= 1f - NIGHT_DIM * it[0]
+        }
         return Palette(lab(sky.top), lab(sky.bottom), lab(sky.glow))
     }
+
+    /**
+     * How much glow at a distance whose square is [q] radii²: a full disc that ends in a short
+     * soft edge (a mask), rather than a haze that fades all the way out.
+     */
+    private fun glow(q: Float) = exp(-q * q)
+
+    /** Where between the two colours of the linear version height [v] is: clear bands, then a step. */
+    internal fun band(v: Float): Float {
+        val k = ((v - BAND_FROM) / (BAND_TO - BAND_FROM)).coerceIn(0f, 1f)
+        return k * k * (3f - 2f * k)
+    }
+
+    private const val BAND_FROM = 0.18f
+    private const val BAND_TO = 0.82f
 
     /** One pixel of [sky] at ([u], [v]) on a screen [aspect] (height / width) tall, as r, g, b in 0..1. */
     fun color(sky: Sky, u: Float, v: Float, aspect: Float): FloatArray = color(palette(sky), sky, u, v, aspect)
@@ -121,7 +150,7 @@ object DayGradient {
     fun color(p: Palette, sky: Sky, u: Float, v: Float, aspect: Float): FloatArray {
         val dx = u - sky.gx
         val dy = (v - sky.gy) * aspect
-        val w = sky.strength * exp(-(dx * dx + dy * dy) / (sky.radius * sky.radius))
+        val w = sky.strength * glow((dx * dx + dy * dy) / (sky.radius * sky.radius))
         val c = FloatArray(3) { i ->
             val base = p.top[i] + (p.bottom[i] - p.top[i]) * v
             base + (p.glow[i] - base) * w
@@ -139,7 +168,8 @@ object DayGradient {
     /** [linearColor] from its [linearPair], at height [v]. */
     fun linearColor(pair: Pair<FloatArray, FloatArray>, v: Float): FloatArray {
         val (a, b) = pair
-        return Oklab.rgb(a[0] + (b[0] - a[0]) * v, a[1] + (b[1] - a[1]) * v, a[2] + (b[2] - a[2]) * v)
+        val k = band(v)
+        return Oklab.rgb(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k)
     }
 
     /** The two colours of [linearColor], top and bottom, in OKLab. */
@@ -170,7 +200,7 @@ object DayGradient {
             return mix(c * 12.92, hi, step(0.0031308, c));
         }
         half4 main(float2 xy) {
-            float3 c = srgb(mix(top, bottom, xy.y / size.y));
+            float3 c = srgb(mix(top, bottom, smoothstep(0.18, 0.82, xy.y / size.y)));
             c += (hash(xy) - 0.5) / 255.0;
             return half4(half3(clamp(c, 0.0, 1.0)), 1.0);
         }
@@ -203,7 +233,8 @@ object DayGradient {
             float aspect = size.y / size.x;
             float3 c = mix(top, bottom, v);
             float2 d = float2(u - shape.x, (v - shape.y) * aspect);
-            float w = shape.w * exp(-dot(d, d) / (shape.z * shape.z));
+            float q = dot(d, d) / (shape.z * shape.z);
+            float w = shape.w * exp(-q * q);
             c = srgb(mix(c, glow, w));
             c += (hash(xy) - 0.5) / 255.0;
             return half4(half3(clamp(c, 0.0, 1.0)), 1.0);

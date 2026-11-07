@@ -427,6 +427,13 @@ object WallpaperBackdrop {
         if (on && ownScene?.animated == false && lightStale()) relight()
     }
 
+    /** The day wallpapers' look changed (dark mode on or off): the effects' copy is made again. */
+    fun relightNow() {
+        if (ownScene?.animated != false) return
+        lightAt = -1
+        relight()
+    }
+
     private fun lightStale() = lightAt < 0 || kotlin.math.abs(CanyonWallpaper.minuteOfDay() - lightAt) >= RELIGHT_MIN
 
     private fun relight() {

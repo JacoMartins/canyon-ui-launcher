@@ -1875,6 +1875,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         // switch every widget view is made again so it draws in the new mode.
         if (isNight != lastNight) {
             lastNight = isNight
+            io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.relightNow()
             widgets.prune(emptySet())
             state?.let(::bind)
         }

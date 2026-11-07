@@ -44,6 +44,7 @@ class LauncherApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        io.github.jacomartins.canyonui.wallpaper.DayGradient.night = isNight(resources.configuration)
         dbs = LayoutMode.entries.associateWith { LauncherDatabase.create(this, it) }
         settings = SettingsStore(this)
         usage = AppUsage(this)
@@ -102,5 +103,10 @@ class LauncherApp : Application() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         apps.onConfigurationChanged() // Labels follow the locale; themed icons the palette.
+        // The day wallpapers dim in dark mode.
+        io.github.jacomartins.canyonui.wallpaper.DayGradient.night = isNight(newConfig)
     }
+
+    private fun isNight(c: Configuration) =
+        (c.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 }
