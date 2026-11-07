@@ -280,9 +280,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                 val dx = drawerView.left + drawerView.translationX
                 val dy = drawerView.top + drawerView.translationY
                 fun mix(a: Float, z: Float) = a + (z - a) * m
-                travelBar.layout(
-                    mix(travelFrom.left, pill.left + dx).toInt(), mix(travelFrom.top, pill.top + dy).toInt(),
-                    mix(travelFrom.right, pill.right + dx).toInt(), mix(travelFrom.bottom, pill.bottom + dy).toInt(),
+                placeTravelBar(
+                    mix(travelFrom.left, pill.left + dx), mix(travelFrom.top, pill.top + dy),
+                    mix(travelFrom.right, pill.right + dx), mix(travelFrom.bottom, pill.bottom + dy),
                 )
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
@@ -322,7 +322,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             travelBar.animate().cancel()
             travelBar.alpha = 1f
             travelBar.visibility = View.VISIBLE
-            travelBar.layout(travelFrom.left.toInt(), travelFrom.top.toInt(), travelFrom.right.toInt(), travelFrom.bottom.toInt())
+            placeTravelBar(travelFrom.left, travelFrom.top, travelFrom.right, travelFrom.bottom)
             travelBar.invalidate()
             bar.alpha = 0f
             drawerModel.pillHidden = true
@@ -334,6 +334,31 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         if (top <= travelFrom.top + 1f) handOver(fade = false)
     }
 
+    /**
+     * Puts the travelling bar at ([l], [t], [r], [b]). Its size is kept in its layout params, so a
+     * layout pass of the screen (the keyboard, the sliding screen) keeps it; the place is a
+     * translation, and a size other than the bar's is a scale (no layout pass per frame).
+     */
+    private fun placeTravelBar(l: Float, t: Float, r: Float, b: Float) {
+        val w = travelFrom.width().toInt().coerceAtLeast(1)
+        val h = travelFrom.height().toInt().coerceAtLeast(1)
+        val lp = travelBar.layoutParams as FrameLayout.LayoutParams
+        if (lp.width != w || lp.height != h || lp.gravity != (android.view.Gravity.TOP or android.view.Gravity.START)) {
+            lp.width = w
+            lp.height = h
+            lp.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            travelBar.layoutParams = lp
+            // This frame too, before the layout pass the params ask for.
+            travelBar.layout(0, 0, w, h)
+        }
+        travelBar.pivotX = 0f
+        travelBar.pivotY = 0f
+        travelBar.translationX = l
+        travelBar.translationY = t
+        travelBar.scaleX = (r - l) / w
+        travelBar.scaleY = (b - t) / h
+    }
+
     /** The screen's field takes over from the bar: at once where they meet, or by a crossfade. */
     private fun handOver(fade: Boolean) {
         glide?.let { g -> glide = null; g.removeAllListeners(); g.cancel() }
@@ -343,7 +368,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         if (fade && Motion.enabled()) {
             travelBar.animate().alpha(0f).setDuration(HANDOVER_MS).withEndAction { travelBar.visibility = View.GONE }.start()
         } else {
-            travelBar.visibility = View.GONE
+            // The field shows from its next drawn frame: the bar goes a frame after that, so
+            // there is never a frame with neither.
+            travelBar.postOnAnimation { travelBar.postOnAnimation { if (!travelling) travelBar.visibility = View.GONE } }
         }
         home.searchBar.alpha = 1f // under the screen, for when home shows again
     }
