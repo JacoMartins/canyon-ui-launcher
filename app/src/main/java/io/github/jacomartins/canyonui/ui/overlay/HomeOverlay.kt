@@ -62,6 +62,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -327,10 +329,27 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
         if (title.trim() != folder.title) actions.renameFolder(folder, title)
         actions.closeFolder()
     }
+    val frostBlur = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState().value
+    val frostImage = remember(frostBlur) { frostBlur?.screen?.asImageBitmap() }
     Box(
         Modifier
             .fillMaxSize()
-            .drawBehind { drawRect(Color.Black.copy(alpha = FOLDER_DIM * open())) }
+            .drawBehind {
+                val t = open()
+                // The frost behind the panel (frosted or glass mode): the blurred wallpaper over
+                // home, thick in the frosted mode and thinner in the glass one (home shows through
+                // more), with a faint haze; then the dim.
+                val b = frostBlur
+                if (b != null && frostImage != null) {
+                    val thick = if (b.mode == io.github.jacomartins.canyonui.data.RenderMode.FROSTED) FOLDER_FROST else FOLDER_FROST_GLASS
+                    drawImage(
+                        frostImage, dstSize = androidx.compose.ui.unit.IntSize(b.screenW, b.screenH),
+                        alpha = thick * t, filterQuality = androidx.compose.ui.graphics.FilterQuality.Low,
+                    )
+                    drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE).copy(alpha = 0.08f * t))
+                }
+                drawRect(Color.Black.copy(alpha = FOLDER_DIM * t))
+            }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { close() }
             .windowInsetsPadding(WindowInsets.ime)
             // Low on the screen, within a thumb's reach (as One UI 9 does), above the gesture bar.
@@ -657,7 +676,11 @@ private const val SNACK_MS = 5000L
 private const val FOLDER_PANEL_ALPHA = 0.72f
 
 /** How dark the home screen gets behind an open folder. */
-private const val FOLDER_DIM = 0.35f
+private const val FOLDER_DIM = 0.45f
+
+/** How much of the blurred wallpaper covers home behind an open folder: frosted, and glass. */
+private const val FOLDER_FROST = 0.8f
+private const val FOLDER_FROST_GLASS = 0.45f
 private const val OPEN_MS = 320
 private const val CLOSE_MS = 260
 private const val MENU_MS = 220
