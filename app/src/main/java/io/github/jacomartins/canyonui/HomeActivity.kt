@@ -255,14 +255,44 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
      * Opening the Apps screen or search from home with the search bar on: the bar stays where it
      * is, with its effect, above the screen sliding up (a copy of it, over both), until the
      * screen's own search field, pushed up by the keyboard, reaches it; then the field takes
-     * over. With no keyboard coming (the Apps screen opened by a swipe), the field takes over by a
-     * short crossfade once the screen has settled.
+     * over. With no keyboard coming (the Apps screen opened by a swipe), the bar glides down
+     * into the field once the screen has settled (they look the same, so the field then simply
+     * stays).
      */
     private val travelBar by lazy { io.github.jacomartins.canyonui.ui.home.HomeSearchBar(this).apply { isClickable = false } }
     private val travelFrom = android.graphics.RectF()
     private var travelling = false
     private var travelArmed = true // the next opening from closed may start it
-    private val travelFallback = Runnable { if (travelling) handOver(fade = true) }
+    private val travelFallback = Runnable { if (travelling) glideIntoField() }
+    private var glide: android.animation.ValueAnimator? = null
+
+    /** The bar goes down (and narrows) into the field where it rests, then the field takes over. */
+    private fun glideIntoField() {
+        if (!Motion.enabled()) { handOver(fade = false); return }
+        glide?.cancel()
+        glide = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = GLIDE_MS
+            interpolator = android.view.animation.PathInterpolator(0.2f, 0f, 0f, 1f)
+            addUpdateListener {
+                if (!travelling) return@addUpdateListener
+                val m = it.animatedValue as Float
+                val pill = drawerModel.pillBounds
+                val dx = drawerView.left + drawerView.translationX
+                val dy = drawerView.top + drawerView.translationY
+                fun mix(a: Float, z: Float) = a + (z - a) * m
+                travelBar.layout(
+                    mix(travelFrom.left, pill.left + dx).toInt(), mix(travelFrom.top, pill.top + dy).toInt(),
+                    mix(travelFrom.right, pill.right + dx).toInt(), mix(travelFrom.bottom, pill.bottom + dy).toInt(),
+                )
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (travelling) handOver(fade = false)
+                }
+            })
+            start()
+        }
+    }
 
     private fun updateTravelBar() {
         val p = drawer.progress
@@ -306,6 +336,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     /** The screen's field takes over from the bar: at once where they meet, or by a crossfade. */
     private fun handOver(fade: Boolean) {
+        glide?.let { g -> glide = null; g.removeAllListeners(); g.cancel() }
         dragLayer.removeCallbacks(travelFallback)
         travelling = false
         drawerModel.pillHidden = false
@@ -318,6 +349,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     }
 
     private fun endTravel() {
+        glide?.cancel()
         dragLayer.removeCallbacks(travelFallback)
         travelling = false
         travelBar.animate().cancel()
@@ -642,6 +674,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         liveBlurMode = s.renderMode
                         applyLiveBlur()
                     }
+                    WallpaperBackdrop.followAnimations = s.effectsFollow
                     if (WallpaperBackdrop.widgetEffects != s.widgetEffects) {
                         WallpaperBackdrop.widgetEffects = s.widgetEffects
                         views.values.forEach { v -> if (v is io.github.jacomartins.canyonui.ui.widget.LauncherWidgetHostView || v is io.github.jacomartins.canyonui.ui.widget.WidgetStackView) v.invalidate() }
@@ -2093,8 +2126,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
 
     override fun onDrawerOpened() {
         updateTravelBar()
-        // No keyboard to bring the field up to the bar (or it is slow): the field takes over soon.
-        if (travelling) dragLayer.postDelayed(travelFallback, HANDOVER_WAIT_MS)
+        if (travelling) {
+            // Search (the keyboard is coming): wait for it to bring the field up to the bar, a
+            // moment at most. The Apps screen: no keyboard, the bar goes down into the field now.
+            val keyboardComing = drawerModel.searchOnly || focusSearchOnOpen
+            if (keyboardComing) dragLayer.postDelayed(travelFallback, HANDOVER_WAIT_MS) else glideIntoField()
+        }
         drawerModel.scrollTopRequests++
         drawerBack.isEnabled = true
         drawerModel.search.refresh()
@@ -2304,6 +2341,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         /** How far up the Apps screen is when home's search bar starts going into its field. */
         private const val HANDOVER_WAIT_MS = 450L
         private const val HANDOVER_MS = 160L
+        private const val GLIDE_MS = 260L
 
         private const val LIGHT_LABEL = 0xFFFFFFFF.toInt()
         private const val DARK_LABEL = 0xFF1C1B1F.toInt()

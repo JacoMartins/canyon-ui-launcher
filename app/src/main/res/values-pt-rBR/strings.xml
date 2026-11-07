@@ -335,6 +335,8 @@
     <string name="wallpaper_crop_set">Definir papel de parede</string>
     <string name="effects_widgets">Transparência nos widgets</string>
     <string name="effects_drag">Efeito ao vivo em pastas arrastadas</string>
+    <string name="effects_follow">Efeitos acompanham as animações</string>
+    <string name="effects_follow_summary">Os efeitos fosco e de vidro ficam alinhados em cada quadro das animações da tela inicial (modo de edição, desbloqueio, fechar apps, a tela de apps) em vez de se ajustarem no fim. Mais suave em celulares mais rápidos.</string>
     <string name="effects_summary">Ao vivo: o efeito fosco ou de vidro de uma pasta arrastada acompanha o papel de parede enquanto ela se move. Desativado: ela mantém a aparência de quando foi pega. Desativar qualquer um alivia o trabalho em celulares mais lentos.</string>
     <string name="live_blur">Desfoque ao vivo atrás da tela de apps</string>
     <string name="live_blur_summary">O próprio celular desfoca o que está atrás da tela de apps e da busca, inclusive papéis de parede animados, enquanto elas abrem. É um desfoque: sem a curvatura do vidro.</string>

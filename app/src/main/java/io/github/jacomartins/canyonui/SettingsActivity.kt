@@ -288,6 +288,12 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     checked = s.dragEffects,
                     onChange = { scope.launch { store.setDragEffects(it) } },
                 )
+                SwitchRow(
+                    title = stringResource(R.string.effects_follow),
+                    checked = s.effectsFollow,
+                    onChange = { scope.launch { store.setEffectsFollow(it) } },
+                )
+                Text(stringResource(R.string.effects_follow_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.effects_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

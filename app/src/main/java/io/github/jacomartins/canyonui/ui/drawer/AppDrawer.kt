@@ -416,10 +416,29 @@ private fun SearchPill(
             // Glass or frosted (by the Transparency setting) over the apps and the wallpaper.
             .backdrop(CircleShape, withContent = true),
         shape = CircleShape,
-        color = backdropColor(colors.surfaceContainerHighest.copy(alpha = 0.92f)),
+        // Home's search bar's look (its tint and frost), with an effect behind it; the theme's
+        // own solid field without one.
+        color = if (blurOn) Color(if (io.github.jacomartins.canyonui.ui.design.isDarkSurface()) io.github.jacomartins.canyonui.ui.design.Frost.TINT_DARK else io.github.jacomartins.canyonui.ui.design.Frost.TINT_LIGHT)
+        else backdropColor(colors.surfaceContainerHighest.copy(alpha = 0.92f)),
         onClick = { focus.requestFocus() },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        val grain = remember {
+            androidx.compose.ui.graphics.ShaderBrush(
+                androidx.compose.ui.graphics.ImageShader(
+                    io.github.jacomartins.canyonui.ui.design.Frost.grain.asImageBitmap(),
+                    androidx.compose.ui.graphics.TileMode.Repeated, androidx.compose.ui.graphics.TileMode.Repeated,
+                ),
+            )
+        }
+        Row(
+            Modifier.drawBehind {
+                if (blurOn) {
+                    drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE))
+                    drawRect(grain)
+                }
+            },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 12.dp).size(20.dp))
             BasicTextField(
                 value = model.query,

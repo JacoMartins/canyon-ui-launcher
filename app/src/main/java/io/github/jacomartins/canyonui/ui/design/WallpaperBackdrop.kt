@@ -793,8 +793,24 @@ object WallpaperBackdrop {
 
     private fun quiet() = held || pending || SystemClock.uptimeMillis() < quietUntil
 
+    /**
+     * The effects follow every frame of whole-screen animations ([hold] and [quietFor] do
+     * nothing): seamless, at the cost of redrawing every effect on every frame (a setting).
+     */
+    @Volatile
+    var followAnimations = false
+        set(value) {
+            field = value
+            if (value) {
+                held = false
+                quietUntil = 0L
+                if (pending) main.post(realign)
+            }
+        }
+
     /** Holds re-alignment while [on] (a gesture-driven whole-screen move, such as the Apps screen). */
     fun hold(on: Boolean) {
+        if (followAnimations) return
         if (held == on) return
         held = on
         // A new whole-screen move: the glide stops where it is (redrawing on every frame is
@@ -808,6 +824,7 @@ object WallpaperBackdrop {
 
     /** No re-alignment for [ms] (a whole-screen animation of that length), then once. */
     fun quietFor(ms: Long) {
+        if (followAnimations) return
         quietUntil = maxOf(quietUntil, SystemClock.uptimeMillis() + ms)
         pending = true
         main.removeCallbacks(realign)

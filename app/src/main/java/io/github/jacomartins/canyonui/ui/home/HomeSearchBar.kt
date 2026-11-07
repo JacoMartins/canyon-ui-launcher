@@ -2,7 +2,6 @@ package io.github.jacomartins.canyonui.ui.home
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -14,7 +13,6 @@ import android.graphics.Shader
 import android.view.MotionEvent
 import android.view.View
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.createBitmap
 import io.github.jacomartins.canyonui.R
 import io.github.jacomartins.canyonui.ui.design.DepthRingPainter
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
@@ -34,8 +32,10 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
     private val path = Path()
     private val ring = DepthRingPainter(d)
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val haze = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x14FFFFFF }
-    private val grain = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = BitmapShader(grainTile(), Shader.TileMode.REPEAT, Shader.TileMode.REPEAT) }
+    private val haze = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = io.github.jacomartins.canyonui.ui.design.Frost.HAZE }
+    private val grain = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = BitmapShader(io.github.jacomartins.canyonui.ui.design.Frost.grain, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+    }
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 16f, resources.displayMetrics)
     }
@@ -64,8 +64,8 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         fill.color = when {
             plain && darkBehind -> 0xB3101216.toInt()
             plain -> 0xB3F4F4F6.toInt()
-            darkBehind -> 0x5E000000
-            else -> 0x40FFFFFF
+            darkBehind -> io.github.jacomartins.canyonui.ui.design.Frost.TINT_DARK
+            else -> io.github.jacomartins.canyonui.ui.design.Frost.TINT_LIGHT
         }
         invalidate()
     }
@@ -118,16 +118,5 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
 
     private companion object {
         const val MIC_AREA_DP = 56
-
-        /** A small tile of soft white specks, repeated over the bar. */
-        fun grainTile(): Bitmap {
-            val n = 64
-            val bmp = createBitmap(n, n)
-            val px = IntArray(n * n)
-            val random = java.util.Random(7)
-            for (i in px.indices) px[i] = (random.nextInt(14) shl 24) or 0xFFFFFF
-            bmp.setPixels(px, 0, n, 0, 0, n, n)
-            return bmp
-        }
     }
 }

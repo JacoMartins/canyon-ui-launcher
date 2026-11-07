@@ -92,6 +92,12 @@ data class LauncherSettings(
     /** Widgets get the frosted or glass wallpaper behind their card. */
     val widgetEffects: Boolean = true,
     /**
+     * The frosted and glass effects follow every frame of home's animations (edit mode's zoom,
+     * unlock, the Apps screen), instead of catching up once they end. On by default on phones
+     * with the memory (and so the GPU) for it.
+     */
+    val effectsFollow: Boolean = true,
+    /**
      * The Apps screen and search blur what is behind them through the system (Android 12+ window
      * blur), live wallpapers included, where the phone offers it.
      */
@@ -148,6 +154,7 @@ class SettingsStore(private val context: Context) {
         val RENDER_MODE = stringPreferencesKey("render_mode")
         val DRAG_EFFECTS = booleanPreferencesKey("drag_effects")
         val WIDGET_EFFECTS = booleanPreferencesKey("widget_effects")
+        val EFFECTS_FOLLOW = booleanPreferencesKey("effects_follow")
         val LIVE_BLUR = booleanPreferencesKey("live_blur")
         val LOCK_TAPS = intPreferencesKey("lock_taps")
         val BADGES = stringPreferencesKey("badges")
@@ -207,6 +214,7 @@ class SettingsStore(private val context: Context) {
             renderMode = RenderMode.entries.firstOrNull { it.storageKey == p[Keys.RENDER_MODE] } ?: RenderMode.GLASS,
             dragEffects = p[Keys.DRAG_EFFECTS] ?: true,
             widgetEffects = p[Keys.WIDGET_EFFECTS] ?: true,
+            effectsFollow = p[Keys.EFFECTS_FOLLOW] ?: capablePhone,
             liveBlur = p[Keys.LIVE_BLUR] ?: true,
             pendingSearchWidget = p[Keys.PENDING_SEARCH_WIDGET] ?: false,
             swipeUpTarget = p[Keys.SWIPE_UP_TARGET],
@@ -358,6 +366,17 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setLiveBlur(on: Boolean) {
         context.dataStore.edit { it[Keys.LIVE_BLUR] = on }
+    }
+
+    /** 6 GB of memory or more: a phone whose GPU keeps the effects smooth through animations. */
+    private val capablePhone: Boolean by lazy {
+        val am = context.getSystemService(android.app.ActivityManager::class.java)
+        val info = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+        !am.isLowRamDevice && info.totalMem >= 5L * 1024 * 1024 * 1024
+    }
+
+    suspend fun setEffectsFollow(on: Boolean) {
+        context.dataStore.edit { it[Keys.EFFECTS_FOLLOW] = on }
     }
 
     suspend fun setWidgetEffects(on: Boolean) {

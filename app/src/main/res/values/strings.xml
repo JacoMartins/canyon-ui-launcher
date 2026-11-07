@@ -336,6 +336,8 @@
     <string name="wallpaper_crop_set">Set wallpaper</string>
     <string name="effects_widgets">Transparency on widgets</string>
     <string name="effects_drag">Live effect on dragged folders</string>
+    <string name="effects_follow">Effects follow animations</string>
+    <string name="effects_follow_summary">The frosted and glass effects stay lined up through every frame of home\'s animations (edit mode, unlock, closing apps, the Apps screen) instead of catching up when they end. Smoothest on faster phones.</string>
     <string name="effects_summary">Live: a dragged folder\'s frosted or glass effect follows the wallpaper as it moves. Off: it keeps the look it had when picked up. Turning either off lightens the work on slower phones.</string>
     <string name="live_blur">Live blur behind the Apps screen</string>
     <string name="live_blur_summary">This phone blurs whatever is behind the Apps screen and search itself, live wallpapers included, as they open. It is a blur: without the bending of glass.</string>
