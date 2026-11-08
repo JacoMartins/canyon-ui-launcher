@@ -130,8 +130,8 @@
     <string name="no_room">No room here</string>
     <!-- Widgets (Stage 3) -->
     <string name="home_screen_section">Home screen</string>
-    <string name="widget_content_size">Widget text size</string>
-    <string name="widget_content_size_summary">Larger tells widgets they have a little more room than they take, so widgets like Samsung\'s draw bigger text, as on One UI. Nothing is stretched; if a widget gets cut off, pick a smaller size.</string>
+    <string name="big_samsung_widgets">Bigger Samsung widgets</string>
+    <string name="big_samsung_widgets_summary">Draws the clock, calendar, weather and other Samsung widgets with bigger text, as on One UI, fitted to their space.</string>
     <string name="settings_icons">Icons</string>
     <string name="settings_look">Look and feel</string>
     <string name="settings_badges_gestures">Badges and gestures</string>

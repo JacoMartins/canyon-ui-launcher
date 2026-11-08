@@ -80,12 +80,53 @@ class LauncherWidgetHost(context: Context, private val onProvidersChanged: () ->
 @SuppressLint("ViewConstructor")
 class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
+    companion object {
+        /** "Bigger Samsung widgets": about One UI's text size on a Galaxy A54. */
+        const val SAMSUNG_ZOOM = 1.15f
+    }
+
     /**
      * No padding inside the widget: Android adds 8dp on every side for some widgets (Samsung's
      * clock and calendar among them), which One UI 9 does not; the gap around widgets is the
      * cells' inset ([WidgetFrame.INSET_DP]) alone.
      */
     override fun setPadding(left: Int, top: Int, right: Int, bottom: Int) = super.setPadding(0, 0, 0, 0)
+
+    /**
+     * How much bigger the widget's content is drawn ("Bigger Samsung widgets"). The widget is
+     * still told its full size (so it picks the layout and text it shows at that size), but its
+     * content is laid out in a box this much narrower and shorter, then drawn scaled up to fill
+     * the view exactly: bigger text, nothing cut off. Touches follow the scale (it is a child's
+     * transform).
+     */
+    var zoom = 1f
+        set(value) {
+            if (field == value) return
+            field = value
+            requestLayout()
+        }
+
+    /** Lays the content out at the view's size divided by [zoom]. */
+    private fun measureZoomed(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        val h = MeasureSpec.getSize(heightMeasureSpec)
+        setMeasuredDimension(w, h)
+        val cw = MeasureSpec.makeMeasureSpec((w / zoom).toInt(), MeasureSpec.EXACTLY)
+        val ch = MeasureSpec.makeMeasureSpec((h / zoom).toInt(), MeasureSpec.EXACTLY)
+        for (i in 0 until childCount) getChildAt(i).measure(cw, ch)
+    }
+
+    /** Places the content at the top left and scales it up to fill the view. */
+    private fun layoutZoomed() {
+        for (i in 0 until childCount) {
+            val c = getChildAt(i)
+            c.layout(0, 0, c.measuredWidth, c.measuredHeight)
+            c.pivotX = 0f
+            c.pivotY = 0f
+            c.scaleX = zoom
+            c.scaleY = zoom
+        }
+    }
 
     var blockContent = false
 
@@ -148,7 +189,7 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         try {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            if (zoom != 1f) measureZoomed(widthMeasureSpec, heightMeasureSpec) else super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         } catch (e: RuntimeException) {
             setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
             onCrash(e)
@@ -157,7 +198,12 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         try {
-            super.onLayout(changed, left, top, right, bottom)
+            if (zoom != 1f) {
+                layoutZoomed()
+            } else {
+                for (i in 0 until childCount) getChildAt(i).let { it.scaleX = 1f; it.scaleY = 1f }
+                super.onLayout(changed, left, top, right, bottom)
+            }
         } catch (e: RuntimeException) {
             onCrash(e)
         }
