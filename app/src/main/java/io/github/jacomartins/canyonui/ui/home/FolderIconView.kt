@@ -52,6 +52,11 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
     var pair = false
         set(value) { if (field != value) { field = value; invalidate() } }
 
+    /** The icon behind another (a pair's, a stack's): darkened, so the front one stands out. */
+    private val backPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        colorFilter = android.graphics.LightingColorFilter(0xFFA6A6A6.toInt(), 0)
+    }
+
     /** Drawn as a pair now (asked for, two apps, a normal folder). */
     private val asPair get() = pair && !isLarge && folder?.apps?.size == 2
 
@@ -229,7 +234,7 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
         val backLeft = if (rtl) box.left else box.right - side
         hit.set(backLeft.toInt(), box.top.toInt(), (backLeft + side).toInt(), (box.top + side).toInt())
-        canvas.drawBitmap(f.apps[1].app.icon, null, hit, bitmapPaint)
+        canvas.drawBitmap(f.apps[1].app.icon, null, hit, backPaint)
         val frontLeft = if (rtl) backLeft + shift else backLeft - shift
         hit.set(frontLeft.toInt(), (box.top + shift).toInt(), (frontLeft + side).toInt(), (box.top + shift + side).toInt())
         canvas.drawBitmap(f.apps[0].app.icon, null, hit, bitmapPaint)
@@ -261,7 +266,7 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         stackRect.set(backLeft, cell.top.toFloat(), backLeft + side, cell.top + side)
         if (back != null) {
             hit.set(stackRect.left.toInt(), stackRect.top.toInt(), stackRect.right.toInt(), stackRect.bottom.toInt())
-            canvas.drawBitmap(back.app.icon, null, hit, bitmapPaint)
+            canvas.drawBitmap(back.app.icon, null, hit, backPaint)
         } else {
             placeholderPaint.color = if (darkSurface) 0x59FFFFFF else 0x47000000
             val p = iconMask(side, placeholderPath)
