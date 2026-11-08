@@ -34,9 +34,10 @@ class WidgetSizes(
     /** Report the whole cell to pill widgets instead of the pill's thickness (see settings). */
     private val reportFullCell: Boolean = false,
     /**
-     * The "Widget text size" setting: widgets are told a size this much smaller than their view.
-     * Samsung's widgets pick a layout by the size they are told, and a smaller one has fewer rows
-     * and bigger text (as on One UI); the view itself keeps its size and nothing is stretched.
+     * The "Widget text size" setting: widgets are told a size this much bigger than their view.
+     * Samsung's widgets draw their text in proportion to the size they are told (tried on a
+     * Galaxy A54: told less, the text shrank), so a bigger one gives One UI's bigger text; the
+     * view itself keeps its size and nothing is stretched.
      */
     private val contentScale: Float = 1f,
 ) {
@@ -45,9 +46,9 @@ class WidgetSizes(
         return if (spans == 1 && pillMaxPx > 0 && !reportFullCell) minOf(full, pillMaxPx) else full
     }
 
-    // The size the widget is told: the view's, less the text size setting.
-    private fun widthDp(spanX: Int) = extentPx(spanX, cellWidth) / density / contentScale
-    private fun heightDp(spanY: Int) = extentPx(spanY, cellHeight) / density / contentScale
+    // The size the widget is told: the view's, times the text size setting.
+    private fun widthDp(spanX: Int) = extentPx(spanX, cellWidth) / density * contentScale
+    private fun heightDp(spanY: Int) = extentPx(spanY, cellHeight) / density * contentScale
 
 
     private fun spansFor(px: Int, cell: Int, limit: Int) = ceil(px.toFloat() / cell.coerceAtLeast(1)).toInt().coerceIn(1, limit)

@@ -131,7 +131,7 @@
     <!-- Widgets (Stage 3) -->
     <string name="home_screen_section">Home screen</string>
     <string name="widget_content_size">Widget text size</string>
-    <string name="widget_content_size_summary">Larger tells widgets they have a little less room, so widgets like Samsung\'s choose their bigger text with fewer rows, as on One UI. Nothing is stretched.</string>
+    <string name="widget_content_size_summary">Larger tells widgets they have a little more room than they take, so widgets like Samsung\'s draw bigger text, as on One UI. Nothing is stretched; if a widget gets cut off, pick a smaller size.</string>
     <string name="settings_icons">Icons</string>
     <string name="settings_look">Look and feel</string>
     <string name="settings_badges_gestures">Badges and gestures</string>

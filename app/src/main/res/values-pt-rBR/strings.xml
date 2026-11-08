@@ -130,7 +130,7 @@
     <!-- Widgets (Stage 3) -->
     <string name="home_screen_section">Tela inicial</string>
     <string name="widget_content_size">Tamanho do texto dos widgets</string>
-    <string name="widget_content_size_summary">Maior diz aos widgets que têm um pouco menos de espaço, então widgets como os da Samsung escolhem texto maior com menos linhas, como no One UI. Nada é esticado.</string>
+    <string name="widget_content_size_summary">Maior diz aos widgets que têm um pouco mais de espaço do que ocupam, então widgets como os da Samsung desenham texto maior, como no One UI. Nada é esticado; se um widget ficar cortado, escolha um tamanho menor.</string>
     <string name="settings_icons">Ícones</string>
     <string name="settings_look">Aparência</string>
     <string name="settings_badges_gestures">Indicadores e gestos</string>
