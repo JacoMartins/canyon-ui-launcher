@@ -332,12 +332,12 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
         actions.closeFolder()
     }
     val frostBlur = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState().value
-    // Behind the panel the home screen is frosted: much in the frosted mode, a little in the
-    // glass one (a blur of the home screen's copy taken as the folder opened); then dimmed.
+    // Behind the panel the home screen is frosted in the frosted mode (a blur of the home
+    // screen's copy taken as the folder opened); then dimmed.
     Box(Modifier.fillMaxSize()) {
-    if (frostBlur != null) {
-        val radius = if (frostBlur.mode == io.github.jacomartins.canyonui.data.RenderMode.FROSTED) FOLDER_FROST_BLUR else FOLDER_GLASS_BLUR
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = open() }.screenFrost(radius))
+    // Frosted only: in the glass mode home stays clear behind the folder (dimmed).
+    if (frostBlur?.mode == io.github.jacomartins.canyonui.data.RenderMode.FROSTED) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = open() }.screenFrost(FOLDER_FROST_BLUR))
     }
     Box(
         Modifier
@@ -727,9 +727,8 @@ private const val FOLDER_PANEL_ALPHA = 0.72f
 /** How dark the home screen gets behind an open folder. */
 private const val FOLDER_DIM = 0.45f
 
-/** How much home is blurred behind an open folder: in the frosted mode, and the glass one. */
+/** How much home is blurred behind an open folder in the frosted mode. */
 private val FOLDER_FROST_BLUR = 28.dp
-private val FOLDER_GLASS_BLUR = 8.dp
 private const val OPEN_MS = 320
 private const val CLOSE_MS = 260
 private const val MENU_MS = 220
