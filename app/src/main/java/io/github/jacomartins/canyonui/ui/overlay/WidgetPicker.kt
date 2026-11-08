@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.clipToBounds
@@ -172,26 +173,37 @@ private fun filter(picker: WidgetPickerState, q: String): List<PickerGroup> {
 private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
     val label = stringResource(R.string.widgets_search)
-    Surface(shape = CircleShape, color = colors.surfaceContainerHighest, modifier = modifier.fillMaxWidth().height(48.dp).oneDepthBorder()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = Spacing.md, end = Spacing.smMd).size(20.dp))
+    // Home's search bar's look (its fill a little see-through, its haze, the bold search icon and
+    // its text), with the icon in the text's colour rather than its gradient.
+    val fill = io.github.jacomartins.canyonui.ui.design.searchBarFill()
+    val text = io.github.jacomartins.canyonui.ui.design.searchBarText()
+    Surface(
+        shape = CircleShape,
+        color = fill.copy(alpha = fill.alpha * io.github.jacomartins.canyonui.ui.design.HOME_BAR_OPACITY),
+        modifier = modifier.fillMaxWidth().height(io.github.jacomartins.canyonui.ui.design.SearchBarHeight).oneDepthBorder(),
+    ) {
+        Row(
+            Modifier.drawBehind { drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE)) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(R.drawable.ph_search_bold), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 18.dp, end = 12.dp).size(24.dp))
             BasicTextField(
                 value = query,
                 onValueChange = onChange,
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+                textStyle = text.copy(color = colors.onSurface),
                 cursorBrush = SolidColor(colors.primary),
                 modifier = Modifier.weight(1f).semantics { contentDescription = label },
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
-                        if (query.isEmpty()) Text(label, style = MaterialTheme.typography.bodyLarge, color = colors.onSurfaceVariant, maxLines = 1)
+                        if (query.isEmpty()) Text(label, style = text, color = colors.onSurfaceVariant, maxLines = 1)
                         inner()
                     }
                 },
             )
             if (query.isNotEmpty()) {
-                IconButton(onClick = { onChange("") }) {
-                    Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                IconButton(onClick = { onChange("") }, modifier = Modifier.padding(end = 8.dp)) {
+                    Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
             } else {
                 Spacer(Modifier.width(Spacing.md))

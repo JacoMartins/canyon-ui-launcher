@@ -162,10 +162,6 @@ private fun drawerTint(): Color {
 }
 private val SearchPillHeight = 56.dp
 
-/** How much darker than the theme's highest container the search field is. */
-private const val PILL_DARKEN_DARK = 0.55f
-private const val PILL_DARKEN_LIGHT = 0.12f
-
 /** The search field's place above the bottom (or the keyboard). */
 private val PillRest = 12.dp
 
@@ -421,17 +417,11 @@ private fun SearchPill(
     val navInsets = WindowInsets.navigationBars
     val darkTheme = io.github.jacomartins.canyonui.ui.design.isDarkSurface()
     // A darker field than the theme's highest container (more so in dark mode).
-    val pillFill = backdropColor(
-        androidx.compose.ui.graphics.lerp(colors.surfaceContainerHighest, Color.Black, if (darkTheme) PILL_DARKEN_DARK else PILL_DARKEN_LIGHT).copy(alpha = 0.92f),
-    )
+    val pillFill = io.github.jacomartins.canyonui.ui.design.searchBarFill()
     val pillContent = colors.onSurfaceVariant
     // The text as home's bar draws it (16sp medium, centred by the font itself, no extra
     // letter spacing), so the bar and this field look the same.
-    val barText = MaterialTheme.typography.titleMedium.copy(
-        lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified,
-        letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified,
-        lineHeightStyle = null,
-    )
+    val barText = io.github.jacomartins.canyonui.ui.design.searchBarText()
     val (gradStart, gradEnd) = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.of(darkTheme)
     // Home's bar wears this look.
     androidx.compose.runtime.SideEffect { model.onPillStyle?.invoke(pillFill.toArgb(), pillContent.toArgb(), darkTheme) }
