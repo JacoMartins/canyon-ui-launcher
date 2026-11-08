@@ -177,7 +177,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Mod
     // its text), with the icon in the text's colour rather than its gradient.
     val fill = io.github.jacomartins.canyonui.ui.design.searchBarFill()
     val text = io.github.jacomartins.canyonui.ui.design.searchBarText()
-    val content = io.github.jacomartins.canyonui.ui.design.SearchBarContent
+    val content = io.github.jacomartins.canyonui.ui.design.searchBarContent()
     Surface(
         shape = CircleShape,
         color = fill.copy(alpha = fill.alpha * io.github.jacomartins.canyonui.ui.design.HOME_BAR_OPACITY),
@@ -192,7 +192,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Mod
                 value = query,
                 onValueChange = onChange,
                 singleLine = true,
-                textStyle = text.copy(color = io.github.jacomartins.canyonui.ui.design.SearchBarInk),
+                textStyle = text.copy(color = io.github.jacomartins.canyonui.ui.design.searchBarInk()),
                 cursorBrush = SolidColor(colors.primary),
                 modifier = Modifier.weight(1f).semantics { contentDescription = label },
                 decorationBox = { inner ->

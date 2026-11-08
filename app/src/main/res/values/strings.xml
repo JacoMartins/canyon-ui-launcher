@@ -131,7 +131,7 @@
     <!-- Widgets (Stage 3) -->
     <string name="home_screen_section">Home screen</string>
     <string name="widget_content_size">Widget content size</string>
-    <string name="widget_content_size_summary">How big widgets draw their text and pictures in their space. Medium is about One UI\'s; Small is as the widget lays itself out.</string>
+    <string name="widget_content_size_summary">How big widgets draw their text and pictures in their space. Small (the default) is as the widget lays itself out; Medium and Large draw it bigger.</string>
     <string name="settings_icons">Icons</string>
     <string name="settings_look">Look and feel</string>
     <string name="settings_badges_gestures">Badges and gestures</string>

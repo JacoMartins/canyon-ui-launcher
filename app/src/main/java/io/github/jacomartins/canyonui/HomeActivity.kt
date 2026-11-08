@@ -184,7 +184,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private var resizeFrame: ResizeFrame? = null
     private var resizeAnyWidget = false
     private var fullCellWidgetSizes = true
-    private var widgetContentScale = io.github.jacomartins.canyonui.data.WIDGET_SCALE_MEDIUM
+    private var widgetContentScale = io.github.jacomartins.canyonui.data.WIDGET_SCALE_SMALL
     private var wallpaperTarget: String? = null
     private var lockTaps = 0
     private var badgeMode = "numbers"

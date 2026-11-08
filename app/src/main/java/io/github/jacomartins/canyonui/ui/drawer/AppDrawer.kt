@@ -415,10 +415,9 @@ private fun SearchPill(
     val density = LocalDensity.current
     val imeInsets = WindowInsets.ime
     val navInsets = WindowInsets.navigationBars
-    // The bar is black in both themes, so it always takes the dark theme's icon gradient.
-    val darkTheme = true
+    val darkTheme = io.github.jacomartins.canyonui.ui.design.isDarkSurface()
     val pillFill = io.github.jacomartins.canyonui.ui.design.searchBarFill()
-    val pillContent = io.github.jacomartins.canyonui.ui.design.SearchBarContent
+    val pillContent = io.github.jacomartins.canyonui.ui.design.searchBarContent()
     // The text as home's bar draws it (16sp medium, centred by the font itself, no extra
     // letter spacing), so the bar and this field look the same.
     val barText = io.github.jacomartins.canyonui.ui.design.searchBarText()
@@ -495,7 +494,7 @@ private fun SearchPill(
                 onValueChange = { model.query = it },
                 singleLine = true,
                 interactionSource = interaction,
-                textStyle = barText.copy(color = io.github.jacomartins.canyonui.ui.design.SearchBarInk),
+                textStyle = barText.copy(color = io.github.jacomartins.canyonui.ui.design.searchBarInk()),
                 cursorBrush = SolidColor(colors.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { onGo() }),
