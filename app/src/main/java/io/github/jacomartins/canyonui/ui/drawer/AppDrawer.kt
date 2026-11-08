@@ -523,7 +523,7 @@ private fun SearchPill(
                 },
             )
             when {
-                model.query.isNotEmpty() -> IconButton(onClick = { model.query = "" }) {
+                model.query.isNotEmpty() -> IconButton(onClick = { model.query = "" }, modifier = Modifier.padding(end = 8.dp)) {
                     Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
                 voiceSearch != null -> IconButton(onClick = voiceSearch, modifier = Modifier.padding(end = 4.dp)) {

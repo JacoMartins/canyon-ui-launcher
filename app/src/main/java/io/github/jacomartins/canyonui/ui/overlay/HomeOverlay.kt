@@ -586,6 +586,15 @@ private fun FolderApp(
     val haptics = LocalHapticFeedback.current
     Column(
         modifier
+            // In the stack behind its top app at first; slides out of it to its place. The
+            // whole cell moves (its icon is not clipped by the cell's own rounded shape on the way).
+            .graphicsLayer {
+                val e = entry ?: return@graphicsLayer
+                val k = ((open() - e.delay) / (1f - e.delay)).coerceIn(0f, 1f)
+                val eased = k * k * (3f - 2f * k)
+                translationX = e.from.x * (1f - eased)
+                translationY = e.from.y * (1f - eased)
+            }
             .onPlaced { coords.value = it }
             .clip(RoundedCornerShape(20.dp))
             .combinedClickable(
@@ -601,17 +610,7 @@ private fun FolderApp(
     ) {
         Image(
             app.app.image, contentDescription = null,
-            modifier = Modifier
-                .size(iconSize)
-                .graphicsLayer {
-                    val t = open()
-                    val e = entry ?: return@graphicsLayer
-                    // In the stack behind its top app at first; slides out of it to its place.
-                    val k = ((t - e.delay) / (1f - e.delay)).coerceIn(0f, 1f)
-                    val eased = k * k * (3f - 2f * k)
-                    translationX = e.from.x * (1f - eased)
-                    translationY = e.from.y * (1f - eased)
-                },
+            modifier = Modifier.size(iconSize),
         )
         Spacer(Modifier.height(AppIconView.LABEL_GAP_DP.dp))
         Text(
