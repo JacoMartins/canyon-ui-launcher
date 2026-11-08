@@ -61,12 +61,13 @@ val LauncherTypography: Typography = Typography(
         fontFamily = FontFamily(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, w.weight, false)),
     )
     t.copy(
-        displayLarge = t.displayLarge.weight(FontWeight.Bold),
-        displayMedium = t.displayMedium.weight(FontWeight.Bold),
-        displaySmall = t.displaySmall.weight(FontWeight.Bold),
-        headlineLarge = t.headlineLarge.weight(FontWeight.Bold),
-        headlineMedium = t.headlineMedium.weight(FontWeight.Bold),
-        headlineSmall = t.headlineSmall.weight(FontWeight.Bold),
+        // Titles at 800: the phone's font (One UI's) draws 700 no heavier than semibold.
+        displayLarge = t.displayLarge.weight(FontWeight.ExtraBold),
+        displayMedium = t.displayMedium.weight(FontWeight.ExtraBold),
+        displaySmall = t.displaySmall.weight(FontWeight.ExtraBold),
+        headlineLarge = t.headlineLarge.weight(FontWeight.ExtraBold),
+        headlineMedium = t.headlineMedium.weight(FontWeight.ExtraBold),
+        headlineSmall = t.headlineSmall.weight(FontWeight.ExtraBold),
         titleLarge = t.titleLarge.weight(FontWeight.SemiBold),
         titleMedium = t.titleMedium.weight(FontWeight.Medium),
         titleSmall = t.titleSmall.weight(FontWeight.Medium),
