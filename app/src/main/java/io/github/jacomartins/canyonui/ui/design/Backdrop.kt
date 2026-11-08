@@ -164,3 +164,20 @@ fun backdropColor(color: Color): Color {
     val blur by WallpaperBackdrop.active.collectAsState()
     return if (blur == null) color else color.copy(alpha = color.alpha * WallpaperBackdrop.fillShare(dark = color.luminance() < 0.5f))
 }
+
+/**
+ * A whole-screen frost over what the overlay's backdrop source shows (the home screen's copy, and
+ * the wallpaper): Haze's blur at [radius]. For the space behind an open folder. Nothing without a
+ * source or before Android 12.
+ */
+fun Modifier.screenFrost(radius: androidx.compose.ui.unit.Dp): Modifier = composed {
+    val haze = LocalBackdropHaze.current
+    if (haze == null || Build.VERSION.SDK_INT < 31) return@composed this
+    val style = remember(radius) {
+        HazeBlurStyle {
+            blurRadius(radius)
+            noiseFactor(0.05f)
+        }
+    }
+    this.hazeBlur(HazeInput.Sources(haze, HazeSourceSelection.All), style = style)
+}

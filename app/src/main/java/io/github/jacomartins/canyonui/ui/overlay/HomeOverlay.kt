@@ -88,6 +88,7 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
+import io.github.jacomartins.canyonui.ui.design.screenFrost
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -331,24 +332,18 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
         actions.closeFolder()
     }
     val frostBlur = io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop.active.collectAsState().value
-    val frostImage = remember(frostBlur) { frostBlur?.screen?.asImageBitmap() }
+    // Behind the panel the home screen is frosted: much in the frosted mode, a little in the
+    // glass one (a blur of the home screen's copy taken as the folder opened); then dimmed.
+    Box(Modifier.fillMaxSize()) {
+    if (frostBlur != null) {
+        val radius = if (frostBlur.mode == io.github.jacomartins.canyonui.data.RenderMode.FROSTED) FOLDER_FROST_BLUR else FOLDER_GLASS_BLUR
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = open() }.screenFrost(radius))
+    }
     Box(
         Modifier
             .fillMaxSize()
             .drawBehind {
                 val t = open()
-                // The frost behind the panel (frosted or glass mode): the blurred wallpaper over
-                // home, thick in the frosted mode and thinner in the glass one (home shows through
-                // more), with a faint haze; then the dim.
-                val b = frostBlur
-                if (b != null && frostImage != null) {
-                    val thick = if (b.mode == io.github.jacomartins.canyonui.data.RenderMode.FROSTED) FOLDER_FROST else FOLDER_FROST_GLASS
-                    drawImage(
-                        frostImage, dstSize = androidx.compose.ui.unit.IntSize(b.screenW, b.screenH),
-                        alpha = thick * t, filterQuality = androidx.compose.ui.graphics.FilterQuality.Low,
-                    )
-                    drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE).copy(alpha = 0.08f * t))
-                }
                 drawRect(Color.Black.copy(alpha = FOLDER_DIM * t))
             }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { close() }
@@ -418,27 +413,24 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                                 .semantics { contentDescription = pickerLabel },
                         )
                     }
-                    AnimatedVisibility(visible = showPicker) {
-                        Surface(
-                            shape = RoundedCornerShape(24.dp),
-                            color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.97f)),
-                            modifier = Modifier
-                                .padding(top = Spacing.smMd)
-                                .fillMaxWidth()
-                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }
-                                .oneDepthBorder(cornerRadius = 24.dp)
-                                .backdrop(RoundedCornerShape(24.dp)),
-                        ) {
-                            ColorPicker(
-                                initial = folder.color,
-                                labels = listOf(
-                                    stringResource(R.string.color_hue), stringResource(R.string.color_saturation),
-                                    stringResource(R.string.color_brightness), stringResource(R.string.color_opacity),
-                                ),
-                                onCommit = { actions.setFolderColor(folder, it) },
-                                modifier = Modifier.padding(Spacing.md),
-                            )
-                        }
+                    // Any colour, in a sheet of its own (the folder keeps its room).
+                    if (showPicker) {
+                        io.github.jacomartins.canyonui.ui.design.SheetDialog(
+                            onDismissRequest = { showPicker = false },
+                            title = { Text(pickerLabel) },
+                            text = {
+                                ColorPicker(
+                                    initial = folder.color,
+                                    labels = listOf(
+                                        stringResource(R.string.color_hue), stringResource(R.string.color_saturation),
+                                        stringResource(R.string.color_brightness), stringResource(R.string.color_opacity),
+                                    ),
+                                    onCommit = { actions.setFolderColor(folder, it) },
+                                    modifier = Modifier.padding(top = Spacing.sm),
+                                )
+                            },
+                            confirmButton = { io.github.jacomartins.canyonui.ui.design.PrimaryButton(stringResource(R.string.done), { showPicker = false }) },
+                        )
                     }
                 }
             }
@@ -561,6 +553,7 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
             }
         }
     }
+}
 }
 
 private val RainbowColors = listOf(
@@ -734,9 +727,9 @@ private const val FOLDER_PANEL_ALPHA = 0.72f
 /** How dark the home screen gets behind an open folder. */
 private const val FOLDER_DIM = 0.45f
 
-/** How much of the blurred wallpaper covers home behind an open folder: frosted, and glass. */
-private const val FOLDER_FROST = 0.8f
-private const val FOLDER_FROST_GLASS = 0.45f
+/** How much home is blurred behind an open folder: in the frosted mode, and the glass one. */
+private val FOLDER_FROST_BLUR = 28.dp
+private val FOLDER_GLASS_BLUR = 8.dp
 private const val OPEN_MS = 320
 private const val CLOSE_MS = 260
 private const val MENU_MS = 220
