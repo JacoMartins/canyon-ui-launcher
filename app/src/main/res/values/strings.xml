@@ -43,7 +43,6 @@
     <string name="layout_home_only">Home screen only</string>
     <string name="layout_home_only_summary">Every app is on the Home screen; no Apps screen</string>
     <string name="layout_separate_note">Each layout keeps its own pages, grid, icon size and hidden apps.</string>
-    <string name="home_grid">Grid</string>
     <string name="grid_columns">Columns</string>
     <string name="grid_rows">Rows</string>
     <string name="licenses">Open-source licenses</string>
@@ -51,7 +50,6 @@
     <string name="icon_pack_default">Default (system icons)</string>
     <string name="icon_pack_none_installed">No icon packs installed. Packs made for Nova, ADW, Apex or Go launchers appear here.</string>
     <string name="loading">Loading…</string>
-    <string name="icon_size">Icon size</string>
     <string name="icon_size_small">Small</string>
     <string name="icon_size_medium">Medium</string>
     <string name="icon_size_large">Large</string>
@@ -104,7 +102,6 @@
     <string name="gesture_service_label">Canyon UI gestures</string>
     <string name="gesture_service_summary">Lets home screen gestures lock the phone and open the notifications.</string>
     <string name="gesture_service_description">Canyon UI uses this only to lock the phone and to pull down the notifications when you use those gestures on the home screen. It does not read what is on the screen. Some banking apps refuse to open while a service like this one is on; turn it off if yours does.</string>
-    <string name="gestures">Gestures</string>
     <string name="gesture_lock">Tap empty space to lock</string>
     <string name="gesture_lock_off">Off</string>
     <string name="gesture_lock_double">Double tap</string>
@@ -180,7 +177,6 @@
     <string name="cancel">Cancel</string>
     <string name="save">Save</string>
     <string name="back">Back</string>
-    <string name="icon_shape">Icon shape</string>
     <string name="icon_shape_summary">Other shapes are drawn from each app\'s own icon, without effects the phone adds.</string>
     <string name="shape_system">Phone</string>
     <string name="shape_circle">Circle</string>
@@ -326,7 +322,6 @@
     <string name="action_ride">Ride to %1$s</string>
     <string name="action_drive">Drive to %1$s</string>
     <string name="action_in_app">Search “%1$s” in %2$s</string>
-    <string name="folders">Folders</string>
     <string name="folder_color_default">Default: follows light and dark mode</string>
     <string name="folder_color_custom">Custom color</string>
     <string name="folder_color_summary">Folders without a color of their own use this one. \"Apply to all folders\" also replaces the colors set on single folders.</string>

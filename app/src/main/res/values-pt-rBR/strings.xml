@@ -42,7 +42,6 @@
     <string name="layout_home_only">Apenas tela inicial</string>
     <string name="layout_home_only_summary">Todos os apps ficam na tela inicial; sem tela de apps</string>
     <string name="layout_separate_note">Cada layout guarda suas próprias páginas, grade, tamanho de ícone e apps ocultos.</string>
-    <string name="home_grid">Grade</string>
     <string name="grid_columns">Colunas</string>
     <string name="grid_rows">Linhas</string>
     <string name="licenses">Licenças de código aberto</string>
@@ -50,7 +49,6 @@
     <string name="icon_pack_default">Padrão (ícones do sistema)</string>
     <string name="icon_pack_none_installed">Nenhum pacote de ícones instalado. Pacotes feitos para os launchers Nova, ADW, Apex ou Go aparecem aqui.</string>
     <string name="loading">Carregando…</string>
-    <string name="icon_size">Tamanho dos ícones</string>
     <string name="icon_size_small">Pequeno</string>
     <string name="icon_size_medium">Médio</string>
     <string name="icon_size_large">Grande</string>
@@ -103,7 +101,6 @@
     <string name="gesture_service_label">Gestos do Canyon UI</string>
     <string name="gesture_service_summary">Permite que gestos na tela inicial bloqueiem o celular e abram as notificações.</string>
     <string name="gesture_service_description">O Canyon UI usa isto só para bloquear o celular e abrir as notificações quando você faz esses gestos na tela inicial. Ele não lê o que está na tela. Alguns apps de banco não abrem enquanto um serviço como este está ativo; desative-o se o seu banco fizer isso.</string>
-    <string name="gestures">Gestos</string>
     <string name="gesture_lock">Tocar em espaço vazio para bloquear</string>
     <string name="gesture_lock_off">Desativado</string>
     <string name="gesture_lock_double">Toque duplo</string>
@@ -179,7 +176,6 @@
     <string name="cancel">Cancelar</string>
     <string name="save">Salvar</string>
     <string name="back">Voltar</string>
-    <string name="icon_shape">Formato dos ícones</string>
     <string name="icon_shape_summary">Os outros formatos são desenhados a partir do ícone de cada app, sem os efeitos que o celular adiciona.</string>
     <string name="shape_system">Celular</string>
     <string name="shape_circle">Círculo</string>
@@ -325,7 +321,6 @@
     <string name="action_ride">Corrida até %1$s</string>
     <string name="action_drive">Dirigir até %1$s</string>
     <string name="action_in_app">Buscar “%1$s” no %2$s</string>
-    <string name="folders">Pastas</string>
     <string name="folder_color_default">Padrão: acompanha os modos claro e escuro</string>
     <string name="folder_color_custom">Cor personalizada</string>
     <string name="folder_color_summary">As pastas sem cor própria usam esta. \"Aplicar a todas as pastas\" também substitui as cores definidas em pastas individuais.</string>
