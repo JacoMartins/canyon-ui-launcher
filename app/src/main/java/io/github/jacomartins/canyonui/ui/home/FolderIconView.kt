@@ -317,18 +317,6 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         out.set(l.toInt(), t.toInt(), (l + icon).toInt(), (t + icon).toInt())
     }
 
-    /**
-     * Where the preview's icons are, in this view's coordinates: one cell per app shown (up to
-     * nine). The open folder's apps fly out of these cells into their places in the panel.
-     */
-    fun previewSlots(): List<RectF> {
-        val n = minOf(folder?.apps?.size ?: 0, 9)
-        return List(n) { i ->
-            cellRect(i, cell)
-            RectF(cell)
-        }
-    }
-
     @SuppressLint("ClickableViewAccessibility") // Taps still go through performClick().
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {

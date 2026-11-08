@@ -451,9 +451,9 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
             Surface(
                 modifier = Modifier
                     .onGloballyPositioned { c -> bounds = c.boundsInWindow() }
-                    // Grows out of the folder's tile, as One UI's: the panel's shape opens from the
-                    // tile's place and size to its own (its corners staying round, nothing
-                    // stretched), while the apps fly from the tile into their places.
+                    // As One UI's: the folder grows into the panel, in proportion, from the tile's
+                    // top-left (its first three rows lie over the tile's three), the apps it
+                    // shows staying where they are inside it.
                     .graphicsLayer {
                         val t = open()
                         val from = state.folderFrom
@@ -461,13 +461,12 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                             alpha = t
                             return@graphicsLayer
                         }
-                        val l = lerp(from.left - bounds.left, 0f, t)
-                        val top = lerp(from.top - bounds.top, 0f, t)
-                        val r = lerp(from.right - bounds.left, size.width, t)
-                        val b = lerp(from.bottom - bounds.top, size.height, t)
-                        val radius = lerp(from.width * TILE_CORNER_SHARE, 32.dp.toPx(), t)
-                        shape = RoundedRectShape(l, top, r, b, radius)
-                        clip = true
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                        val s = lerp(from.width / bounds.width, 1f, t)
+                        scaleX = s
+                        scaleY = s
+                        translationX = (from.left - bounds.left) * (1f - t)
+                        translationY = (from.top - bounds.top) * (1f - t)
                         alpha = (t * 6f).coerceIn(0f, 1f)
                     }
                     // Square cells: each column is as wide as a row is tall.
@@ -509,12 +508,20 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                                     for ((c, app) in row.withIndex()) {
                                         // The app being dragged leaves a gap where it was.
                                         val m = Modifier.weight(1f).graphicsLayer { alpha = if (state.folderDragId == app.id) 0f else 1f }
-                                        // The first page's apps fly out of the tile's preview (those past
-                                        // its last cell out of that one, where they are stacked).
+                                        // The apps stacked in the tile's last cell come out of it into their
+                                        // places; the others are already where they are.
                                         val i = r * FOLDER_COLUMNS + c
-                                        val slots = state.folderSlots
-                                        val slot = if (page == 0 && slots.isNotEmpty()) slots[minOf(i, slots.size - 1)] else null
-                                        FolderApp(app, folder, actions, iconSize, m, slot, open)
+                                        val stacked = page == 0 && folder.apps.size > STACK_CELL + 1 && i > STACK_CELL
+                                        val cellPx = with(LocalDensity.current) { rowHeight.toPx() }
+                                        val fromStack = if (stacked) {
+                                            androidx.compose.ui.geometry.Offset(
+                                                (STACK_CELL % FOLDER_COLUMNS - c) * cellPx,
+                                                (STACK_CELL / FOLDER_COLUMNS - r) * cellPx,
+                                            )
+                                        } else {
+                                            null
+                                        }
+                                        FolderApp(app, folder, actions, iconSize, m, fromStack, open)
                                     }
                                     repeat(FOLDER_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
@@ -563,12 +570,10 @@ private fun FolderApp(
     actions: OverlayActions,
     iconSize: androidx.compose.ui.unit.Dp,
     modifier: Modifier,
-    slot: androidx.compose.ui.geometry.Rect? = null,
+    fromStack: androidx.compose.ui.geometry.Offset? = null,
     open: () -> Float = { 1f },
 ) {
     val coords = remember { Coords() }
-    // Where this icon is at rest (window px), to fly from its [slot] in the tile.
-    var iconAt by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val haptics = LocalHapticFeedback.current
     Column(
         modifier
@@ -589,21 +594,14 @@ private fun FolderApp(
             app.app.image, contentDescription = null,
             modifier = Modifier
                 .size(iconSize)
-                .onGloballyPositioned { c -> iconAt = c.boundsInWindow() }
                 .graphicsLayer {
+                    val o = fromStack ?: return@graphicsLayer
+                    // Stacked in the tile's last cell: slides out of it into its place,
+                    // showing as it leaves the stack.
                     val t = open()
-                    if (slot == null || iconAt.isEmpty) {
-                        // Not in the tile's preview: comes in as the panel opens.
-                        alpha = ((t - 0.5f) / 0.5f).coerceIn(0f, 1f)
-                        return@graphicsLayer
-                    }
-                    // From its cell in the tile to its place here, growing on the way.
-                    val k = 1f - t
-                    translationX = (slot.center.x - iconAt.center.x) * k
-                    translationY = (slot.center.y - iconAt.center.y) * k
-                    val s = lerp(slot.width / iconAt.width, 1f, t)
-                    scaleX = s
-                    scaleY = s
+                    translationX = o.x * (1f - t)
+                    translationY = o.y * (1f - t)
+                    alpha = (t * 3f).coerceIn(0f, 1f)
                 },
         )
         Spacer(Modifier.height(AppIconView.LABEL_GAP_DP.dp))
@@ -620,19 +618,8 @@ private fun FolderApp(
     }
 }
 
-/** A rounded rectangle at ([l], [t], [r], [b]) inside the shaped area (the folder panel opening). */
-private class RoundedRectShape(val l: Float, val t: Float, val r: Float, val b: Float, val radius: Float) : androidx.compose.ui.graphics.Shape {
-    override fun createOutline(
-        size: androidx.compose.ui.geometry.Size,
-        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-        density: androidx.compose.ui.unit.Density,
-    ): androidx.compose.ui.graphics.Outline = androidx.compose.ui.graphics.Outline.Rounded(
-        androidx.compose.ui.geometry.RoundRect(l, t, r, b, androidx.compose.ui.geometry.CornerRadius(radius)),
-    )
-}
-
-/** A folder tile's corner radius, as a share of its width (the open panel starts from it). */
-private const val TILE_CORNER_SHARE = 0.18f
+/** The tile's last preview cell, where the apps past it are stacked (0-based). */
+private const val STACK_CELL = 8
 
 // ------------------------------------------------------------------------------- snackbar
 

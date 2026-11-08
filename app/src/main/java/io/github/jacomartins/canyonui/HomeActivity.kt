@@ -1627,9 +1627,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             if (ui.folder != null || ui.editMode) return@captureHome
             ui.folderBackdrop = shot
             ui.folderFrom = from
-            ui.folderSlots = view.previewSlots().map { r ->
-                androidx.compose.ui.geometry.Rect(loc[0] + r.left * scale, loc[1] + r.top * scale, loc[0] + r.right * scale, loc[1] + r.bottom * scale)
-            }
             ui.folder = folder
             openedTile = WeakReference(view)
             view.animate().alpha(0f).setStartDelay(0).setDuration(TILE_FADE_OUT_MS).start()
