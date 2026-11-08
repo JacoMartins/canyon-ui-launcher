@@ -83,9 +83,9 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
             gradEnd = a1
             gradSize = -1
         }
-        // Dark mode's bar is solid black: no see-through and no frost over it.
+        // Dark mode's bar is see-through black like a folder: the field's own opacity, no frost.
         solid = dark
-        val a = if (dark) 255 else ((fill ushr 24) * OPACITY).toInt().coerceIn(0, 255)
+        val a = if (dark) fill ushr 24 else ((fill ushr 24) * OPACITY).toInt().coerceIn(0, 255)
         this.fill.color = (a shl 24) or (fill and 0xFFFFFF)
         applyContent(content)
         invalidate()
