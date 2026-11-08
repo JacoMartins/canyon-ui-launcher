@@ -163,8 +163,8 @@ private fun drawerTint(): Color {
 private val SearchPillHeight = 56.dp
 
 /** How much darker than the theme's highest container the search field is. */
-private const val PILL_DARKEN_DARK = 0.35f
-private const val PILL_DARKEN_LIGHT = 0.06f
+private const val PILL_DARKEN_DARK = 0.55f
+private const val PILL_DARKEN_LIGHT = 0.12f
 
 /** The search field's place above the bottom (or the keyboard). */
 private val PillRest = 12.dp
@@ -478,8 +478,9 @@ private fun SearchPill(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // A bigger search icon in the light blue to teal gradient (deeper in dark mode).
+            // Bold here (asked for, the one exception to the regular icons).
             Icon(
-                painterResource(R.drawable.ph_search), contentDescription = null, tint = Color.White,
+                painterResource(R.drawable.ph_search_bold), contentDescription = null, tint = Color.White,
                 modifier = Modifier
                     .padding(start = 18.dp, end = 12.dp)
                     .size(24.dp)

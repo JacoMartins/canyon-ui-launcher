@@ -36,7 +36,8 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         textSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 16f, resources.displayMetrics)
         typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 500, false)
     }
-    private val icon = ContextCompat.getDrawable(context, R.drawable.ph_search)!!.mutate()
+    // Bold here (asked for, the one exception to the regular icons), as in the search field.
+    private val icon = ContextCompat.getDrawable(context, R.drawable.ph_search_bold)!!.mutate()
     private val mic = ContextCompat.getDrawable(context, R.drawable.ph_mic)!!.mutate()
     private val label = resources.getString(R.string.search)
 
