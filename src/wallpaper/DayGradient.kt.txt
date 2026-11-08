@@ -1,0 +1,371 @@
+package io.github.jacomartins.canyonui.wallpaper
+
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.cbrt
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.hypot
+import kotlin.math.pow
+import kotlin.math.sin
+
+/**
+ * The Day gradient wallpaper: a sky that goes from top to bottom colour with one large soft glow,
+ * like a sun (or moon) travelling round the screen through the day: low on the right at night,
+ * rising on the left at dawn, across the top by day, sinking on the right in the evening. Each
+ * key moment is a [Sky]; between them everything blends, position included, through the colours
+ * between (OKLCH) rather than grey. Pure (tested).
+ */
+object DayGradient {
+
+    /**
+     * Colours as 0xRRGGBB. The glow is at ([gx], [gy]) as shares of the screen's width and height
+     * (it may sit just outside), [radius] in widths, [strength] 0..1.
+     */
+    data class Sky(
+        val top: Int,
+        val bottom: Int,
+        val glow: Int,
+        val strength: Float,
+        val gx: Float,
+        val gy: Float,
+        val radius: Float,
+    )
+
+    // Minute of the day -> sky, in order; the day wraps from the last back to the first.
+    private val KEYS = listOf(
+        0 to Sky(0x0B0B38, 0x0E1A3A, 0x1E6E6A, 0.85f, 1.25f, 0.95f, 1.15f), // 00:00 navy, teal glow low right
+        // The night stays dark and still until the first light begins at 04:40: the night's glow
+        // fades where it is, and dawn's rises on the other side (no glow sweeping across).
+        200 to Sky(0x0C0C3A, 0x101A3C, 0x1C4E58, 0.35f, 1.25f, 1.00f, 1.10f), // 03:20 dark, the teal glow fading
+        280 to Sky(0x0C0C3A, 0x101A3C, 0x1A2A4A, 0.00f, -0.05f, 1.05f, 0.94f), // 04:40 darkest, no glow
+        320 to Sky(0x4E7A9A, 0x7E7A86, 0xC8735E, 0.80f, -0.05f, 1.05f, 0.94f), // 05:20 first light, coral low left
+        354 to Sky(0x1F86A8, 0x66B7A6, 0xE0A050, 0.90f, -0.10f, 0.55f, 0.74f), // 05:54 teal sky, orange sun left
+        507 to Sky(0x3C9EE6, 0x4AA6E2, 0x9ED23C, 0.90f, 0.20f, 0.18f, 0.68f), // 08:27 blue, lime top left
+        678 to Sky(0x5A9CF0, 0x5EA4E6, 0x7EE08A, 0.80f, 0.45f, 0.15f, 0.74f), // 11:18 blue, green top
+        798 to Sky(0x3C74D8, 0x7A90B8, 0xF2924A, 0.85f, 0.80f, 0.20f, 0.68f), // 13:18 orange top right
+        918 to Sky(0x4A52C8, 0x6A6AD0, 0xF0806E, 0.90f, 1.00f, 0.25f, 0.88f), // 15:18 violet blue, coral
+        1038 to Sky(0x3A1A50, 0x6A2E28, 0xA0503A, 0.90f, 1.10f, 0.35f, 0.94f), // 17:18 purple over brown
+        // After the orange the light goes down quickly, dimmer and greyer: dusk, not more sunset.
+        1062 to Sky(0x22163A, 0x3A1C1E, 0x6A3626, 0.85f, 1.10f, 0.30f, 1.05f), // 17:42 plum over dark brown, dim ember right
+        1122 to Sky(0x0A1430, 0x221838, 0x48183E, 0.85f, 1.15f, 0.55f, 1.05f), // 18:42 navy, muted magenta right
+        1200 to Sky(0x0A1230, 0x161A40, 0x30204E, 0.75f, 1.10f, 0.65f, 0.94f), // 20:00 night blue, faint violet
+        1299 to Sky(0x0A0E2C, 0x0C2028, 0x18564A, 0.75f, 0.60f, 1.10f, 1.08f), // 21:39 navy, teal glow low
+    )
+
+    private const val DAY = 24 * 60
+
+    /**
+     * The sky at [minute] of the day (fractions allowed), blended between the nearest keys:
+     * [eased] settles at each key moment; otherwise it moves at a steady pace all day.
+     */
+    fun at(minute: Float, eased: Boolean = true): Sky {
+        val m = ((minute % DAY) + DAY) % DAY
+        val i = KEYS.indexOfLast { it.first <= m }.coerceAtLeast(0)
+        val (m0, a) = KEYS[i]
+        val (m1raw, b) = KEYS[(i + 1) % KEYS.size]
+        val m1 = if (m1raw <= m0) m1raw + DAY else m1raw
+        // Eased, so the sky settles at each key moment instead of turning at a corner.
+        val lin = ((m - m0) / (m1 - m0)).coerceIn(0f, 1f)
+        val k = if (eased) lin * lin * (3f - 2f * lin) else lin
+        return Sky(
+            mixColor(a.top, b.top, k), mixColor(a.bottom, b.bottom, k), mixColor(a.glow, b.glow, k),
+            lerp(a.strength, b.strength, k), lerp(a.gx, b.gx, k), lerp(a.gy, b.gy, k), lerp(a.radius, b.radius, k),
+        )
+    }
+
+    private fun lerp(a: Float, b: Float, k: Float) = a + (b - a) * k
+
+    /**
+     * Between two key colours through the colours between them (OKLCH: lightness, colourfulness
+     * and hue each move straight on), rather than through a dull grey mix, and a little more
+     * colourful half way ([TRANSITION_LIFT]).
+     */
+    private fun mixColor(a: Int, b: Int, k: Float): Int {
+        if (k <= 0f) return a
+        if (k >= 1f) return b
+        val x = Oklab.of(a)
+        val y = Oklab.of(b)
+        val ca = hypot(x[1], x[2])
+        val cb = hypot(y[1], y[2])
+        var ha = atan2(x[2], x[1])
+        var hb = atan2(y[2], y[1])
+        // A near-grey has no hue of its own: it takes the other's.
+        if (ca < GREY) ha = hb
+        if (cb < GREY) hb = ha
+        var dh = hb - ha
+        if (dh > PI) dh -= (2 * PI).toFloat()
+        if (dh < -PI) dh += (2 * PI).toFloat()
+        val h = ha + dh * k
+        // The lift is for the day's clear colours; dusk and night stay as dim as they are.
+        val light = lerp(x[0], y[0], k)
+        val lift = TRANSITION_LIFT * ((light - 0.35f) / 0.35f).coerceIn(0f, 1f)
+        val c = lerp(ca, cb, k) * (1f + lift * sin(PI.toFloat() * k))
+        return Oklab.toInt(Oklab.rgb(lerp(x[0], y[0], k), c * cos(h), c * sin(h)))
+    }
+
+    private const val GREY = 0.02f
+    private const val TRANSITION_LIFT = 0.3f
+
+    /** Colours more vivid all round (OKLab colourfulness), within what the screen shows. */
+    private const val CHROMA = 1.12f
+
+    /**
+     * [sky]'s colours in OKLab ([Oklab]), where the picture's own gradients are mixed: they stay
+     * clear between two colours instead of greying (and the shaders take them like this).
+     */
+    class Palette(val top: FloatArray, val bottom: FloatArray, val glow: FloatArray)
+
+    /**
+     * The phone is in dark mode: the sky is dimmed, its bright colours most (night is already
+     * dark and stays as it is). Set by the app as the mode changes.
+     */
+    @Volatile
+    var night = false
+
+    private const val NIGHT_DIM = 0.25f
+
+    fun palette(sky: Sky): Palette {
+        val dark = night
+        fun lab(c: Int) = Oklab.of(c).also {
+            it[1] *= CHROMA
+            it[2] *= CHROMA
+            if (dark) it[0] *= 1f - NIGHT_DIM * it[0]
+        }
+        return Palette(lab(sky.top), lab(sky.bottom), lab(sky.glow))
+    }
+
+    /**
+     * How much glow at a distance whose square is [q] radii²: a full disc that ends in a short
+     * soft edge (a mask), rather than a haze that fades all the way out.
+     */
+    private fun glow(q: Float, hardness: Float) = exp(-q.pow(hardness))
+
+    /** The glow's edge at rest: a disc with a short soft edge (higher is sharper). */
+    const val HARDNESS = 2f
+
+    /**
+     * The light the glow casts: a soft beam from it towards the middle of the screen, widening
+     * and fading as it goes, like sunlight falling across a room. ([dx], [dy]) is the pixel's
+     * offset from the glow, in widths.
+     */
+    private fun cast(sky: Sky, dx: Float, dy: Float, aspect: Float): Float {
+        var bx = 0.5f - sky.gx
+        var by = (0.5f - sky.gy) * aspect
+        val len = hypot(bx, by)
+        if (len < 1e-3f) return 0f
+        bx /= len; by /= len
+        val along = dx * bx + dy * by
+        if (along <= 0f) return 0f
+        val across = kotlin.math.abs(dx * by - dy * bx)
+        val width = sky.radius * (CAST_WIDTH + CAST_SPREAD * along)
+        val k = across / width
+        return CAST * exp(-k * k) * exp(-along * CAST_FADE)
+    }
+
+    private const val CAST = 0.45f
+    private const val CAST_WIDTH = 0.45f
+    private const val CAST_SPREAD = 0.9f
+    private const val CAST_FADE = 0.9f
+
+    /** Where between the two colours of the linear version height [v] is: clear bands, then a step. */
+    internal fun band(v: Float, step: Float = 1f): Float {
+        // [step] below 1 narrows the blend to a sharper step about the middle.
+        val from = 0.5f - (0.5f - BAND_FROM) * step
+        val to = 0.5f + (BAND_TO - 0.5f) * step
+        val k = ((v - from) / (to - from)).coerceIn(0f, 1f)
+        return k * k * (3f - 2f * k)
+    }
+
+    private const val BAND_FROM = 0.18f
+    private const val BAND_TO = 0.82f
+
+    /** One pixel of [sky] at ([u], [v]) on a screen [aspect] (height / width) tall, as r, g, b in 0..1. */
+    fun color(sky: Sky, u: Float, v: Float, aspect: Float): FloatArray = color(palette(sky), sky, u, v, aspect)
+
+    /** [color] with [sky]'s [palette] worked out once (for a whole picture). */
+    fun color(p: Palette, sky: Sky, u: Float, v: Float, aspect: Float, hardness: Float = HARDNESS): FloatArray {
+        val c = labAt(p, sky, u, v, aspect, hardness)
+        return Oklab.rgb(c[0], c[1], c[2])
+    }
+
+    /** [color] in OKLab. */
+    private fun labAt(p: Palette, sky: Sky, u: Float, v: Float, aspect: Float, hardness: Float = HARDNESS): FloatArray {
+        val dx = u - sky.gx
+        val dy = (v - sky.gy) * aspect
+        val disc = glow((dx * dx + dy * dy) / (sky.radius * sky.radius), hardness)
+        val w = sky.strength * (disc + cast(sky, dx, dy, aspect) * (1f - disc))
+        return FloatArray(3) { i ->
+            val base = p.top[i] + (p.bottom[i] - p.top[i]) * v
+            base + (p.glow[i] - base) * w
+        }
+    }
+
+    /**
+     * The linear version: two colours only, in horizontal bands from top to bottom. The glow
+     * takes the end on its side (the top by day, the bottom at night) and the sky's colour at
+     * the far end is the other.
+     */
+    fun linearColor(sky: Sky, u: Float, v: Float, aspect: Float): FloatArray = linearColor(linearPair(sky), v)
+
+    /** [linearColor] from its [linearPair], at height [v]. */
+    fun linearColor(pair: Pair<FloatArray, FloatArray>, v: Float, step: Float = 1f): FloatArray {
+        val (a, b) = pair
+        val k = band(v, step)
+        return Oklab.rgb(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k)
+    }
+
+    /**
+     * The two colours of [linearColor], top and bottom, in OKLab: the round sky's own colours
+     * over its upper and lower parts, glow and cast light included, so the linear version shows
+     * the same light (as much of the glow's colour as the round one has there, no more).
+     */
+    fun linearPair(sky: Sky): Pair<FloatArray, FloatArray> {
+        val p = palette(sky)
+        fun average(from: Float, to: Float): FloatArray {
+            val sum = FloatArray(3)
+            var chroma = 0f
+            var n = 0
+            for (j in 0 until PAIR_ROWS) {
+                val v = from + (to - from) * (j + 0.5f) / PAIR_ROWS
+                for (i in 0 until PAIR_COLUMNS) {
+                    val c = labAt(p, sky, (i + 0.5f) / PAIR_COLUMNS, v, PAIR_ASPECT)
+                    for (k in 0..2) sum[k] += c[k]
+                    chroma += hypot(c[1], c[2])
+                    n++
+                }
+            }
+            for (k in 0..2) sum[k] /= n
+            // Mixing two hues (orange glow on a teal sky) greys the average: it keeps the
+            // colourfulness of the colours it came from.
+            val mixed = hypot(sum[1], sum[2])
+            if (mixed > 1e-4f) {
+                val k = (chroma / n) / mixed
+                sum[1] *= k
+                sum[2] *= k
+            }
+            return sum
+        }
+        return average(0f, 0.4f) to average(0.6f, 1f)
+    }
+
+    private const val PAIR_ROWS = 8
+    private const val PAIR_COLUMNS = 8
+    private const val PAIR_ASPECT = 2.1f
+
+    /** [linearColor] as AGSL: the two colours (OKLab) arrive as uniforms ([linearPair]). */
+    const val LINEAR_SHADER = """
+        uniform float2 size;
+        uniform float3 top;
+        uniform float3 bottom;
+        uniform float edge; // 1 at rest; less is a sharper step (the opening)
+        float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+        float3 srgb(float3 lab) {
+            float l = lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z;
+            float m = lab.x - 0.1055613458 * lab.y - 0.0638541728 * lab.z;
+            float s = lab.x - 0.0894841775 * lab.y - 1.2914855480 * lab.z;
+            l = l * l * l; m = m * m * m; s = s * s * s;
+            float3 c = float3(
+                4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+                -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+                -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
+            c = clamp(c, 0.0, 1.0);
+            float3 hi = 1.055 * pow(max(c, float3(1e-6)), float3(1.0 / 2.4)) - 0.055;
+            return mix(c * 12.92, hi, step(0.0031308, c));
+        }
+        half4 main(float2 xy) {
+            float3 c = srgb(mix(top, bottom, smoothstep(0.5 - 0.32 * edge, 0.5 + 0.32 * edge, xy.y / size.y)));
+            c += (hash(xy) - 0.5) / 255.0;
+            return half4(half3(clamp(c, 0.0, 1.0)), 1.0);
+        }
+    """
+
+    /** The same picture as AGSL; the sky arrives as uniforms ([palette] at the moment drawn). */
+    const val SHADER = """
+        uniform float2 size;
+        uniform float3 top;
+        uniform float3 bottom;
+        uniform float3 glow;
+        uniform float4 shape; // gx, gy, radius, strength
+        uniform float hardness; // the glow's edge: 2 at rest, sharper above
+        float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
+        float3 srgb(float3 lab) {
+            float l = lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z;
+            float m = lab.x - 0.1055613458 * lab.y - 0.0638541728 * lab.z;
+            float s = lab.x - 0.0894841775 * lab.y - 1.2914855480 * lab.z;
+            l = l * l * l; m = m * m * m; s = s * s * s;
+            float3 c = float3(
+                4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+                -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+                -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s);
+            c = clamp(c, 0.0, 1.0);
+            float3 hi = 1.055 * pow(max(c, float3(1e-6)), float3(1.0 / 2.4)) - 0.055;
+            return mix(c * 12.92, hi, step(0.0031308, c));
+        }
+        half4 main(float2 xy) {
+            float u = xy.x / size.x;
+            float v = xy.y / size.y;
+            float aspect = size.y / size.x;
+            float3 c = mix(top, bottom, v);
+            float2 d = float2(u - shape.x, (v - shape.y) * aspect);
+            float q = dot(d, d) / (shape.z * shape.z);
+            float disc = exp(-pow(q, hardness));
+            // The light it casts towards the middle (DayGradient.cast).
+            float2 b = float2(0.5 - shape.x, (0.5 - shape.y) * aspect);
+            float beam = 0.0;
+            if (length(b) > 0.001) {
+                b = b / length(b);
+                float along = dot(d, b);
+                float across = abs(d.x * b.y - d.y * b.x);
+                float k = across / (shape.z * (0.45 + 0.9 * along));
+                beam = along > 0.0 ? 0.45 * exp(-k * k) * exp(-along * 0.9) : 0.0;
+            }
+            float w = shape.w * (disc + beam * (1.0 - disc));
+            c = srgb(mix(c, glow, w));
+            c += (hash(xy) - 0.5) / 255.0;
+            return half4(half3(clamp(c, 0.0, 1.0)), 1.0);
+        }
+    """
+}
+
+/** OKLab (Björn Ottosson's), a colour space where straight mixes look even and stay clear. */
+internal object Oklab {
+    private fun toLinear(c: Float) = if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).pow(2.4f)
+    private fun toSrgb(c: Float): Float {
+        val x = c.coerceIn(0f, 1f)
+        return if (x <= 0.0031308f) x * 12.92f else 1.055f * x.pow(1f / 2.4f) - 0.055f
+    }
+
+    /** 0xRRGGBB as L, a, b. */
+    fun of(rgb: Int): FloatArray {
+        val r = toLinear(((rgb shr 16) and 0xFF) / 255f)
+        val g = toLinear(((rgb shr 8) and 0xFF) / 255f)
+        val b = toLinear((rgb and 0xFF) / 255f)
+        val l = cbrt(0.4122214708f * r + 0.5363325363f * g + 0.0514459929f * b)
+        val m = cbrt(0.2119034982f * r + 0.6806995451f * g + 0.1073969566f * b)
+        val s = cbrt(0.0883024619f * r + 0.2817188376f * g + 0.6299787005f * b)
+        return floatArrayOf(
+            0.2104542553f * l + 0.7936177850f * m - 0.0040720468f * s,
+            1.9779984951f * l - 2.4285922050f * m + 0.4505937099f * s,
+            0.0259040371f * l + 0.7827717662f * m - 0.8086757660f * s,
+        )
+    }
+
+    /** L, a, b as r, g, b in 0..1 (colours beyond the screen's clipped to it). */
+    fun rgb(lL: Float, a: Float, b: Float): FloatArray {
+        var l = lL + 0.3963377774f * a + 0.2158037573f * b
+        var m = lL - 0.1055613458f * a - 0.0638541728f * b
+        var s = lL - 0.0894841775f * a - 1.2914855480f * b
+        l = l * l * l; m = m * m * m; s = s * s * s
+        return floatArrayOf(
+            toSrgb(4.0767416621f * l - 3.3077115913f * m + 0.2309699292f * s),
+            toSrgb(-1.2684380046f * l + 2.6097574011f * m - 0.3413193965f * s),
+            toSrgb(-0.0041960863f * l - 0.7034186147f * m + 1.7076147010f * s),
+        )
+    }
+
+    fun toInt(c: FloatArray): Int {
+        fun ch(x: Float) = (x.coerceIn(0f, 1f) * 255f + 0.5f).toInt()
+        return (ch(c[0]) shl 16) or (ch(c[1]) shl 8) or ch(c[2])
+    }
+}
