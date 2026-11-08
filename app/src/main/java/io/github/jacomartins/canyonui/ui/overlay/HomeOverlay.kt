@@ -451,7 +451,9 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
             Surface(
                 modifier = Modifier
                     .onGloballyPositioned { c -> bounds = c.boundsInWindow() }
-                    // Grows out of the folder's tile: from its place and size to the panel's.
+                    // Grows out of the folder's tile, as One UI's: the panel's shape opens from the
+                    // tile's place and size to its own (its corners staying round, nothing
+                    // stretched), while the apps fly from the tile into their places.
                     .graphicsLayer {
                         val t = open()
                         val from = state.folderFrom
@@ -459,11 +461,14 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                             alpha = t
                             return@graphicsLayer
                         }
-                        scaleX = lerp(from.width / bounds.width, 1f, t)
-                        scaleY = lerp(from.height / bounds.height, 1f, t)
-                        translationX = (from.center.x - bounds.center.x) * (1f - t)
-                        translationY = (from.center.y - bounds.center.y) * (1f - t)
-                        alpha = (t * 4f).coerceIn(0f, 1f)
+                        val l = lerp(from.left - bounds.left, 0f, t)
+                        val top = lerp(from.top - bounds.top, 0f, t)
+                        val r = lerp(from.right - bounds.left, size.width, t)
+                        val b = lerp(from.bottom - bounds.top, size.height, t)
+                        val radius = lerp(from.width * TILE_CORNER_SHARE, 32.dp.toPx(), t)
+                        shape = RoundedRectShape(l, top, r, b, radius)
+                        clip = true
+                        alpha = (t * 6f).coerceIn(0f, 1f)
                     }
                     // Square cells: each column is as wide as a row is tall.
                     .width(rowHeight * FOLDER_COLUMNS + Spacing.sm * 2)
@@ -474,11 +479,8 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                 // More see-through than the other panels: the apps float over the glass or blur.
                 color = backdropColor(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = FOLDER_PANEL_ALPHA)),
             ) {
-                // The apps appear once the panel has grown most of the way.
                 Column(
-                    Modifier
-                        .graphicsLayer { alpha = ((open() - 0.35f) / 0.65f).coerceIn(0f, 1f) }
-                        .padding(vertical = Spacing.md),
+                    Modifier.padding(vertical = Spacing.md),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     val pages = (folder.apps.size + FOLDER_PER_PAGE - 1) / FOLDER_PER_PAGE
@@ -502,12 +504,17 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                                 },
                             verticalArrangement = Arrangement.Top,
                         ) {
-                            for (row in apps.chunked(FOLDER_COLUMNS)) {
+                            for ((r, row) in apps.chunked(FOLDER_COLUMNS).withIndex()) {
                                 Row(Modifier.fillMaxWidth().height(rowHeight)) {
-                                    for (app in row) {
+                                    for ((c, app) in row.withIndex()) {
                                         // The app being dragged leaves a gap where it was.
                                         val m = Modifier.weight(1f).graphicsLayer { alpha = if (state.folderDragId == app.id) 0f else 1f }
-                                        FolderApp(app, folder, actions, iconSize, m)
+                                        // The first page's apps fly out of the tile's preview (those past
+                                        // its last cell out of that one, where they are stacked).
+                                        val i = r * FOLDER_COLUMNS + c
+                                        val slots = state.folderSlots
+                                        val slot = if (page == 0 && slots.isNotEmpty()) slots[minOf(i, slots.size - 1)] else null
+                                        FolderApp(app, folder, actions, iconSize, m, slot, open)
                                     }
                                     repeat(FOLDER_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
                                 }
@@ -550,8 +557,18 @@ private val TitleShadow = Shadow(Color.Black.copy(alpha = 0.45f), Offset(0f, 2f)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FolderApp(app: AppEntry, folder: FolderEntry, actions: OverlayActions, iconSize: androidx.compose.ui.unit.Dp, modifier: Modifier) {
+private fun FolderApp(
+    app: AppEntry,
+    folder: FolderEntry,
+    actions: OverlayActions,
+    iconSize: androidx.compose.ui.unit.Dp,
+    modifier: Modifier,
+    slot: androidx.compose.ui.geometry.Rect? = null,
+    open: () -> Float = { 1f },
+) {
     val coords = remember { Coords() }
+    // Where this icon is at rest (window px), to fly from its [slot] in the tile.
+    var iconAt by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
     val haptics = LocalHapticFeedback.current
     Column(
         modifier
@@ -568,7 +585,27 @@ private fun FolderApp(app: AppEntry, folder: FolderEntry, actions: OverlayAction
             .padding(vertical = Spacing.smMd),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Image(app.app.image, contentDescription = null, modifier = Modifier.size(iconSize))
+        Image(
+            app.app.image, contentDescription = null,
+            modifier = Modifier
+                .size(iconSize)
+                .onGloballyPositioned { c -> iconAt = c.boundsInWindow() }
+                .graphicsLayer {
+                    val t = open()
+                    if (slot == null || iconAt.isEmpty) {
+                        // Not in the tile's preview: comes in as the panel opens.
+                        alpha = ((t - 0.5f) / 0.5f).coerceIn(0f, 1f)
+                        return@graphicsLayer
+                    }
+                    // From its cell in the tile to its place here, growing on the way.
+                    val k = 1f - t
+                    translationX = (slot.center.x - iconAt.center.x) * k
+                    translationY = (slot.center.y - iconAt.center.y) * k
+                    val s = lerp(slot.width / iconAt.width, 1f, t)
+                    scaleX = s
+                    scaleY = s
+                },
+        )
         Spacer(Modifier.height(AppIconView.LABEL_GAP_DP.dp))
         Text(
             app.app.label,
@@ -577,10 +614,25 @@ private fun FolderApp(app: AppEntry, folder: FolderEntry, actions: OverlayAction
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = Spacing.xs),
+            // The names come in last, once the icons are nearly in place.
+            modifier = Modifier.padding(horizontal = Spacing.xs).graphicsLayer { alpha = ((open() - 0.6f) / 0.4f).coerceIn(0f, 1f) },
         )
     }
 }
+
+/** A rounded rectangle at ([l], [t], [r], [b]) inside the shaped area (the folder panel opening). */
+private class RoundedRectShape(val l: Float, val t: Float, val r: Float, val b: Float, val radius: Float) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density,
+    ): androidx.compose.ui.graphics.Outline = androidx.compose.ui.graphics.Outline.Rounded(
+        androidx.compose.ui.geometry.RoundRect(l, t, r, b, androidx.compose.ui.geometry.CornerRadius(radius)),
+    )
+}
+
+/** A folder tile's corner radius, as a share of its width (the open panel starts from it). */
+private const val TILE_CORNER_SHARE = 0.18f
 
 // ------------------------------------------------------------------------------- snackbar
 
