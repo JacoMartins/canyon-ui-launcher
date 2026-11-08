@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -89,8 +88,8 @@ class ListGroupScope {
 fun ListGroup(title: String? = null, footer: String? = null, build: ListGroupScope.() -> Unit) {
     val rows = ListGroupScope().apply(build).rows
     if (rows.isEmpty()) return
-    // A margin from the screen's sides (16dp, as Canyon Orchestrator's lists), and the interface's border.
-    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.md).padding(top = if (title != null) Spacing.md else Spacing.none)) {
+    // A small margin from the screen's sides, and the interface's border (the depth ring).
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm).padding(top = if (title != null) Spacing.md else Spacing.none)) {
         if (title != null) SectionHeader(title, Modifier.padding(start = Spacing.md, bottom = Spacing.sm))
         Surface(
             shape = RoundedCornerShape(PANEL_RADIUS),
@@ -120,7 +119,7 @@ fun ListGroup(title: String? = null, footer: String? = null, build: ListGroupSco
 fun ListDivider() {
     Box(
         Modifier
-            .padding(start = 58.dp)
+            .padding(start = ROW_PADDING_H + 30.dp + Spacing.md)
             .fillMaxWidth()
             .height(0.5.dp)
             .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
@@ -152,21 +151,25 @@ fun ListRow(
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(interaction, indication = null, role = role, onClick = onClick) else Modifier)
             .background(light)
-            .heightIn(min = 50.dp)
-            .padding(horizontal = Spacing.md, vertical = 10.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = ROW_PADDING_H, vertical = ROW_PADDING_V),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.smMd),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        if (icon != null) IconTile(icon, tile)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        // With a line or two under the title, the tile sits at the top beside the title, not in
+        // the middle of the text.
+        val tall = subtitle != null || value != null
+        if (icon != null) Box(if (tall) Modifier.align(Alignment.Top) else Modifier) { IconTile(icon, tile) }
+        // The title, what the row is about, then the option chosen (in the accent colour).
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = colors.onSurface)
             if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-        }
-        if (value != null) {
-            Text(
-                value, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp),
-            )
+            if (value != null) {
+                Text(
+                    value, style = MaterialTheme.typography.bodyMedium, color = colors.primary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
         trailing?.invoke()
         if (caret) {
@@ -196,10 +199,14 @@ fun ListRadioRow(title: String, @DrawableRes icon: Int?, tile: Color, selected: 
 @Composable
 fun ListContentRow(content: @Composable () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(horizontal = ROW_PADDING_H, vertical = ROW_PADDING_V),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) { content() }
 }
 
 /** The settings panels' corners. */
 val PANEL_RADIUS = 28.dp
+
+/** Room inside a row: from the panel's sides, and above and below. */
+private val ROW_PADDING_H = 20.dp
+private val ROW_PADDING_V = 14.dp
