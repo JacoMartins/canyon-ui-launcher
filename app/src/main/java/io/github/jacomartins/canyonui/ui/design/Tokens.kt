@@ -77,9 +77,10 @@ val LauncherTypography: Typography = Typography(
         labelSmall = t.labelSmall.weight(FontWeight.Medium),
     )
 }.let { t ->
-    // Text sits in the middle of its line (the phone's font has more room above than below), so
-    // it is centred in buttons and fields.
-    val centred = LineHeightStyle(alignment = LineHeightStyle.Alignment.Center, trim = LineHeightStyle.Trim.None)
+    // Where the text sits in its line: the stock place (by the font's room above and below) sat a
+    // little low in buttons and fields with the phone's font, and the exact middle a little high;
+    // a share of the line's extra space above it between the two centres it.
+    val centred = LineHeightStyle(alignment = LineHeightStyle.Alignment(TEXT_TOP_SHARE), trim = LineHeightStyle.Trim.None)
     fun TextStyle.c() = copy(lineHeightStyle = centred)
     t.copy(
         displayLarge = t.displayLarge.c(), displayMedium = t.displayMedium.c(), displaySmall = t.displaySmall.c(),
@@ -97,3 +98,6 @@ val ButtonText: TextStyle
         fontWeight = FontWeight.SemiBold,
         fontFamily = FontFamily(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 600, false)),
     )
+
+/** The share of a line's extra height above the text (0.5 = the middle; see LauncherTypography). */
+private const val TEXT_TOP_SHARE = 0.6f

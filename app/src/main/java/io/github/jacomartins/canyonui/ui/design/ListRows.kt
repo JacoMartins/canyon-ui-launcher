@@ -89,12 +89,13 @@ class ListGroupScope {
 fun ListGroup(title: String? = null, footer: String? = null, build: ListGroupScope.() -> Unit) {
     val rows = ListGroupScope().apply(build).rows
     if (rows.isEmpty()) return
-    Column(Modifier.fillMaxWidth().padding(top = if (title != null) Spacing.md else Spacing.none)) {
+    // A small margin from the screen's sides, and the interface's border (the depth ring).
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm).padding(top = if (title != null) Spacing.md else Spacing.none)) {
         if (title != null) SectionHeader(title, Modifier.padding(start = Spacing.md, bottom = Spacing.sm))
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = if (isDarkSurface()) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLowest,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().oneDepthBorder(cornerRadius = 20.dp),
         ) {
             Column {
                 rows.forEachIndexed { i, row ->
