@@ -87,43 +87,6 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
      */
     override fun setPadding(left: Int, top: Int, right: Int, bottom: Int) = super.setPadding(0, 0, 0, 0)
 
-    /**
-     * How much bigger the widget's content is drawn (the "Widget content size" setting), as One
-     * UI does: the content is laid out at the view's size divided by this, which is also the size
-     * the widget is told ([WidgetSizes.applySize]), and scaled up to fill the view. Touches follow
-     * the scale (a child's transform).
-     */
-    var contentScale = 1f
-        set(value) {
-            if (field == value) return
-            field = value
-            requestLayout()
-        }
-
-    /** Lays the content out at the view's size less [contentScale], scaled up to fill it. */
-    private fun measureScaled(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val w = MeasureSpec.getSize(widthMeasureSpec)
-        val h = MeasureSpec.getSize(heightMeasureSpec)
-        setMeasuredDimension(w, h)
-        val cw = (w / contentScale).toInt().coerceAtLeast(0)
-        val ch = (h / contentScale).toInt().coerceAtLeast(0)
-        for (i in 0 until childCount) {
-            getChildAt(i).measure(MeasureSpec.makeMeasureSpec(cw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(ch, MeasureSpec.EXACTLY))
-        }
-    }
-
-    private fun layoutScaled() {
-        for (i in 0 until childCount) {
-            val c = getChildAt(i)
-            c.layout(0, 0, c.measuredWidth, c.measuredHeight)
-            c.pivotX = 0f
-            c.pivotY = 0f
-            c.scaleX = contentScale
-            c.scaleY = contentScale
-        }
-    }
-
-
     var blockContent = false
 
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
@@ -185,7 +148,7 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         try {
-            if (contentScale != 1f) measureScaled(widthMeasureSpec, heightMeasureSpec) else super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         } catch (e: RuntimeException) {
             setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
             onCrash(e)
@@ -194,12 +157,7 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         try {
-            if (contentScale != 1f) {
-                layoutScaled()
-            } else {
-                for (i in 0 until childCount) getChildAt(i).let { it.scaleX = 1f; it.scaleY = 1f }
-                super.onLayout(changed, left, top, right, bottom)
-            }
+            super.onLayout(changed, left, top, right, bottom)
         } catch (e: RuntimeException) {
             onCrash(e)
         }

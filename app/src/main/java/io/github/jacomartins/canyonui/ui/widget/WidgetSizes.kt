@@ -33,18 +33,19 @@ class WidgetSizes(
     private val pillMaxPx: Int = 0,
     /** Report the whole cell to pill widgets instead of the pill's thickness (see settings). */
     private val reportFullCell: Boolean = false,
-    /** How much bigger widgets' content is drawn ([LauncherWidgetHostView.contentScale]). */
+    /**
+     * The "Widget text size" setting: widgets are told a size this much smaller than their view.
+     * Samsung's widgets pick a layout by the size they are told, and a smaller one has fewer rows
+     * and bigger text (as on One UI); the view itself keeps its size and nothing is stretched.
+     */
     private val contentScale: Float = 1f,
 ) {
     private fun extentPx(spans: Int, cell: Int): Int {
-        // The whole cells, gap included, as One UI tells its widgets: Samsung's widgets size
-        // their text by the size they are told (and keep their own margins), so leaving the gap
-        // out made their text smaller than on One UI. The view itself still keeps the gap.
-        val full = spans * cell
+        val full = spans * cell - 2 * insetPx
         return if (spans == 1 && pillMaxPx > 0 && !reportFullCell) minOf(full, pillMaxPx) else full
     }
 
-    // The size the content is laid out at: the view's, less the content scale.
+    // The size the widget is told: the view's, less the text size setting.
     private fun widthDp(spanX: Int) = extentPx(spanX, cellWidth) / density / contentScale
     private fun heightDp(spanY: Int) = extentPx(spanY, cellHeight) / density / contentScale
 
@@ -92,7 +93,6 @@ class WidgetSizes(
      * switch between light and dark mode.
      */
     fun applySize(view: AppWidgetHostView, spanX: Int, spanY: Int, night: Boolean) {
-        (view as? LauncherWidgetHostView)?.contentScale = contentScale
         val w = widthDp(spanX)
         val h = heightDp(spanY)
         val extras = Bundle().apply { putBoolean(NIGHT_OPTION, night) }
