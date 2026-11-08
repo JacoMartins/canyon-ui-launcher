@@ -137,6 +137,8 @@
     <string name="settings_badges_gestures">Badges and gestures</string>
     <string name="about">About Canyon UI</string>
     <string name="about_version">Version %1$s</string>
+    <string name="menu_pair_on">Show as a pair</string>
+    <string name="menu_pair_off">Show as a folder</string>
     <string name="widgets">Widgets</string>
     <string name="widgets_for_stack">Add to stack</string>
     <string name="widgets_search">Search widgets</string>

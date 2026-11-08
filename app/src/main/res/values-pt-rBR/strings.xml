@@ -136,6 +136,8 @@
     <string name="settings_badges_gestures">Indicadores e gestos</string>
     <string name="about">Sobre o Canyon UI</string>
     <string name="about_version">Versão %1$s</string>
+    <string name="menu_pair_on">Mostrar como par</string>
+    <string name="menu_pair_off">Mostrar como pasta</string>
     <string name="widgets">Widgets</string>
     <string name="widgets_for_stack">Adicionar à pilha</string>
     <string name="widgets_search">Buscar widgets</string>

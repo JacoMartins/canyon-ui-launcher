@@ -48,6 +48,13 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
     var settingsColor: Int = 0
         set(value) { field = value; invalidate() }
 
+    /** Shown as a pair (a setting for folders of two apps): the two icons, one over the other. */
+    var pair = false
+        set(value) { if (field != value) { field = value; invalidate() } }
+
+    /** Drawn as a pair now (asked for, two apps, a normal folder). */
+    private val asPair get() = pair && !isLarge && folder?.apps?.size == 2
+
     /** The icon shape from settings: a normal folder takes it; a large one its corner style. */
     var shape: IconShape = IconShape.SYSTEM
         set(value) { if (field != value) { field = value; pathSize = -1f; invalidate() } }
@@ -157,6 +164,10 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
         // before the picker existed were opaque and get the usual translucency.
         // A colour the user chose is drawn exactly as chosen, opacity included (opaque pink is
         // opaque); only the theme's default colour thins over the glass or blur.
+        if (asPair) {
+            drawPair(canvas, f)
+            return
+        }
         val own = if (f.color != 0) f.color else settingsColor
         val custom = own != 0
         bgPaint.color = if (custom) own else defaultColor
@@ -202,6 +213,28 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
             badgeRect.set(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt())
             badgePainter.draw(canvas, badgeRect, badge, badgeNumbers)
         }
+        if (style.showLabel && shownLabel.isNotEmpty()) {
+            canvas.drawText(shownLabel, width / 2f, box.bottom + gapPx - textPaint.ascent(), textPaint)
+        }
+    }
+
+    /**
+     * A folder of two apps as a pair: no folder tile, the first app in front towards the bottom
+     * and the start, the second behind it towards the top and the end (as a large folder's
+     * stack), then the badge and the name as usual.
+     */
+    private fun drawPair(canvas: Canvas, f: FolderEntry) {
+        val side = box.width() * PAIR_SCALE
+        val shift = box.width() - side
+        val rtl = layoutDirection == LAYOUT_DIRECTION_RTL
+        val backLeft = if (rtl) box.left else box.right - side
+        hit.set(backLeft.toInt(), box.top.toInt(), (backLeft + side).toInt(), (box.top + side).toInt())
+        canvas.drawBitmap(f.apps[1].app.icon, null, hit, bitmapPaint)
+        val frontLeft = if (rtl) backLeft + shift else backLeft - shift
+        hit.set(frontLeft.toInt(), (box.top + shift).toInt(), (frontLeft + side).toInt(), (box.top + shift + side).toInt())
+        canvas.drawBitmap(f.apps[0].app.icon, null, hit, bitmapPaint)
+        badgeRect.set(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt())
+        badgePainter.draw(canvas, badgeRect, badge, badgeNumbers)
         if (style.showLabel && shownLabel.isNotEmpty()) {
             canvas.drawText(shownLabel, width / 2f, box.bottom + gapPx - textPaint.ascent(), textPaint)
         }
@@ -346,6 +379,9 @@ class FolderIconView(context: Context, private var style: AppIconView.LabelStyle
     }
 
     private companion object {
+        /** A pair's icons, as a share of the folder icon's side. */
+        private const val PAIR_SCALE = 0.8f
+
         const val SLOTS = 9
 
         /** Share of the usual over-blur tint a folder keeps (less frosted than panels). */

@@ -118,6 +118,8 @@ data class LauncherSettings(
     val noOutlineWidgets: Set<String> = emptySet(),
     /** Widget stacks (ids) that turn to their next widget on their own. */
     val slideshowStacks: Set<String> = emptySet(),
+    /** Two-app folders shown as a pair of overlapping icons (folder ids). */
+    val pairFolders: Set<String> = emptySet(),
     /** Home screen only mode: apps start in category folders; new apps join theirs. */
     val autoCategories: Boolean = false,
     val iconStyle: IconStyle = IconStyle(),
@@ -169,6 +171,7 @@ class SettingsStore(private val context: Context) {
         val WALLPAPER_TARGET = stringPreferencesKey("wallpaper_target")
         val NO_OUTLINE_WIDGETS = stringSetPreferencesKey("no_outline_widgets")
         val SLIDESHOW_STACKS = stringSetPreferencesKey("slideshow_stacks")
+        val PAIR_FOLDERS = stringSetPreferencesKey("pair_folders")
         val AUTO_CATEGORIES = booleanPreferencesKey("auto_categories")
         val ICON_SHAPE = stringPreferencesKey("icon_shape")
         val THEMED_ICONS = booleanPreferencesKey("themed_icons")
@@ -226,6 +229,7 @@ class SettingsStore(private val context: Context) {
             wallpaperTarget = p[Keys.WALLPAPER_TARGET],
             noOutlineWidgets = p[Keys.NO_OUTLINE_WIDGETS] ?: emptySet(),
             slideshowStacks = p[Keys.SLIDESHOW_STACKS] ?: emptySet(),
+            pairFolders = p[Keys.PAIR_FOLDERS] ?: emptySet(),
             autoCategories = p[Keys.AUTO_CATEGORIES] ?: false,
             iconStyle = IconStyle(
                 shape = IconShape.fromKey(p[Keys.ICON_SHAPE]),
@@ -314,6 +318,13 @@ class SettingsStore(private val context: Context) {
         context.dataStore.edit {
             val set = it[Keys.NO_OUTLINE_WIDGETS].orEmpty()
             it[Keys.NO_OUTLINE_WIDGETS] = if (on) set - provider else set + provider
+        }
+    }
+
+    suspend fun setPairFolder(folderId: Long, on: Boolean) {
+        context.dataStore.edit {
+            val set = it[Keys.PAIR_FOLDERS].orEmpty()
+            it[Keys.PAIR_FOLDERS] = if (on) set + folderId.toString() else set - folderId.toString()
         }
     }
 

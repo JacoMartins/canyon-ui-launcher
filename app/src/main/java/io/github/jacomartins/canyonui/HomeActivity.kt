@@ -198,6 +198,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
     private var widgetBorder = true
     private var noOutline: Set<String> = emptySet()
     private var slideshows: Set<String> = emptySet()
+    private var pairFolders: Set<String> = emptySet()
 
     /** The ring is on unless turned off in settings, or for this kind of widget. */
     private fun outlineFor(entry: HomeEntry): Boolean = widgetBorder && when (entry) {
@@ -631,10 +632,11 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                     dragLayer.onSwipeDown = if (s.swipeDownNotifications) ::openNotifications else null
                     ui.categoryMode = s.autoCategories && s.layoutMode == LayoutMode.HOME_ONLY
                     if (s.pendingSearchWidget) addSearchWidget()
-                    if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets || slideshows != s.slideshowStacks) {
+                    if (widgetBorder != s.widgetBorder || noOutline != s.noOutlineWidgets || slideshows != s.slideshowStacks || pairFolders != s.pairFolders) {
                         widgetBorder = s.widgetBorder
                         noOutline = s.noOutlineWidgets
                         slideshows = s.slideshowStacks
+                        pairFolders = s.pairFolders
                         state?.let(::bind)
                     }
                     setHintVisible(!hintSeen && drawerEnabled)
@@ -896,7 +898,12 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             val style = if (p.container == Container.DOCK) dockStyle else homeStyle
             when (view) {
                 is AppIconView -> { view.bind((entry as AppEntry).app); view.useStyle(style); badgeView(view) }
-                is FolderIconView -> { view.bind(entry as FolderEntry); view.useStyle(style); badgeView(view) }
+                is FolderIconView -> {
+                    view.pair = entry.id.toString() in pairFolders
+                    view.bind(entry as FolderEntry)
+                    view.useStyle(style)
+                    badgeView(view)
+                }
             }
             val isWidget = entry is WidgetEntry || entry is StackEntry
             val inset = if (isWidget) widgetInset else 0
@@ -1166,6 +1173,13 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
                         MenuEntry(R.drawable.ph_shrink, getString(R.string.menu_make_normal)) { setLarge(entry, false) }
                     } else {
                         MenuEntry(R.drawable.ph_enlarge, getString(R.string.menu_make_large)) { setLarge(entry, true) }
+                    }
+                }
+                // A folder of two apps can show them as a pair of icons instead of a folder.
+                if (entry.apps.size == 2 && !entry.isLarge) {
+                    val paired = entry.id.toString() in pairFolders
+                    out += MenuEntry(R.drawable.ph_stack, getString(if (paired) R.string.menu_pair_off else R.string.menu_pair_on)) {
+                        lifecycleScope.launch { launcher.settings.setPairFolder(entry.id, !paired) }
                     }
                 }
                 // A category folder stays while its category is organized: no ungroup or remove.
