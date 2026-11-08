@@ -69,8 +69,26 @@ class HomeScreenLayout(context: Context, columns: Int, rows: Int, dockSlots: Int
     /** What stands in the dots' place now (Canyon's bar or the chosen widget). */
     val searchView: android.view.View get() = searchWidget ?: searchBar
 
+    /**
+     * The Apps screen's (or search's) own field stands in for the bar while the screen opens
+     * from home: the bar is hidden meanwhile (by visibility, so no fade of home's can show it).
+     */
+    var searchHeld = false
+        set(value) {
+            if (field == value) return
+            field = value
+            applySearchViews()
+        }
+
     private fun applySearchViews() {
-        searchBar.visibility = if (searchBarMode && searchWidget == null) VISIBLE else GONE
+        // With the bar on, the dots are not shown at all (hidden, not only see-through: a fade
+        // of home's must not bring them back).
+        indicator.visibility = if (searchBarMode) INVISIBLE else VISIBLE
+        searchBar.visibility = when {
+            !searchBarMode || searchWidget != null -> GONE
+            searchHeld -> INVISIBLE
+            else -> VISIBLE
+        }
         searchWidget?.visibility = if (searchBarMode) VISIBLE else GONE
         searchView.alpha = if (editing) 0f else 1f
     }

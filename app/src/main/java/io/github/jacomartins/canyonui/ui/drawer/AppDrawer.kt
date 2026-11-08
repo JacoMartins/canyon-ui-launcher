@@ -216,6 +216,9 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
     val haze = remember { HazeState() }
     val cornerPx = with(LocalDensity.current) { DRAWER_CORNER.toPx() }
     CompositionLocalProvider(LocalBackdropHaze provides haze) {
+    // The search field sits outside the screen's clipped sheet: opening from home's search bar
+    // it holds over that bar, above the sheet's top edge while the sheet slides up.
+    Box(Modifier.fillMaxSize()) {
     Box(
         Modifier
             .fillMaxSize()
@@ -315,6 +318,7 @@ fun AppDrawer(model: DrawerModel, touch: DragLayer.DrawerTouchState, actions: Dr
         Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)) {
             TopBar(onShowHidden = { showHidden = true }, onSettings = actions::openSettings, showMenu = actions::showMenu)
         }
+    }
         SearchPill(
             model = model,
             voiceSearch = actions.voiceSearch,

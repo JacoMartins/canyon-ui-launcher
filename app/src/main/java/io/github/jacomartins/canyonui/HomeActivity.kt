@@ -270,7 +270,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         lastDrawerProgress = p
         if (p <= 0f) {
             if (drawerModel.barTravel) drawerModel.barTravel = false
-            if (home.searchBar.alpha != 1f) home.searchBar.alpha = 1f
+            home.searchHeld = false
             return
         }
         if (from <= 0f && !drawerModel.barTravel) {
@@ -279,7 +279,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
             if (can) {
                 drawerModel.keyboardTravel = drawerModel.searchOnly || focusSearchOnOpen
                 drawerModel.barTravel = true
-                home.searchBar.alpha = 0f
+                home.searchHeld = true
             }
         }
     }
