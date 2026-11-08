@@ -119,7 +119,8 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
     var showLicenses by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    if (showAbout) AboutScreen(onBack = { showAbout = false }, onLicenses = { showLicenses = true }) else Column(
+    io.github.jacomartins.canyonui.ui.design.ScreenSwitch(showAbout, depth = { if (it) 1 else 0 }) { about ->
+    if (about) AboutScreen(onBack = { showAbout = false }, onLicenses = { showLicenses = true }) else Column(
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -434,6 +435,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             }
         }
         }
+    }
     }
     if (showLicenses) {
         val text = remember { context.assets.open("licenses/phosphor-icons.txt").bufferedReader().use { it.readText() } }

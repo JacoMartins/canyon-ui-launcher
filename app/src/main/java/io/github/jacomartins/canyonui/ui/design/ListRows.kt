@@ -89,8 +89,8 @@ class ListGroupScope {
 fun ListGroup(title: String? = null, footer: String? = null, build: ListGroupScope.() -> Unit) {
     val rows = ListGroupScope().apply(build).rows
     if (rows.isEmpty()) return
-    // A small margin from the screen's sides, and the interface's border (the depth ring).
-    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm).padding(top = if (title != null) Spacing.md else Spacing.none)) {
+    // A margin from the screen's sides (16dp, as Canyon Orchestrator's lists), and the interface's border.
+    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.md).padding(top = if (title != null) Spacing.md else Spacing.none)) {
         if (title != null) SectionHeader(title, Modifier.padding(start = Spacing.md, bottom = Spacing.sm))
         Surface(
             shape = RoundedCornerShape(PANEL_RADIUS),

@@ -190,8 +190,7 @@ private fun WallpaperScreen(onDone: () -> Unit) {
     }
     val apps by produceState(emptyList<SourceApp>()) { value = withContext(Dispatchers.IO) { sourceApps(context) } }
 
-    val photo = chosen
-    if (photo != null) {
+    val cropContent: @Composable (Uri) -> Unit = { photo ->
         CropScreen(photo, onCancel = { chosen = null; forDayCycle = false }, onConfirm = { cropped = it })
         cropped?.let { crop ->
             if (forDayCycle) {
@@ -216,11 +215,10 @@ private fun WallpaperScreen(onDone: () -> Unit) {
                 SetDialog(photo, crop, onDone, onDismiss = { cropped = null }, clear = { cropped = null; chosen = null })
             }
         }
-        return
     }
 
     // One folder open: its photos, newest first; back returns to the chooser.
-    folder?.let { f ->
+    val folderContent: @Composable (PhotoFolder) -> Unit = { f ->
         androidx.activity.compose.BackHandler { folder = null }
         val photos by produceState(emptyList<Pair<Uri, ImageBitmap>>(), f.id) {
             value = withContext(Dispatchers.IO) { recentPhotos(context, f.id, FOLDER_LIMIT) }
@@ -234,9 +232,9 @@ private fun WallpaperScreen(onDone: () -> Unit) {
                 ThumbGrid(photos.map { it.second }, aspect = 1f) { i -> chosen = photos[i].first }
             }
         }
-        return
     }
 
+    val mainContent: @Composable () -> Unit = {
     Column(
         Modifier
             .fillMaxSize()
@@ -312,6 +310,18 @@ private fun WallpaperScreen(onDone: () -> Unit) {
                     for (a in setters) SourceRow(a.label, a.icon) { openApp(context, a, fromApp::launch) }
                 }
             }
+        }
+    }
+
+    }
+
+    // The screen in view, sliding over the one it opens from (and back).
+    val screen: Any = chosen ?: folder ?: Unit
+    io.github.jacomartins.canyonui.ui.design.ScreenSwitch(screen, depth = { when (it) { is Uri -> 2; is PhotoFolder -> 1; else -> 0 } }) { s ->
+        when (s) {
+            is Uri -> cropContent(s)
+            is PhotoFolder -> folderContent(s)
+            else -> mainContent()
         }
     }
 
