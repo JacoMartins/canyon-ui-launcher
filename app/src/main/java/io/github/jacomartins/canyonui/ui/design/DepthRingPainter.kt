@@ -42,7 +42,7 @@ class DepthRingPainter(density: Float) {
         val s = width
         if (w != cachedW || h != cachedH || r != cachedR || dark != cachedDark || rect.top != cachedTop || rect.left != cachedLeft) {
             cachedW = w; cachedH = h; cachedR = r; cachedDark = dark; cachedTop = rect.top; cachedLeft = rect.left
-            ring.shader = litGradient(rect.top, h, if (dark) BUTTON_ALPHA_DARK else BUTTON_ALPHA_LIGHT)
+            ring.shader = litGradient(rect.top, h, r, if (dark) BUTTON_ALPHA_DARK else BUTTON_ALPHA_LIGHT)
             side.shader = if (s > 0f) tipGradient(rect.left, w, r, if (dark) SIDE_ALPHA_DARK else SIDE_ALPHA_LIGHT) else null
         }
         val half = width / 2f
@@ -65,22 +65,18 @@ class DepthRingPainter(density: Float) {
         if (h <= 0f) return
         if (h != cachedH || bounds.top != cachedTop || bounds.left != cachedLeft || dark != cachedDark || cachedR != -2f) {
             cachedW = bounds.width(); cachedH = h; cachedR = -2f; cachedDark = dark; cachedTop = bounds.top; cachedLeft = bounds.left
-            ring.shader = litGradient(bounds.top, h, if (dark) BUTTON_ALPHA_DARK else BUTTON_ALPHA_LIGHT)
+            ring.shader = litGradient(bounds.top, h, radius, if (dark) BUTTON_ALPHA_DARK else BUTTON_ALPHA_LIGHT)
             side.shader = tipGradient(bounds.left, bounds.width(), radius, if (dark) SIDE_ALPHA_DARK else SIDE_ALPHA_LIGHT)
         }
         canvas.drawPath(path, ring)
         canvas.drawPath(path, side)
     }
 
-    private fun litGradient(top: Float, h: Float, alpha: Float): LinearGradient {
-        val colors = IntArray(STEPS + 1)
-        val stops = FloatArray(STEPS + 1)
-        for (i in 0..STEPS) {
-            val t = i / STEPS.toFloat()
-            val a = maxOf(KEY * glow(t / SPREAD), FILL * glow((1f - t) / SPREAD)) * alpha
-            colors[i] = ((a * 255).toInt().coerceIn(0, 255) shl 24) or 0xFFFFFF
-            stops[i] = t
-        }
+    // The same light as the Compose border: only as far as the corners' curve ([litStops]).
+    private fun litGradient(top: Float, h: Float, r: Float, alpha: Float): LinearGradient {
+        val st = litStops(h, r, KEY, FILL, SPREAD, SOFTNESS)
+        val colors = IntArray(st.size) { i -> ((st[i].second * alpha * 255).toInt().coerceIn(0, 255) shl 24) or 0xFFFFFF }
+        val stops = FloatArray(st.size) { i -> st[i].first }
         return LinearGradient(0f, top, 0f, top + h, colors, stops, Shader.TileMode.CLAMP)
     }
 

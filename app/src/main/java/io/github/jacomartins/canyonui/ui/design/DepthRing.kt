@@ -56,18 +56,34 @@ data class DepthLight(
 private fun glow(x: Float, softness: Float): Float =
     if (x >= 1f) 0f else (0.5f + 0.5f * cos(PI.toFloat() * x)).pow(softness)
 
-private fun DepthLight.brush(height: Float): Brush {
-    val s = spread.coerceAtLeast(0.01f)
-    return Brush.verticalGradient(
-        colorStops = Array(STEPS + 1) { i ->
-            val t = i / STEPS.toFloat()
-            val a = maxOf(key * glow(t / s, softness), fill * glow((1f - t) / s, softness))
-            t to Color.White.copy(alpha = a)
-        },
-        startY = 0f,
-        endY = height,
-    )
+/**
+ * The lit rim's opacity down a surface [height] tall with corners of [radius]: (share of the
+ * height, opacity) stops. The light reaches as far as the corners' curve: on a pill (as tall as
+ * its corners) over its whole height as before, on a tall panel only round its top and bottom
+ * corners, not down the straight sides.
+ */
+internal fun litStops(height: Float, radius: Float, key: Float, fill: Float, spread: Float, softness: Float): List<Pair<Float, Float>> {
+    val h = height.coerceAtLeast(1f)
+    val reach = minOf(h, maxOf(2f * radius, minOf(h, MIN_REACH_PX)))
+    val ext = (spread.coerceAtLeast(0.01f) * reach).coerceAtLeast(1f)
+    fun a(y: Float) = maxOf(key * glow(y / ext, softness), fill * glow((h - y) / ext, softness))
+    val ys = sortedSetOf<Float>()
+    for (i in 0..STEPS) {
+        val d = minOf(ext, h) * i / STEPS
+        ys += d
+        ys += h - d
+    }
+    return ys.map { y -> (y / h).coerceIn(0f, 1f) to a(y) }
 }
+
+/** Shapes with tiny corners still get this much light at the top and bottom (px). */
+private const val MIN_REACH_PX = 48f
+
+private fun DepthLight.brush(height: Float, radius: Float): Brush = Brush.verticalGradient(
+    colorStops = litStops(height, radius, key, fill, spread, softness).map { (t, a) -> t to Color.White.copy(alpha = a) }.toTypedArray(),
+    startY = 0f,
+    endY = height,
+)
 
 private val TIP_EASE = listOf(0f to 1f, .25f to .84f, .5f to .5f, .75f to .16f, 1f to 0f)
 
@@ -105,7 +121,7 @@ private fun Modifier.depthRing(
         // The dark sides on every shape, square and round ones included.
         val s = sidePx
 
-        val ringBrush = light.brush(h)
+        val ringBrush = light.brush(h, r)
         val ringTopLeft = Offset(s + w / 2f, w / 2f)
         val ringSize = Size((size.width - 2f * s - w).coerceAtLeast(0f), h - w)
         val ringRadius = CornerRadius((r - w / 2f).coerceAtLeast(0f))
