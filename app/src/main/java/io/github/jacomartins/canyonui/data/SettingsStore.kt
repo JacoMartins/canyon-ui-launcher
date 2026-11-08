@@ -71,8 +71,7 @@ data class LauncherSettings(
      */
     val fullCellWidgetSizes: Boolean = true,
     /** How much bigger widgets' content is drawn, as One UI does (1 = as the widget lays it out). */
-    /** Samsung's widgets drawn bigger, as on One UI ([io.github.jacomartins.canyonui.ui.widget.LauncherWidgetHostView.zoom]). */
-    val bigSamsungWidgets: Boolean = true,
+    val widgetContentScale: Float = WIDGET_SCALE_SMALL,
     /** OneDepth's translucent ring along widget edges. */
     val widgetBorder: Boolean = true,
     /** Interface colours from the phone's palette instead of Canyon UI's own. */
@@ -167,7 +166,7 @@ class SettingsStore(private val context: Context) {
         val DRAG_EFFECTS = booleanPreferencesKey("drag_effects")
         val WIDGET_EFFECTS = booleanPreferencesKey("widget_effects")
         val EFFECTS_FOLLOW = booleanPreferencesKey("effects_follow")
-        val BIG_SAMSUNG_WIDGETS = booleanPreferencesKey("big_samsung_widgets")
+        val WIDGET_CONTENT_SCALE = floatPreferencesKey("widget_content_scale_v4")
         val LIVE_BLUR = booleanPreferencesKey("live_blur")
         val LOCK_TAPS = intPreferencesKey("lock_taps")
         val BADGES = stringPreferencesKey("badges")
@@ -218,7 +217,7 @@ class SettingsStore(private val context: Context) {
             resizeAnyWidget = p[Keys.RESIZE_ANY_WIDGET] ?: false,
             widgetBorder = p[Keys.WIDGET_BORDER] ?: true,
             fullCellWidgetSizes = p[Keys.FULL_CELL_WIDGET_SIZES] ?: true,
-            bigSamsungWidgets = p[Keys.BIG_SAMSUNG_WIDGETS] ?: true,
+            widgetContentScale = p[Keys.WIDGET_CONTENT_SCALE] ?: WIDGET_SCALE_SMALL,
             phonePalette = p[Keys.PHONE_PALETTE] ?: false,
             searchBar = p[Keys.SEARCH_BAR] ?: false,
             searchWidgetId = p[Keys.SEARCH_WIDGET] ?: -1,
@@ -400,8 +399,8 @@ class SettingsStore(private val context: Context) {
         !am.isLowRamDevice && info.totalMem >= 5L * 1024 * 1024 * 1024
     }
 
-    suspend fun setBigSamsungWidgets(on: Boolean) {
-        context.dataStore.edit { it[Keys.BIG_SAMSUNG_WIDGETS] = on }
+    suspend fun setWidgetContentScale(scale: Float) {
+        context.dataStore.edit { it[Keys.WIDGET_CONTENT_SCALE] = scale }
     }
 
     suspend fun setEffectsFollow(on: Boolean) {
@@ -480,3 +479,6 @@ class SettingsStore(private val context: Context) {
 }
 
 /** The "Widget content size" choices: as laid out, One UI's look (about), and larger. */
+const val WIDGET_SCALE_SMALL = 1f
+const val WIDGET_SCALE_MEDIUM = 1.15f
+const val WIDGET_SCALE_LARGE = 1.3f

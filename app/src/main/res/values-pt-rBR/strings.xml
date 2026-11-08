@@ -129,8 +129,8 @@
     <string name="no_room">Sem espaço aqui</string>
     <!-- Widgets (Stage 3) -->
     <string name="home_screen_section">Tela inicial</string>
-    <string name="big_samsung_widgets">Widgets da Samsung maiores</string>
-    <string name="big_samsung_widgets_summary">Desenha o relógio, o calendário, o clima e outros widgets da Samsung um pouco maiores, como no One UI. As bordas deles são levemente cortadas.</string>
+    <string name="widget_content_size">Tamanho do texto dos widgets</string>
+    <string name="widget_content_size_summary">Maior diz aos widgets que têm um pouco mais de espaço do que ocupam, então widgets como os da Samsung desenham texto maior, como no One UI. Nada é esticado; se um widget ficar cortado, escolha um tamanho menor.</string>
     <string name="settings_icons">Ícones</string>
     <string name="settings_look">Aparência</string>
     <string name="settings_badges_gestures">Indicadores e gestos</string>
