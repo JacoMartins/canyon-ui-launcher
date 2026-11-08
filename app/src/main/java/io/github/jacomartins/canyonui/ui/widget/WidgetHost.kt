@@ -82,7 +82,7 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
     companion object {
         /** "Bigger Samsung widgets": about One UI's text size on a Galaxy A54. */
-        const val SAMSUNG_ZOOM = 1.15f
+        const val SAMSUNG_ZOOM = 1.33f
     }
 
     /**
