@@ -169,6 +169,6 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         const val MIC_AREA_DP = 56
 
         /** Home's bar keeps this much of the field's opacity. */
-        const val OPACITY = 0.75f
+        const val OPACITY = 0.875f
     }
 }
