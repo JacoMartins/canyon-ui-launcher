@@ -400,19 +400,12 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
 
         ListGroup(title = str(R.string.widgets)) {
             row {
-                ListContentRow {
-                    Text(stringResource(R.string.widget_content_size), style = MaterialTheme.typography.bodyLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for ((scale, label) in listOf(
-                            io.github.jacomartins.canyonui.data.WIDGET_SCALE_SMALL to R.string.icon_size_small,
-                            io.github.jacomartins.canyonui.data.WIDGET_SCALE_MEDIUM to R.string.icon_size_medium,
-                            io.github.jacomartins.canyonui.data.WIDGET_SCALE_LARGE to R.string.icon_size_large,
-                        )) {
-                            ChoiceButton(stringResource(label), s.widgetContentScale == scale, { scope.launch { store.setWidgetContentScale(scale) } }, Modifier.weight(1f))
-                        }
-                    }
-                    Text(stringResource(R.string.widget_content_size_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                ListSwitchRow(
+                    stringResource(R.string.big_samsung_widgets), R.drawable.ph_widgets, Tiles.Blue,
+                    checked = s.bigSamsungWidgets,
+                    onChange = { scope.launch { store.setBigSamsungWidgets(it) } },
+                    subtitle = stringResource(R.string.big_samsung_widgets_summary),
+                )
             }
             row {
                 ListSwitchRow(

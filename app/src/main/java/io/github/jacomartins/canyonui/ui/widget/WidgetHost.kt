@@ -80,12 +80,41 @@ class LauncherWidgetHost(context: Context, private val onProvidersChanged: () ->
 @SuppressLint("ViewConstructor")
 class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
+    companion object {
+        /** "Bigger Samsung widgets": about One UI's text size on a Galaxy A54. */
+        const val SAMSUNG_ZOOM = 1.15f
+    }
+
     /**
      * No padding inside the widget: Android adds 8dp on every side for some widgets (Samsung's
      * clock and calendar among them), which One UI 9 does not; the gap around widgets is the
      * cells' inset ([WidgetFrame.INSET_DP]) alone.
      */
     override fun setPadding(left: Int, top: Int, right: Int, bottom: Int) = super.setPadding(0, 0, 0, 0)
+
+    /**
+     * How much bigger the widget's content is drawn, from its centre ("Bigger Samsung widgets").
+     * Samsung's widgets scale their whole layout to the size they are told, so telling them a
+     * different size cannot make their text bigger; drawing them bigger can. The view clips its
+     * children, so the edges (mostly the widget's own margin) are trimmed. Touches follow the
+     * scale (it is a child's transform).
+     */
+    var zoom = 1f
+        set(value) {
+            if (field == value) return
+            field = value
+            applyZoom()
+        }
+
+    private fun applyZoom() {
+        for (i in 0 until childCount) {
+            val c = getChildAt(i)
+            c.pivotX = c.width / 2f
+            c.pivotY = c.height / 2f
+            c.scaleX = zoom
+            c.scaleY = zoom
+        }
+    }
 
     var blockContent = false
 
@@ -161,6 +190,7 @@ class LauncherWidgetHostView(context: Context) : AppWidgetHostView(context) {
         } catch (e: RuntimeException) {
             onCrash(e)
         }
+        applyZoom()
         // The widget's visible card may have moved or changed size.
         WidgetFrame.refresh(this)
     }
