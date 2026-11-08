@@ -37,7 +37,10 @@ class WidgetSizes(
     private val contentScale: Float = 1f,
 ) {
     private fun extentPx(spans: Int, cell: Int): Int {
-        val full = spans * cell - 2 * insetPx
+        // The whole cells, gap included, as One UI tells its widgets: Samsung's widgets size
+        // their text by the size they are told (and keep their own margins), so leaving the gap
+        // out made their text smaller than on One UI. The view itself still keeps the gap.
+        val full = spans * cell
         return if (spans == 1 && pillMaxPx > 0 && !reportFullCell) minOf(full, pillMaxPx) else full
     }
 

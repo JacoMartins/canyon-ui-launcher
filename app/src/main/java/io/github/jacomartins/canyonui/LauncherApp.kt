@@ -79,6 +79,11 @@ class LauncherApp : Application() {
             }
         }
         scope.launch {
+            settings.settings.map { it.searchBarOpacity }.distinctUntilChanged().collect {
+                io.github.jacomartins.canyonui.ui.design.SearchBarLook.opacity.value = it
+            }
+        }
+        scope.launch {
             settings.settings.map { it.iconPack }.distinctUntilChanged().collect { apps.setIconPack(it) }
         }
         scope.launch {

@@ -214,6 +214,8 @@
     <string name="edit_app_category_auto">Automatic (%1$s)</string>
     <string name="menu_hide_outline">Hide outline</string>
     <string name="menu_show_outline">Show outline</string>
+    <string name="search_bar_opacity">Search bar opacity</string>
+    <string name="search_bar_opacity_summary">How much the search bar covers what is behind it, on home and in the Apps screen.</string>
     <string name="home_search_bar">Search bar instead of page dots</string>
     <string name="home_search_bar_summary">A search bar above the dock in place of the page dots, with more room around home. Touch and hold it to put a search widget there instead (Google\'s, for example).</string>
     <string name="search_bar_choose_widget">Choose search widget</string>

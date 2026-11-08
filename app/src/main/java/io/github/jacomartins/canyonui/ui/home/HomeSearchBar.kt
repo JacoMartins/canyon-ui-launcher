@@ -72,8 +72,8 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
     }
 
     /**
-     * The Apps screen's search field's look ([fill], [content], ARGB), a little more
-     * see-through ([OPACITY]): the same bar on home and in the screen.
+     * The Apps screen's search field's look ([fill], [content], ARGB), at the opacity from
+     * settings: the same bar on home and in the screen.
      */
     fun setStyle(fill: Int, content: Int, dark: Boolean) {
         styled = true
@@ -83,10 +83,9 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
             gradEnd = a1
             gradSize = -1
         }
-        // Dark mode's bar is see-through black like a folder: the field's own opacity, no frost.
+        // The field's own opacity (the "Search bar opacity" setting); dark mode has no frost.
         solid = dark
-        val a = if (dark) fill ushr 24 else ((fill ushr 24) * OPACITY).toInt().coerceIn(0, 255)
-        this.fill.color = (a shl 24) or (fill and 0xFFFFFF)
+        this.fill.color = fill
         applyContent(content)
         invalidate()
     }
@@ -172,6 +171,5 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         const val MIC_AREA_DP = 56
 
         /** Home's bar keeps this much of the field's opacity. */
-        const val OPACITY = io.github.jacomartins.canyonui.ui.design.HOME_BAR_OPACITY
     }
 }

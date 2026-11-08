@@ -122,6 +122,8 @@ data class LauncherSettings(
     val pairFolders: Set<String> = emptySet(),
     /** Home screen only mode: apps start in category folders; new apps join theirs. */
     val autoCategories: Boolean = false,
+    /** The search bar's opacity (0..1), dark and light mode alike. */
+    val searchBarOpacity: Float = io.github.jacomartins.canyonui.ui.design.SearchBarLook.DEFAULT_OPACITY,
     /** The [io.github.jacomartins.canyonui.model.AppCategories.VERSION] the category folders were last sorted with. */
     val categoryVersion: Int = 0,
     val iconStyle: IconStyle = IconStyle(),
@@ -151,6 +153,7 @@ class SettingsStore(private val context: Context) {
         val LEGACY_HIDDEN = stringSetPreferencesKey("hidden_apps")
         val FIRST_RUN_DONE = booleanPreferencesKey("first_run_done")
         val CATEGORY_VERSION = intPreferencesKey("category_version")
+        val SEARCH_BAR_OPACITY = floatPreferencesKey("search_bar_opacity")
         val DRAWER_HINT_SEEN = booleanPreferencesKey("drawer_hint_seen")
         val ICON_PACK = stringPreferencesKey("icon_pack")
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
@@ -235,6 +238,7 @@ class SettingsStore(private val context: Context) {
             pairFolders = p[Keys.PAIR_FOLDERS] ?: emptySet(),
             autoCategories = p[Keys.AUTO_CATEGORIES] ?: false,
             categoryVersion = p[Keys.CATEGORY_VERSION] ?: 0,
+            searchBarOpacity = p[Keys.SEARCH_BAR_OPACITY] ?: io.github.jacomartins.canyonui.ui.design.SearchBarLook.DEFAULT_OPACITY,
             iconStyle = IconStyle(
                 shape = IconShape.fromKey(p[Keys.ICON_SHAPE]),
                 themed = p[Keys.THEMED_ICONS] ?: false,
@@ -443,6 +447,10 @@ class SettingsStore(private val context: Context) {
             if (hidden) set += key else set -= key
             p[Keys.hidden(mode)] = set
         }
+    }
+
+    suspend fun setSearchBarOpacity(opacity: Float) {
+        context.dataStore.edit { it[Keys.SEARCH_BAR_OPACITY] = opacity.coerceIn(0f, 1f) }
     }
 
     suspend fun setCategoryVersion(version: Int) {

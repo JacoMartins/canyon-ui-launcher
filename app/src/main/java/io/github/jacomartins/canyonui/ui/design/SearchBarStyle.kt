@@ -18,24 +18,25 @@ import androidx.compose.ui.unit.dp
 /** How much darker than the theme's highest container the bar is in light mode. */
 private const val DARKEN_LIGHT = 0.12f
 
-/** The search bars' fill: see-through black in dark mode (like folders), a light field in light mode (home's bar takes it a little see-through). */
-@Composable
-fun searchBarFill(): Color {
-    if (!isDarkSurface()) {
-        return backdropColor(lerp(MaterialTheme.colorScheme.surfaceContainerHighest, Color.Black, DARKEN_LIGHT).copy(alpha = 0.92f))
-    }
-    // Dark mode: pure black, see-through like a folder tile (its 60% tint, thinned the same way
-    // over a frosted or glass effect), with no frost of its own.
-    val blur = WallpaperBackdrop.active.collectAsState().value != null
-    val black = backdropColor(Color.Black.copy(alpha = DARK_ALPHA))
-    return if (blur) black.copy(alpha = black.alpha * FOLDER_TINT) else black
+/**
+ * The "Search bar opacity" setting: how much of the bar's colour covers what is behind it, as
+ * the final opacity (the frosted or glass effect does not thin it further). Set from settings.
+ */
+object SearchBarLook {
+    const val DEFAULT_OPACITY = 0.35f
+    val opacity = kotlinx.coroutines.flow.MutableStateFlow(DEFAULT_OPACITY)
 }
 
-/** Dark mode's black, as see-through as a folder tile's default colour (0x99). */
-private const val DARK_ALPHA = 0.6f
-
-/** A folder tile keeps this share of its tint over an effect (FolderIconView's FOLDER_TINT). */
-private const val FOLDER_TINT = 0.6f
+/**
+ * The search bars' fill: black in dark mode (see-through, like folders, with no frost of its
+ * own), a light field in light mode; both at the "Search bar opacity" setting.
+ */
+@Composable
+fun searchBarFill(): Color {
+    val opacity = SearchBarLook.opacity.collectAsState().value
+    return if (isDarkSurface()) Color.Black.copy(alpha = opacity)
+    else lerp(MaterialTheme.colorScheme.surfaceContainerHighest, Color.Black, DARKEN_LIGHT).copy(alpha = opacity)
+}
 
 /** The placeholder, the mic and clear icons on the bars. */
 @Composable
@@ -45,7 +46,7 @@ fun searchBarContent(): Color = if (isDarkSurface()) Color(0xFFBDBDC2) else Mate
 @Composable
 fun searchBarInk(): Color = if (isDarkSurface()) Color(0xFFF2F2F4) else MaterialTheme.colorScheme.onSurface
 
-/** Home's bar keeps this much of the field's opacity. */
+/** The widget picker's field keeps this much of the bars' opacity. */
 const val HOME_BAR_OPACITY = 0.875f
 
 /** Home's bar's height. */

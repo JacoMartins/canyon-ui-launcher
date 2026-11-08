@@ -40,6 +40,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.material3.Slider
+import kotlin.math.roundToInt
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -221,6 +224,26 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     onChange = { scope.launch { store.setSearchBar(it) } },
                     subtitle = stringResource(R.string.home_search_bar_summary),
                 )
+            }
+            row {
+                ListContentRow {
+                    // Saved when the finger lifts; the bar follows live meanwhile.
+                    var opacity by remember(s.searchBarOpacity) { mutableFloatStateOf(s.searchBarOpacity) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.search_bar_opacity), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Text("${(opacity * 100).roundToInt()}%", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Slider(
+                        value = opacity,
+                        onValueChange = {
+                            opacity = it
+                            io.github.jacomartins.canyonui.ui.design.SearchBarLook.opacity.value = it
+                        },
+                        onValueChangeFinished = { scope.launch { store.setSearchBarOpacity(opacity) } },
+                        valueRange = 0.1f..1f,
+                    )
+                    Text(stringResource(R.string.search_bar_opacity_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             row {
                 ListRow(

@@ -213,6 +213,8 @@
     <string name="edit_app_category_auto">Automática (%1$s)</string>
     <string name="menu_hide_outline">Ocultar contorno</string>
     <string name="menu_show_outline">Mostrar contorno</string>
+    <string name="search_bar_opacity">Opacidade da barra de pesquisa</string>
+    <string name="search_bar_opacity_summary">Quanto a barra de pesquisa cobre o que está atrás dela, na tela inicial e na tela de apps.</string>
     <string name="home_search_bar">Barra de pesquisa no lugar dos pontos</string>
     <string name="home_search_bar_summary">Uma barra de pesquisa acima do dock no lugar dos pontos das páginas, com mais espaço na tela inicial. Toque e segure nela para colocar um widget de pesquisa no lugar (o do Google, por exemplo).</string>
     <string name="search_bar_choose_widget">Escolher widget de pesquisa</string>
