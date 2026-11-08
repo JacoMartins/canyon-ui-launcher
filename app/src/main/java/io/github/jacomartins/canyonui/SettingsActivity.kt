@@ -86,6 +86,7 @@ import io.github.jacomartins.canyonui.ui.design.ListSwitchRow
 import io.github.jacomartins.canyonui.ui.design.ListRadioRow
 import io.github.jacomartins.canyonui.ui.design.ListContentRow
 import io.github.jacomartins.canyonui.ui.design.Tiles
+import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.launch
 
 /** Home screen settings. Grows in Stage 5; Stage 1.2 has layout mode, grid and hidden apps. */
@@ -116,8 +117,9 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
     var showSwipeUp by remember { mutableStateOf(false) }
     var showWallpaperApp by remember { mutableStateOf(false) }
     var showLicenses by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    Column(
+    if (showAbout) AboutScreen(onBack = { showAbout = false }, onLicenses = { showLicenses = true }) else Column(
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -190,7 +192,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         val maxColumns = if (tablet) SettingsStore.MAX_COLUMNS else maxOf(SettingsStore.PHONE_MAX_COLUMNS, s.columns)
         val minRows = if (tablet) SettingsStore.MIN_ROWS else minOf(SettingsStore.PHONE_MIN_ROWS, s.rows)
         val maxRows = if (tablet) SettingsStore.MAX_ROWS else maxOf(SettingsStore.PHONE_MAX_ROWS, s.rows)
-        ListGroup(title = str(R.string.home_grid)) {
+        ListGroup(title = str(R.string.home_screen_section)) {
             row {
                 ListContentRow {
                     Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.bodyLarge)
@@ -211,9 +213,25 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     }
                 }
             }
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.home_search_bar), R.drawable.ph_search, Tiles.Blue,
+                    checked = s.searchBar,
+                    onChange = { scope.launch { store.setSearchBar(it) } },
+                    subtitle = stringResource(R.string.home_search_bar_summary),
+                )
+            }
+            row {
+                ListRow(
+                    stringResource(R.string.hidden_apps), R.drawable.ph_hide, Tiles.Grey,
+                    subtitle = stringResource(R.string.hidden_apps_per_layout),
+                    value = pluralHidden(s.hiddenApps.size),
+                    onClick = { showHidden = true },
+                )
+            }
         }
 
-        ListGroup(title = str(R.string.icon_size)) {
+        ListGroup(title = str(R.string.settings_icons)) {
             row {
                 ListContentRow {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -238,24 +256,6 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     onClick = { showPacks = true },
                 )
             }
-            row {
-                ListSwitchRow(
-                    stringResource(R.string.show_home_labels), R.drawable.ph_house, Tiles.Green,
-                    checked = s.grid.showHomeLabels,
-                    onChange = { scope.launch { store.setShowHomeLabels(s.layoutMode, it) } },
-                )
-            }
-            row {
-                ListSwitchRow(
-                    stringResource(R.string.show_dock_labels), R.drawable.ph_app_window, Tiles.Teal,
-                    checked = s.grid.showDockLabels,
-                    onChange = { scope.launch { store.setShowDockLabels(s.layoutMode, it) } },
-                    subtitle = stringResource(R.string.labels_summary),
-                )
-            }
-        }
-
-        ListGroup(title = str(R.string.icon_shape)) {
             row {
                 ListContentRow {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -288,17 +288,24 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     )
                 }
             }
-        }
-
-        ListGroup(title = str(R.string.home_screen_section)) {
             row {
                 ListSwitchRow(
-                    stringResource(R.string.home_search_bar), R.drawable.ph_search, Tiles.Blue,
-                    checked = s.searchBar,
-                    onChange = { scope.launch { store.setSearchBar(it) } },
-                    subtitle = stringResource(R.string.home_search_bar_summary),
+                    stringResource(R.string.show_home_labels), R.drawable.ph_house, Tiles.Green,
+                    checked = s.grid.showHomeLabels,
+                    onChange = { scope.launch { store.setShowHomeLabels(s.layoutMode, it) } },
                 )
             }
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.show_dock_labels), R.drawable.ph_app_window, Tiles.Teal,
+                    checked = s.grid.showDockLabels,
+                    onChange = { scope.launch { store.setShowDockLabels(s.layoutMode, it) } },
+                    subtitle = stringResource(R.string.labels_summary),
+                )
+            }
+        }
+
+        ListGroup(title = str(R.string.settings_look)) {
             row {
                 ListSwitchRow(
                     stringResource(R.string.phone_palette), R.drawable.ph_palette, Tiles.Purple,
@@ -315,22 +322,7 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
                     onClick = { showWallpaperApp = true },
                 )
             }
-            row {
-                ListRow(
-                    stringResource(R.string.hidden_apps), R.drawable.ph_hide, Tiles.Grey,
-                    subtitle = stringResource(R.string.hidden_apps_per_layout),
-                    value = pluralHidden(s.hiddenApps.size),
-                    onClick = { showHidden = true },
-                )
-            }
-        }
-
-        ListGroup(title = str(R.string.badges)) {
-            row { ListContentRow { BadgeSettings(s, store) } }
-        }
-
-        ListGroup(title = str(R.string.gestures)) {
-            row { ListContentRow { GestureSettings(s, store) } }
+            row { FolderColorRow(s.folderColor, store, home) }
         }
 
         ListGroup(title = str(R.string.render_mode), footer = if (s.renderMode != RenderMode.TRANSLUCENT) str(R.string.effects_summary) else null) {
@@ -423,8 +415,9 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
             }
         }
 
-        ListGroup(title = str(R.string.folders)) {
-            row { FolderColorRow(s.folderColor, store, home) }
+        ListGroup(title = str(R.string.settings_badges_gestures)) {
+            row { ListContentRow { Text(stringResource(R.string.badges), style = MaterialTheme.typography.bodyLarge); BadgeSettings(s, store) } }
+            row { ListContentRow { GestureSettings(s, store) } }
         }
 
         ListGroup(title = str(R.string.backup)) {
@@ -432,7 +425,13 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         }
 
         ListGroup {
-            row { ListRow(stringResource(R.string.licenses), R.drawable.ph_info, Tiles.Grey, onClick = { showLicenses = true }) }
+            row {
+                ListRow(
+                    stringResource(R.string.about), R.drawable.ph_info, Tiles.Blue,
+                    value = io.github.jacomartins.canyonui.BuildConfigInfo.versionName(context),
+                    onClick = { showAbout = true },
+                )
+            }
         }
         }
     }
@@ -765,3 +764,48 @@ private fun ShapeChoice(shape: IconShape, selected: Boolean, modifier: Modifier,
     }
 }
 
+/**
+ * About: the launcher's logo, its name and its version, and the licenses of what it is built
+ * with. Back returns to the settings.
+ */
+@Composable
+private fun AboutScreen(onBack: () -> Unit, onLicenses: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val logo = remember {
+        val icon = context.packageManager.getApplicationIcon(context.packageName)
+        val bmp = androidx.core.graphics.createBitmap(432, 432)
+        icon.setBounds(0, 0, 432, 432)
+        icon.draw(android.graphics.Canvas(bmp))
+        bmp.asImageBitmap()
+    }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+    ) {
+        Text(
+            stringResource(R.string.about),
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(start = Spacing.mdLg, top = Spacing.lg, bottom = Spacing.md),
+        )
+        Column(Modifier.fillMaxWidth().padding(vertical = Spacing.lg), horizontalAlignment = Alignment.CenterHorizontally) {
+            androidx.compose.foundation.Image(logo, contentDescription = stringResource(R.string.app_name), modifier = Modifier.size(112.dp))
+            Text(
+                stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(top = Spacing.md),
+            )
+            Text(
+                stringResource(R.string.about_version, io.github.jacomartins.canyonui.BuildConfigInfo.versionName(context)),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        ListGroup {
+            row { ListRow(stringResource(R.string.licenses), R.drawable.ph_info, Tiles.Grey, onClick = onLicenses) }
+        }
+    }
+}

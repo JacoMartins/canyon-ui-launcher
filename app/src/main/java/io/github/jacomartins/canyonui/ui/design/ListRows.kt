@@ -93,9 +93,9 @@ fun ListGroup(title: String? = null, footer: String? = null, build: ListGroupSco
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.sm).padding(top = if (title != null) Spacing.md else Spacing.none)) {
         if (title != null) SectionHeader(title, Modifier.padding(start = Spacing.md, bottom = Spacing.sm))
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(PANEL_RADIUS),
             color = if (isDarkSurface()) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLowest,
-            modifier = Modifier.fillMaxWidth().oneDepthBorder(cornerRadius = 20.dp),
+            modifier = Modifier.fillMaxWidth().oneDepthBorder(cornerRadius = PANEL_RADIUS),
         ) {
             Column {
                 rows.forEachIndexed { i, row ->
@@ -200,3 +200,6 @@ fun ListContentRow(content: @Composable () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) { content() }
 }
+
+/** The settings panels' corners. */
+val PANEL_RADIUS = 28.dp

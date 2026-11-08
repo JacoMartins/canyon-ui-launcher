@@ -43,7 +43,7 @@ fun SettingsSection(title: String? = null, onClick: (() -> Unit)? = null, conten
         if (title != null) SectionHeader(title, Modifier.padding(start = Spacing.md, bottom = Spacing.sm))
         Surface(
             // Orchestrator's grouped list: radius 20.
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(PANEL_RADIUS),
             color = if (isDarkSurface()) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerLowest,
             modifier = Modifier.fillMaxWidth(),
         ) {

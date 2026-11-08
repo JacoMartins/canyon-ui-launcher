@@ -134,6 +134,11 @@
     <string name="home_screen_section">Tela inicial</string>
     <string name="widget_content_size">Tamanho do conteúdo dos widgets</string>
     <string name="widget_content_size_summary">O tamanho com que os widgets desenham textos e imagens no seu espaço. Médio é parecido com o One UI; Pequeno é como o widget se organiza sozinho.</string>
+    <string name="settings_icons">Ícones</string>
+    <string name="settings_look">Aparência</string>
+    <string name="settings_badges_gestures">Indicadores e gestos</string>
+    <string name="about">Sobre o Canyon UI</string>
+    <string name="about_version">Versão %1$s</string>
     <string name="widgets">Widgets</string>
     <string name="widgets_for_stack">Adicionar à pilha</string>
     <string name="widgets_search">Buscar widgets</string>
