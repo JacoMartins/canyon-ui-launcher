@@ -255,7 +255,6 @@
     <string name="color_code">Colour code</string>
 
     <!-- Canyon search (Stage 6) -->
-    <string name="search_everything">Search apps, contacts, settings</string>
     <string name="search_suggested">Suggested</string>
     <string name="search_recent">Recent searches</string>
     <string name="search_clear">Clear</string>

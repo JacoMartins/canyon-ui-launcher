@@ -72,8 +72,14 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
      * The Apps screen's search field's look ([fill], [content], ARGB), a little more
      * see-through ([OPACITY]): the same bar on home and in the screen.
      */
-    fun setStyle(fill: Int, content: Int) {
+    fun setStyle(fill: Int, content: Int, dark: Boolean) {
         styled = true
+        val (a0, a1) = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.of(dark)
+        if (a0 != gradStart || a1 != gradEnd) {
+            gradStart = a0
+            gradEnd = a1
+            gradSize = -1
+        }
         val a = ((fill ushr 24) * OPACITY).toInt().coerceIn(0, 255)
         this.fill.color = (a shl 24) or (fill and 0xFFFFFF)
         applyContent(content)
@@ -83,8 +89,29 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
     private fun applyContent(color: Int) {
         text.color = color
         val filter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
-        icon.colorFilter = filter
         mic.colorFilter = filter
+    }
+
+    // The search icon: white, then the gradient laid over it (kept to its shape).
+    private var gradStart = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.DARK_START
+    private var gradEnd = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.DARK_END
+    private var gradSize = -1
+    private val gradPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        xfermode = android.graphics.PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+    }
+
+    private fun drawSearchIcon(canvas: Canvas, left: Int, top: Int, size: Int) {
+        icon.colorFilter = PorterDuffColorFilter(0xFFFFFFFF.toInt(), PorterDuff.Mode.SRC_IN)
+        icon.setBounds(left, top, left + size, top + size)
+        if (gradSize != size) {
+            gradSize = size
+            gradPaint.shader = android.graphics.LinearGradient(0f, 0f, size.toFloat(), size.toFloat(), gradStart, gradEnd, android.graphics.Shader.TileMode.CLAMP)
+        }
+        val layer = canvas.saveLayer(left.toFloat(), top.toFloat(), (left + size).toFloat(), (top + size).toFloat(), null)
+        icon.draw(canvas)
+        canvas.translate(left.toFloat(), top.toFloat())
+        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), gradPaint)
+        canvas.restoreToCount(layer)
     }
 
     init {
@@ -118,16 +145,16 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         // The frost: a faint haze over the effect.
         canvas.drawRoundRect(rect, r, r, haze)
         ring.draw(canvas, rect, r, darkBehind)
-        // The field's layout: a 20dp icon 20dp in, the text 12dp after it, the microphone 18dp
-        // from the end.
-        val size = (20 * d).toInt()
-        val left = (20 * d).toInt()
-        val top = (height - size) / 2
-        icon.setBounds(left, top, left + size, top + size)
-        icon.draw(canvas)
+        // The field's layout: a 24dp search icon 18dp in (in its gradient), the text 12dp after
+        // it, a 20dp microphone 18dp from the end.
+        val iconSize = (24 * d).toInt()
+        val left = (18 * d).toInt()
+        drawSearchIcon(canvas, left, (height - iconSize) / 2, iconSize)
         val baseline = height / 2f - (text.descent() + text.ascent()) / 2f
-        canvas.drawText(label, left + size + 12 * d, baseline, text)
+        canvas.drawText(label, left + iconSize + 12 * d, baseline, text)
         if (voice) {
+            val size = (20 * d).toInt()
+            val top = (height - size) / 2
             val right = width - (18 * d).toInt()
             mic.setBounds(right - size, top, right, top + size)
             mic.draw(canvas)

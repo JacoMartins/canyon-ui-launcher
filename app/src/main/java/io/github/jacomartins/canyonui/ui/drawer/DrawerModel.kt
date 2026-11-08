@@ -77,7 +77,7 @@ class DrawerModel(
     var keyboardTravel by mutableStateOf(false)
 
     /** The field's fill and content colours (ARGB), for home's bar to wear. */
-    var onPillStyle: ((fill: Int, content: Int) -> Unit)? = null
+    var onPillStyle: ((fill: Int, content: Int, dark: Boolean) -> Unit)? = null
 
     /** Asks the list to start at the top (the screen was opened). */
     var scrollTopRequests by mutableIntStateOf(0)

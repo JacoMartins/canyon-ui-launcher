@@ -162,6 +162,10 @@ private fun drawerTint(): Color {
 }
 private val SearchPillHeight = 56.dp
 
+/** How much darker than the theme's highest container the search field is. */
+private const val PILL_DARKEN_DARK = 0.35f
+private const val PILL_DARKEN_LIGHT = 0.06f
+
 /** The search field's place above the bottom (or the keyboard). */
 private val PillRest = 12.dp
 
@@ -400,7 +404,8 @@ private fun SearchPill(
     val widthFraction by animateFloatAsState(if (expanded) 1f else 0.66f, label = "searchWidth")
     val focus = remember { FocusRequester() }
     val searchLabel = stringResource(R.string.search)
-    val placeholder = if (expanded) stringResource(R.string.search_everything) else searchLabel
+    // Only "Search", focused or not.
+    val placeholder = searchLabel
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(model.focusRequests) {
         if (model.focusRequests > 0) {
@@ -414,10 +419,15 @@ private fun SearchPill(
     val density = LocalDensity.current
     val imeInsets = WindowInsets.ime
     val navInsets = WindowInsets.navigationBars
-    val pillFill = backdropColor(colors.surfaceContainerHighest.copy(alpha = 0.92f))
+    val darkTheme = io.github.jacomartins.canyonui.ui.design.isDarkSurface()
+    // A darker field than the theme's highest container (more so in dark mode).
+    val pillFill = backdropColor(
+        androidx.compose.ui.graphics.lerp(colors.surfaceContainerHighest, Color.Black, if (darkTheme) PILL_DARKEN_DARK else PILL_DARKEN_LIGHT).copy(alpha = 0.92f),
+    )
     val pillContent = colors.onSurfaceVariant
+    val (gradStart, gradEnd) = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.of(darkTheme)
     // Home's bar wears this look.
-    androidx.compose.runtime.SideEffect { model.onPillStyle?.invoke(pillFill.toArgb(), pillContent.toArgb()) }
+    androidx.compose.runtime.SideEffect { model.onPillStyle?.invoke(pillFill.toArgb(), pillContent.toArgb(), darkTheme) }
     Surface(
         modifier = modifier
             .then(
@@ -467,7 +477,21 @@ private fun SearchPill(
             },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(painterResource(R.drawable.ph_search), contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp, end = 12.dp).size(20.dp))
+            // A bigger search icon in the light blue to teal gradient (deeper in dark mode).
+            Icon(
+                painterResource(R.drawable.ph_search), contentDescription = null, tint = Color.White,
+                modifier = Modifier
+                    .padding(start = 18.dp, end = 12.dp)
+                    .size(24.dp)
+                    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(gradStart), Color(gradEnd))),
+                            blendMode = androidx.compose.ui.graphics.BlendMode.SrcIn,
+                        )
+                    },
+            )
             BasicTextField(
                 value = model.query,
                 onValueChange = { model.query = it },

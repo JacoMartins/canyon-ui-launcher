@@ -489,7 +489,7 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         drawerModel = DrawerModel(this, launcher.apps, launcher.settings, lifecycleScope)
         // Home's bar wears the screen's search field's look, a little more see-through (set once
         // the model exists: before, it crashed the launcher at start).
-        drawerModel.onPillStyle = { fill, content -> home.searchBar.setStyle(fill, content) }
+        drawerModel.onPillStyle = { fill, content, dark -> home.searchBar.setStyle(fill, content, dark) }
 
         dragLayer = DragLayer(this)
         drawerView = ComposeView(this).apply {
