@@ -476,8 +476,6 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.workspace.onScroll = home.indicator::setPosition
         home.searchBar.setOnClickListener { if (home.searchBar.tappedMic()) voiceFromHome() else openHomeSearch() }
         home.searchBar.voice = voiceSearch != null
-        // Home's bar wears the screen's search field's look, a little more see-through.
-        drawerModel.onPillStyle = { fill, content -> home.searchBar.setStyle(fill, content) }
         // The search field rests where home's bar is (its size too): told whenever the bar moves.
         home.searchBar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateBarGeometry() }
         home.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateBarGeometry() }
@@ -488,6 +486,9 @@ class HomeActivity : ComponentActivity(), DrawerController.Listener, DrawerActio
         home.onAddPage = ::addPage
 
         drawerModel = DrawerModel(this, launcher.apps, launcher.settings, lifecycleScope)
+        // Home's bar wears the screen's search field's look, a little more see-through (set once
+        // the model exists: before, it crashed the launcher at start).
+        drawerModel.onPillStyle = { fill, content -> home.searchBar.setStyle(fill, content) }
 
         dragLayer = DragLayer(this)
         drawerView = ComposeView(this).apply {
