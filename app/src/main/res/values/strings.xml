@@ -132,6 +132,9 @@
     <string name="snack_page_moved">Page moved</string>
     <string name="no_room">No room here</string>
     <!-- Widgets (Stage 3) -->
+    <string name="home_screen_section">Home screen</string>
+    <string name="widget_content_size">Widget content size</string>
+    <string name="widget_content_size_summary">How big widgets draw their text and pictures in their space. Medium is about One UI\'s; Small is as the widget lays itself out.</string>
     <string name="widgets">Widgets</string>
     <string name="widgets_for_stack">Add to stack</string>
     <string name="widgets_search">Search widgets</string>

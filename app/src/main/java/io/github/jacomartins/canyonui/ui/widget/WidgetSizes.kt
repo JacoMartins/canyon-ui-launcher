@@ -33,14 +33,17 @@ class WidgetSizes(
     private val pillMaxPx: Int = 0,
     /** Report the whole cell to pill widgets instead of the pill's thickness (see settings). */
     private val reportFullCell: Boolean = false,
+    /** How much bigger widgets' content is drawn ([LauncherWidgetHostView.contentScale]). */
+    private val contentScale: Float = 1f,
 ) {
     private fun extentPx(spans: Int, cell: Int): Int {
         val full = spans * cell - 2 * insetPx
         return if (spans == 1 && pillMaxPx > 0 && !reportFullCell) minOf(full, pillMaxPx) else full
     }
 
-    private fun widthDp(spanX: Int) = extentPx(spanX, cellWidth) / density
-    private fun heightDp(spanY: Int) = extentPx(spanY, cellHeight) / density
+    // The size the content is laid out at: the view's, less the content scale.
+    private fun widthDp(spanX: Int) = extentPx(spanX, cellWidth) / density / contentScale
+    private fun heightDp(spanY: Int) = extentPx(spanY, cellHeight) / density / contentScale
 
 
     private fun spansFor(px: Int, cell: Int, limit: Int) = ceil(px.toFloat() / cell.coerceAtLeast(1)).toInt().coerceIn(1, limit)
@@ -86,6 +89,7 @@ class WidgetSizes(
      * switch between light and dark mode.
      */
     fun applySize(view: AppWidgetHostView, spanX: Int, spanY: Int, night: Boolean) {
+        (view as? LauncherWidgetHostView)?.contentScale = contentScale
         val w = widthDp(spanX)
         val h = heightDp(spanY)
         val extras = Bundle().apply { putBoolean(NIGHT_OPTION, night) }

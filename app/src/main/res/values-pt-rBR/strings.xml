@@ -131,6 +131,9 @@
     <string name="snack_page_moved">Página movida</string>
     <string name="no_room">Sem espaço aqui</string>
     <!-- Widgets (Stage 3) -->
+    <string name="home_screen_section">Tela inicial</string>
+    <string name="widget_content_size">Tamanho do conteúdo dos widgets</string>
+    <string name="widget_content_size_summary">O tamanho com que os widgets desenham textos e imagens no seu espaço. Médio é parecido com o One UI; Pequeno é como o widget se organiza sozinho.</string>
     <string name="widgets">Widgets</string>
     <string name="widgets_for_stack">Adicionar à pilha</string>
     <string name="widgets_search">Buscar widgets</string>

@@ -80,6 +80,12 @@ import io.github.jacomartins.canyonui.ui.settings.SEARCH_ACTIONS
 import io.github.jacomartins.canyonui.ui.settings.WALLPAPER_ACTIONS
 import io.github.jacomartins.canyonui.ui.settings.targetLabel
 import io.github.jacomartins.canyonui.ui.theme.HomeTheme
+import io.github.jacomartins.canyonui.ui.design.ListGroup
+import io.github.jacomartins.canyonui.ui.design.ListRow
+import io.github.jacomartins.canyonui.ui.design.ListSwitchRow
+import io.github.jacomartins.canyonui.ui.design.ListRadioRow
+import io.github.jacomartins.canyonui.ui.design.ListContentRow
+import io.github.jacomartins.canyonui.ui.design.Tiles
 import kotlinx.coroutines.launch
 
 /** Home screen settings. Grows in Stage 5; Stage 1.2 has layout mode, grid and hidden apps. */
@@ -128,257 +134,305 @@ private fun SettingsScreen(s: LauncherSettings, store: SettingsStore, hiddenMode
         // up with the text; the whole row is the touch target.
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
 
-        SettingsSection(title = stringResource(R.string.layout_mode)) {
-            Column(Modifier.selectableGroup()) {
-                for (mode in LayoutMode.entries) {
+        val str = @Composable { id: Int -> stringResource(id) }
+        ListGroup(title = str(R.string.layout_mode), footer = str(R.string.layout_separate_note)) {
+            for (mode in LayoutMode.entries) {
+                row {
                     val (title, summary) = when (mode) {
                         LayoutMode.HOME_AND_DRAWER -> R.string.layout_home_and_apps to R.string.layout_home_and_apps_summary
                         LayoutMode.HOME_ONLY -> R.string.layout_home_only to R.string.layout_home_only_summary
                     }
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .selectable(selected = s.layoutMode == mode, role = Role.RadioButton) {
-                                scope.launch { store.setLayoutMode(mode) }
-                            }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = s.layoutMode == mode, onClick = null)
-                        Column(Modifier.padding(start = Spacing.smMd)) {
-                            Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
-                            Text(stringResource(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
+                    ListRadioRow(
+                        stringResource(title),
+                        if (mode == LayoutMode.HOME_AND_DRAWER) R.drawable.ph_squares_four else R.drawable.ph_house,
+                        if (mode == LayoutMode.HOME_AND_DRAWER) Tiles.Blue else Tiles.Green,
+                        selected = s.layoutMode == mode,
+                        onSelect = { scope.launch { store.setLayoutMode(mode) } },
+                        subtitle = stringResource(summary),
+                    )
                 }
             }
             if (s.layoutMode == LayoutMode.HOME_ONLY) {
-                SwitchRow(
-                    title = stringResource(R.string.auto_categories),
-                    checked = s.autoCategories,
-                    onChange = { on ->
-                        scope.launch {
-                            // Folders first, then the switch, so new apps never see a half-built layout.
-                            if (on) {
-                                // The home page gets a Google search bar when there is room for one.
-                                if (home.organizeByCategory()) store.setPendingSearchWidget(true)
-                            } else {
-                                home.unlockCategories()
+                row {
+                    ListSwitchRow(
+                        stringResource(R.string.auto_categories), R.drawable.ph_stack, Tiles.Orange,
+                        checked = s.autoCategories,
+                        onChange = { on ->
+                            scope.launch {
+                                // Folders first, then the switch, so new apps never see a half-built layout.
+                                if (on) {
+                                    // The home page gets a Google search bar when there is room for one.
+                                    if (home.organizeByCategory()) store.setPendingSearchWidget(true)
+                                } else {
+                                    home.unlockCategories()
+                                }
+                                store.setAutoCategories(on)
                             }
-                            store.setAutoCategories(on)
-                        }
-                    },
-                )
-                Text(stringResource(R.string.auto_categories_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        subtitle = stringResource(R.string.auto_categories_summary),
+                    )
+                }
                 // The Apps screen is off in this mode, so its swipe is free for an app of choice.
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { showSwipeUp = true }
-                        .padding(vertical = 8.dp),
-                ) {
-                    Text(stringResource(R.string.swipe_up), style = MaterialTheme.typography.bodyLarge)
-                    val current = s.swipeUpTarget?.let { targetLabel(context, it) } ?: stringResource(R.string.swipe_up_none)
-                    Text(current, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(stringResource(R.string.swipe_up_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Text(
-                stringResource(R.string.layout_separate_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
-
-        SettingsSection(title = stringResource(R.string.home_grid)) {
-            // Tablets (and unfolded phones) get bigger grids; phones the sizes that fit them,
-            // plus the current one if it was set on a bigger screen.
-            val tablet = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp >= 600
-            val maxColumns = if (tablet) SettingsStore.MAX_COLUMNS else maxOf(SettingsStore.PHONE_MAX_COLUMNS, s.columns)
-            val minRows = if (tablet) SettingsStore.MIN_ROWS else minOf(SettingsStore.PHONE_MIN_ROWS, s.rows)
-            val maxRows = if (tablet) SettingsStore.MAX_ROWS else maxOf(SettingsStore.PHONE_MAX_ROWS, s.rows)
-            Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.bodyLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (c in SettingsStore.MIN_COLUMNS..maxColumns) {
-                    ChoiceButton("$c", s.columns == c, { scope.launch { store.setGrid(s.layoutMode, c, s.rows) } }, Modifier.weight(1f))
-                }
-            }
-            Text(stringResource(R.string.grid_rows), style = MaterialTheme.typography.bodyLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (r in minRows..maxRows) {
-                    ChoiceButton("$r", s.rows == r, { scope.launch { store.setGrid(s.layoutMode, s.columns, r) } }, Modifier.weight(1f))
+                row {
+                    ListRow(
+                        stringResource(R.string.swipe_up), R.drawable.ph_navigation_arrow, Tiles.Purple,
+                        subtitle = stringResource(R.string.swipe_up_summary),
+                        value = s.swipeUpTarget?.let { targetLabel(context, it) } ?: stringResource(R.string.swipe_up_none),
+                        onClick = { showSwipeUp = true },
+                    )
                 }
             }
         }
 
-        SettingsSection(onClick = { showPacks = true }) {
-            Text(stringResource(R.string.icon_pack), style = MaterialTheme.typography.bodyLarge)
-            Text(
-                s.iconPack?.let { pkg ->
-                    runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }
-                        .getOrDefault(pkg)
-                } ?: stringResource(R.string.icon_pack_default),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        SettingsSection(title = stringResource(R.string.icon_size)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (size in IconSize.entries) {
-                    val label = when (size) {
-                        IconSize.SMALL -> R.string.icon_size_small
-                        IconSize.MEDIUM -> R.string.icon_size_medium
-                        IconSize.LARGE -> R.string.icon_size_large
-                    }
-                    ChoiceButton(stringResource(label), s.grid.iconSize == size, { scope.launch { store.setIconSize(s.layoutMode, size) } }, Modifier.weight(1f))
-                }
-            }
-        }
-
-        SettingsSection {
-            SwitchRow(
-                title = stringResource(R.string.home_search_bar),
-                checked = s.searchBar,
-                onChange = { scope.launch { store.setSearchBar(it) } },
-            )
-            Text(stringResource(R.string.home_search_bar_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        SettingsSection {
-            SwitchRow(
-                title = stringResource(R.string.phone_palette),
-                checked = s.phonePalette,
-                onChange = { scope.launch { store.setPhonePalette(it) } },
-            )
-            Text(stringResource(R.string.phone_palette_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        SettingsSection(onClick = { showWallpaperApp = true }) {
-            Text(stringResource(R.string.wallpaper_app), style = MaterialTheme.typography.bodyLarge)
-            Text(
-                s.wallpaperTarget?.let { targetLabel(context, it) } ?: stringResource(R.string.wallpaper_app_own),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(stringResource(R.string.wallpaper_app_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        SettingsSection(title = stringResource(R.string.badges)) {
-            BadgeSettings(s, store)
-        }
-
-        SettingsSection(title = stringResource(R.string.gestures)) {
-            GestureSettings(s, store)
-        }
-
-        SettingsSection(title = stringResource(R.string.render_mode)) {
-            RenderModeChoice(s.renderMode, onSelect = { scope.launch { store.setRenderMode(it) } })
-            if (s.renderMode != io.github.jacomartins.canyonui.data.RenderMode.TRANSLUCENT) {
-                LiveBlurRow(s.liveBlur) { scope.launch { store.setLiveBlur(it) } }
-                SwitchRow(
-                    title = stringResource(R.string.effects_widgets),
-                    checked = s.widgetEffects,
-                    onChange = { scope.launch { store.setWidgetEffects(it) } },
-                )
-                SwitchRow(
-                    title = stringResource(R.string.effects_drag),
-                    checked = s.dragEffects,
-                    onChange = { scope.launch { store.setDragEffects(it) } },
-                )
-                SwitchRow(
-                    title = stringResource(R.string.effects_follow),
-                    checked = s.effectsFollow,
-                    onChange = { scope.launch { store.setEffectsFollow(it) } },
-                )
-                Text(stringResource(R.string.effects_follow_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(stringResource(R.string.effects_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-
-        SettingsSection(title = stringResource(R.string.icon_shape)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (shape in IconShape.entries) {
-                    ShapeChoice(shape, s.iconStyle.shape == shape, Modifier.weight(1f)) {
-                        scope.launch { store.setIconShape(shape) }
+        // Tablets (and unfolded phones) get bigger grids; phones the sizes that fit them,
+        // plus the current one if it was set on a bigger screen.
+        val tablet = androidx.compose.ui.platform.LocalConfiguration.current.smallestScreenWidthDp >= 600
+        val maxColumns = if (tablet) SettingsStore.MAX_COLUMNS else maxOf(SettingsStore.PHONE_MAX_COLUMNS, s.columns)
+        val minRows = if (tablet) SettingsStore.MIN_ROWS else minOf(SettingsStore.PHONE_MIN_ROWS, s.rows)
+        val maxRows = if (tablet) SettingsStore.MAX_ROWS else maxOf(SettingsStore.PHONE_MAX_ROWS, s.rows)
+        ListGroup(title = str(R.string.home_grid)) {
+            row {
+                ListContentRow {
+                    Text(stringResource(R.string.grid_columns), style = MaterialTheme.typography.bodyLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (c in SettingsStore.MIN_COLUMNS..maxColumns) {
+                            ChoiceButton("$c", s.columns == c, { scope.launch { store.setGrid(s.layoutMode, c, s.rows) } }, Modifier.weight(1f))
+                        }
                     }
                 }
             }
-            Text(stringResource(R.string.icon_shape_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            row {
+                ListContentRow {
+                    Text(stringResource(R.string.grid_rows), style = MaterialTheme.typography.bodyLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (r in minRows..maxRows) {
+                            ChoiceButton("$r", s.rows == r, { scope.launch { store.setGrid(s.layoutMode, s.columns, r) } }, Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+        }
+
+        ListGroup(title = str(R.string.icon_size)) {
+            row {
+                ListContentRow {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (size in IconSize.entries) {
+                            val label = when (size) {
+                                IconSize.SMALL -> R.string.icon_size_small
+                                IconSize.MEDIUM -> R.string.icon_size_medium
+                                IconSize.LARGE -> R.string.icon_size_large
+                            }
+                            ChoiceButton(stringResource(label), s.grid.iconSize == size, { scope.launch { store.setIconSize(s.layoutMode, size) } }, Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+            row {
+                ListRow(
+                    stringResource(R.string.icon_pack), R.drawable.ph_palette, Tiles.Pink,
+                    value = s.iconPack?.let { pkg ->
+                        runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }
+                            .getOrDefault(pkg)
+                    } ?: stringResource(R.string.icon_pack_default),
+                    onClick = { showPacks = true },
+                )
+            }
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.show_home_labels), R.drawable.ph_house, Tiles.Green,
+                    checked = s.grid.showHomeLabels,
+                    onChange = { scope.launch { store.setShowHomeLabels(s.layoutMode, it) } },
+                )
+            }
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.show_dock_labels), R.drawable.ph_app_window, Tiles.Teal,
+                    checked = s.grid.showDockLabels,
+                    onChange = { scope.launch { store.setShowDockLabels(s.layoutMode, it) } },
+                    subtitle = stringResource(R.string.labels_summary),
+                )
+            }
+        }
+
+        ListGroup(title = str(R.string.icon_shape)) {
+            row {
+                ListContentRow {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (shape in IconShape.entries) {
+                            ShapeChoice(shape, s.iconStyle.shape == shape, Modifier.weight(1f)) {
+                                scope.launch { store.setIconShape(shape) }
+                            }
+                        }
+                    }
+                    Text(stringResource(R.string.icon_shape_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             if (Build.VERSION.SDK_INT >= 33) {
-                SwitchRow(
-                    title = stringResource(R.string.themed_icons),
-                    checked = s.iconStyle.themed,
-                    onChange = { scope.launch { store.setThemedIcons(it) } },
-                )
-                Text(stringResource(R.string.themed_icons_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                row {
+                    ListSwitchRow(
+                        stringResource(R.string.themed_icons), R.drawable.ph_palette, Tiles.Purple,
+                        checked = s.iconStyle.themed,
+                        onChange = { scope.launch { store.setThemedIcons(it) } },
+                        subtitle = stringResource(R.string.themed_icons_summary),
+                    )
+                }
             }
             if (s.iconPack != null) {
-                SwitchRow(
-                    title = stringResource(R.string.pack_style),
-                    checked = s.iconStyle.packStyle,
-                    onChange = { scope.launch { store.setPackStyle(it) } },
-                )
-                Text(stringResource(R.string.pack_style_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                row {
+                    ListSwitchRow(
+                        stringResource(R.string.pack_style), R.drawable.ph_squares_four, Tiles.Pink,
+                        checked = s.iconStyle.packStyle,
+                        onChange = { scope.launch { store.setPackStyle(it) } },
+                        subtitle = stringResource(R.string.pack_style_summary),
+                    )
+                }
             }
         }
 
-        SettingsSection {
-            SwitchRow(
-                title = stringResource(R.string.show_home_labels),
-                checked = s.grid.showHomeLabels,
-                onChange = { scope.launch { store.setShowHomeLabels(s.layoutMode, it) } },
-            )
-            SwitchRow(
-                title = stringResource(R.string.show_dock_labels),
-                checked = s.grid.showDockLabels,
-                onChange = { scope.launch { store.setShowDockLabels(s.layoutMode, it) } },
-            )
-            Text(stringResource(R.string.labels_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ListGroup(title = str(R.string.home_screen_section)) {
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.home_search_bar), R.drawable.ph_search, Tiles.Blue,
+                    checked = s.searchBar,
+                    onChange = { scope.launch { store.setSearchBar(it) } },
+                    subtitle = stringResource(R.string.home_search_bar_summary),
+                )
+            }
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.phone_palette), R.drawable.ph_palette, Tiles.Purple,
+                    checked = s.phonePalette,
+                    onChange = { scope.launch { store.setPhonePalette(it) } },
+                    subtitle = stringResource(R.string.phone_palette_summary),
+                )
+            }
+            row {
+                ListRow(
+                    stringResource(R.string.wallpaper_app), R.drawable.ph_wallpaper, Tiles.Teal,
+                    subtitle = stringResource(R.string.wallpaper_app_summary),
+                    value = s.wallpaperTarget?.let { targetLabel(context, it) } ?: stringResource(R.string.wallpaper_app_own),
+                    onClick = { showWallpaperApp = true },
+                )
+            }
+            row {
+                ListRow(
+                    stringResource(R.string.hidden_apps), R.drawable.ph_hide, Tiles.Grey,
+                    subtitle = stringResource(R.string.hidden_apps_per_layout),
+                    value = pluralHidden(s.hiddenApps.size),
+                    onClick = { showHidden = true },
+                )
+            }
         }
 
-        SettingsSection {
-            SwitchRow(
-                title = stringResource(R.string.resize_any_widget),
-                checked = s.resizeAnyWidget,
-                onChange = { scope.launch { store.setResizeAnyWidget(it) } },
-            )
-            Text(stringResource(R.string.resize_any_widget_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            SwitchRow(
-                title = stringResource(R.string.widget_border),
-                checked = s.widgetBorder,
-                onChange = { scope.launch { store.setWidgetBorder(it) } },
-            )
-            SwitchRow(
-                title = stringResource(R.string.full_cell_widget_sizes),
-                checked = s.fullCellWidgetSizes,
-                onChange = { scope.launch { store.setFullCellWidgetSizes(it) } },
-            )
-            Text(stringResource(R.string.full_cell_widget_sizes_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ListGroup(title = str(R.string.badges)) {
+            row { ListContentRow { BadgeSettings(s, store) } }
         }
 
-        SettingsSection(onClick = { showHidden = true }) {
-            Text(stringResource(R.string.hidden_apps), style = MaterialTheme.typography.bodyLarge)
-            Text(stringResource(R.string.hidden_apps_per_layout), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                pluralHidden(s.hiddenApps.size),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        ListGroup(title = str(R.string.gestures)) {
+            row { ListContentRow { GestureSettings(s, store) } }
         }
 
-        SettingsSection(title = stringResource(R.string.folders)) {
-            FolderColorRow(s.folderColor, store, home)
+        ListGroup(title = str(R.string.render_mode), footer = if (s.renderMode != RenderMode.TRANSLUCENT) str(R.string.effects_summary) else null) {
+            for (m in RenderMode.entries) {
+                row {
+                    val (title, summary) = when (m) {
+                        RenderMode.TRANSLUCENT -> R.string.render_translucent to R.string.render_translucent_summary
+                        RenderMode.FROSTED -> R.string.render_frosted to R.string.render_frosted_summary
+                        RenderMode.GLASS -> R.string.render_glass to R.string.render_glass_summary
+                    }
+                    val (icon, tile) = when (m) {
+                        RenderMode.TRANSLUCENT -> R.drawable.ph_eye to Tiles.Grey
+                        RenderMode.FROSTED -> R.drawable.ph_moon_stars to Tiles.Teal
+                        RenderMode.GLASS -> R.drawable.ph_sun to Tiles.Blue
+                    }
+                    ListRadioRow(
+                        stringResource(title), icon, tile,
+                        selected = s.renderMode == m,
+                        onSelect = { scope.launch { store.setRenderMode(m) } },
+                        subtitle = stringResource(summary),
+                    )
+                }
+            }
+            if (s.renderMode != RenderMode.TRANSLUCENT) {
+                row { ListContentRow { RenderModePhoto() } }
+                row { LiveBlurRow(s.liveBlur) { scope.launch { store.setLiveBlur(it) } } }
+                row {
+                    ListSwitchRow(
+                        stringResource(R.string.effects_widgets), R.drawable.ph_widgets, Tiles.Teal,
+                        checked = s.widgetEffects,
+                        onChange = { scope.launch { store.setWidgetEffects(it) } },
+                    )
+                }
+                row {
+                    ListSwitchRow(
+                        stringResource(R.string.effects_drag), R.drawable.ph_stack, Tiles.Purple,
+                        checked = s.dragEffects,
+                        onChange = { scope.launch { store.setDragEffects(it) } },
+                    )
+                }
+                row {
+                    ListSwitchRow(
+                        stringResource(R.string.effects_follow), R.drawable.ph_play, Tiles.Blue,
+                        checked = s.effectsFollow,
+                        onChange = { scope.launch { store.setEffectsFollow(it) } },
+                        subtitle = stringResource(R.string.effects_follow_summary),
+                    )
+                }
+            }
         }
 
-        SettingsSection(title = stringResource(R.string.backup)) {
-            BackupSettings()
+        ListGroup(title = str(R.string.widgets)) {
+            row {
+                ListContentRow {
+                    Text(stringResource(R.string.widget_content_size), style = MaterialTheme.typography.bodyLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for ((scale, label) in listOf(
+                            io.github.jacomartins.canyonui.data.WIDGET_SCALE_SMALL to R.string.icon_size_small,
+                            io.github.jacomartins.canyonui.data.WIDGET_SCALE_MEDIUM to R.string.icon_size_medium,
+                            io.github.jacomartins.canyonui.data.WIDGET_SCALE_LARGE to R.string.icon_size_large,
+                        )) {
+                            ChoiceButton(stringResource(label), s.widgetContentScale == scale, { scope.launch { store.setWidgetContentScale(scale) } }, Modifier.weight(1f))
+                        }
+                    }
+                    Text(stringResource(R.string.widget_content_size_summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.resize_any_widget), R.drawable.ph_enlarge, Tiles.Orange,
+                    checked = s.resizeAnyWidget,
+                    onChange = { scope.launch { store.setResizeAnyWidget(it) } },
+                    subtitle = stringResource(R.string.resize_any_widget_summary),
+                )
+            }
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.widget_border), R.drawable.ph_eye, Tiles.Grey,
+                    checked = s.widgetBorder,
+                    onChange = { scope.launch { store.setWidgetBorder(it) } },
+                )
+            }
+            row {
+                ListSwitchRow(
+                    stringResource(R.string.full_cell_widget_sizes), R.drawable.ph_widget_settings, Tiles.Blue,
+                    checked = s.fullCellWidgetSizes,
+                    onChange = { scope.launch { store.setFullCellWidgetSizes(it) } },
+                    subtitle = stringResource(R.string.full_cell_widget_sizes_summary),
+                )
+            }
         }
 
-        SettingsSection(onClick = { showLicenses = true }) {
-            Text(stringResource(R.string.licenses), style = MaterialTheme.typography.bodyLarge)
+        ListGroup(title = str(R.string.folders)) {
+            row { FolderColorRow(s.folderColor, store, home) }
+        }
+
+        ListGroup(title = str(R.string.backup)) {
+            row { ListContentRow { BackupSettings() } }
+        }
+
+        ListGroup {
+            row { ListRow(stringResource(R.string.licenses), R.drawable.ph_info, Tiles.Grey, onClick = { showLicenses = true }) }
         }
         }
     }
@@ -542,34 +596,13 @@ private fun GestureSettings(s: LauncherSettings, store: SettingsStore) {
 }
 
 /** Translucent, frosted or glass (one at a time), and the wallpaper photo the blur needs. */
+/** The wallpaper photo the frosted and glass effects need: whether there is one, and getting one. */
 @Composable
-private fun RenderModeChoice(mode: RenderMode, onSelect: (RenderMode) -> Unit) {
+private fun RenderModePhoto() {
     val context = LocalContext.current
     val hasCopy by WallpaperBackdrop.hasCopy.collectAsState()
     val colorsOnly by WallpaperBackdrop.colorsOnly.collectAsState()
-    Column(Modifier.selectableGroup()) {
-        for (m in RenderMode.entries) {
-            val (title, summary) = when (m) {
-                RenderMode.TRANSLUCENT -> R.string.render_translucent to R.string.render_translucent_summary
-                RenderMode.FROSTED -> R.string.render_frosted to R.string.render_frosted_summary
-                RenderMode.GLASS -> R.string.render_glass to R.string.render_glass_summary
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .selectable(selected = mode == m, role = Role.RadioButton) { onSelect(m) }
-                    .padding(vertical = Spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = mode == m, onClick = null)
-                Column(Modifier.padding(start = Spacing.smMd)) {
-                    Text(stringResource(title), style = MaterialTheme.typography.bodyLarge)
-                    Text(stringResource(summary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-    }
-    if (mode != RenderMode.TRANSLUCENT) {
+    run {
         Text(
             stringResource(
                 when {
@@ -610,25 +643,14 @@ private fun FolderColorRow(color: Int, store: SettingsStore, home: HomeRepositor
     val scope = rememberCoroutineScope()
     var open by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { open = true }
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    ListRow(
+        stringResource(R.string.folder_color), R.drawable.ph_palette, Tiles.Amber,
+        subtitle = stringResource(if (color == 0) R.string.folder_color_default else R.string.folder_color_custom),
+        onClick = { open = true },
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(R.string.folder_color), style = MaterialTheme.typography.bodyLarge)
-            Text(
-                stringResource(if (color == 0) R.string.folder_color_default else R.string.folder_color_custom),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant,
-            )
-        }
         Box(
             Modifier
-                .size(32.dp)
+                .size(28.dp)
                 .clip(CircleShape)
                 .background(if (color == 0) colors.surfaceContainerHighest else Color(color)),
         )
@@ -685,12 +707,11 @@ private fun LiveBlurRow(on: Boolean, onChange: (Boolean) -> Unit) {
         android.os.Build.VERSION.SDK_INT >= 31 &&
             context.getSystemService(android.view.WindowManager::class.java).isCrossWindowBlurEnabled
     }
-    if (available) SwitchRow(title = stringResource(R.string.live_blur), checked = on, onChange = onChange)
-    Text(
-        stringResource(if (available) R.string.live_blur_summary else R.string.live_blur_unavailable),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    if (available) {
+        ListSwitchRow(stringResource(R.string.live_blur), R.drawable.ph_lightning, Tiles.Amber, checked = on, onChange = onChange, subtitle = stringResource(R.string.live_blur_summary))
+    } else {
+        ListRow(stringResource(R.string.live_blur), R.drawable.ph_lightning, Tiles.Amber, subtitle = stringResource(R.string.live_blur_unavailable))
+    }
 }
 
 @Composable
