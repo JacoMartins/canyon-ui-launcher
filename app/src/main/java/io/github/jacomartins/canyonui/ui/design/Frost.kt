@@ -21,8 +21,8 @@ object Frost {
 object SearchIconGradient {
     const val LIGHT_START = 0xFF4FC3F7.toInt()
     const val LIGHT_END = 0xFF26A69A.toInt()
-    const val DARK_START = 0xFF2F7FBF.toInt()
-    const val DARK_END = 0xFF1B8077.toInt()
+    const val DARK_START = 0xFF3D9BDB.toInt()
+    const val DARK_END = 0xFF22A392.toInt()
 
     fun of(dark: Boolean): Pair<Int, Int> = if (dark) DARK_START to DARK_END else LIGHT_START to LIGHT_END
 }

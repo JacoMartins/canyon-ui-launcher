@@ -425,6 +425,13 @@ private fun SearchPill(
         androidx.compose.ui.graphics.lerp(colors.surfaceContainerHighest, Color.Black, if (darkTheme) PILL_DARKEN_DARK else PILL_DARKEN_LIGHT).copy(alpha = 0.92f),
     )
     val pillContent = colors.onSurfaceVariant
+    // The text as home's bar draws it (16sp medium, centred by the font itself, no extra
+    // letter spacing), so the bar and this field look the same.
+    val barText = MaterialTheme.typography.titleMedium.copy(
+        lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified,
+        letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified,
+        lineHeightStyle = null,
+    )
     val (gradStart, gradEnd) = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.of(darkTheme)
     // Home's bar wears this look.
     androidx.compose.runtime.SideEffect { model.onPillStyle?.invoke(pillFill.toArgb(), pillContent.toArgb(), darkTheme) }
@@ -498,7 +505,7 @@ private fun SearchPill(
                 onValueChange = { model.query = it },
                 singleLine = true,
                 interactionSource = interaction,
-                textStyle = MaterialTheme.typography.titleMedium.copy(color = colors.onSurface),
+                textStyle = barText.copy(color = colors.onSurface),
                 cursorBrush = SolidColor(colors.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { onGo() }),
@@ -509,7 +516,7 @@ private fun SearchPill(
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (model.query.isEmpty()) {
-                            Text(placeholder, style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(placeholder, style = barText, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         inner()
                     }
