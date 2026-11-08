@@ -6,6 +6,7 @@ import io.github.jacomartins.canyonui.data.AppRepository
 import io.github.jacomartins.canyonui.data.AppUsage
 import io.github.jacomartins.canyonui.data.FolderEntry
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.debounce
 import io.github.jacomartins.canyonui.model.AppCategories
 import io.github.jacomartins.canyonui.data.DefaultApps
@@ -60,6 +61,17 @@ class LauncherApp : Application() {
                 .distinctUntilChanged()
                 .debounce(1_000)
                 .collect { home.arrangeCategoryFolders(usage) }
+        }
+        // A smarter categorizer re-sorts the category folders once (apps in the wrong folder move).
+        scope.launch {
+            val s = settings.settings.first()
+            if (s.categoryVersion >= AppCategories.VERSION) return@launch
+            if (s.autoCategories) {
+                home.state.filterNotNull().first()
+                apps.apps.filterNotNull().first()
+                home.refileCategoryFolders()
+            }
+            settings.setCategoryVersion(AppCategories.VERSION)
         }
         scope.launch {
             settings.settings.map { it.renderMode }.distinctUntilChanged().collect {

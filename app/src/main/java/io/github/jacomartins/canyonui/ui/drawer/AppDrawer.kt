@@ -415,10 +415,10 @@ private fun SearchPill(
     val density = LocalDensity.current
     val imeInsets = WindowInsets.ime
     val navInsets = WindowInsets.navigationBars
-    val darkTheme = io.github.jacomartins.canyonui.ui.design.isDarkSurface()
-    // A darker field than the theme's highest container (more so in dark mode).
+    // The bar is black in both themes, so it always takes the dark theme's icon gradient.
+    val darkTheme = true
     val pillFill = io.github.jacomartins.canyonui.ui.design.searchBarFill()
-    val pillContent = colors.onSurfaceVariant
+    val pillContent = io.github.jacomartins.canyonui.ui.design.SearchBarContent
     // The text as home's bar draws it (16sp medium, centred by the font itself, no extra
     // letter spacing), so the bar and this field look the same.
     val barText = io.github.jacomartins.canyonui.ui.design.searchBarText()
@@ -495,7 +495,7 @@ private fun SearchPill(
                 onValueChange = { model.query = it },
                 singleLine = true,
                 interactionSource = interaction,
-                textStyle = barText.copy(color = colors.onSurface),
+                textStyle = barText.copy(color = io.github.jacomartins.canyonui.ui.design.SearchBarInk),
                 cursorBrush = SolidColor(colors.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { onGo() }),
@@ -506,7 +506,7 @@ private fun SearchPill(
                 decorationBox = { inner ->
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (model.query.isEmpty()) {
-                            Text(placeholder, style = barText, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(placeholder, style = barText, color = pillContent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         inner()
                     }
@@ -514,10 +514,10 @@ private fun SearchPill(
             )
             when {
                 model.query.isNotEmpty() -> IconButton(onClick = { model.query = "" }, modifier = Modifier.padding(end = 8.dp)) {
-                    Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = pillContent, modifier = Modifier.size(20.dp))
                 }
                 voiceSearch != null -> IconButton(onClick = voiceSearch, modifier = Modifier.padding(end = 4.dp)) {
-                    Icon(painterResource(R.drawable.ph_mic), contentDescription = stringResource(R.string.voice_search), tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(R.drawable.ph_mic), contentDescription = stringResource(R.string.voice_search), tint = pillContent, modifier = Modifier.size(20.dp))
                 }
                 else -> Spacer(Modifier.width(20.dp))
             }

@@ -202,7 +202,9 @@
     <string name="category_wellness">Bem-estar e fitness</string>
     <string name="category_finance">Finanças</string>
     <string name="category_shopping">Compras</string>
+    <string name="category_food">Comida e bebida</string>
     <string name="category_news">Notícias e leitura</string>
+    <string name="category_services">Serviços e governo</string>
     <string name="category_tools">Ferramentas</string>
     <string name="auto_categories">Organizar apps por categoria</string>
     <string name="auto_categories_summary">Os apps vão para pastas de categoria e os novos apps entram na sua. Organize à vontade; as pastas ficam enquanto isto estiver ativo. Apps sem categoria vão para Outros; mude a categoria de um app em Editar ícone e nome. Ao desativar, as pastas ficam como pastas comuns.</string>

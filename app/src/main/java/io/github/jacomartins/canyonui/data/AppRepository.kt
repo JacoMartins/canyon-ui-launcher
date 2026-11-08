@@ -162,6 +162,7 @@ class AppRepository(
 
     private fun load(): List<AppInfo> {
         val pm = context.packageManager
+        AppCategories.load { context.assets.open(AppCategories.FILE).bufferedReader().use { it.readText() } }
         val out = ArrayList<AppInfo>()
         for (profile in launcherApps.profiles) {
             val serial = userManager.getSerialNumberForUser(profile)
@@ -175,6 +176,7 @@ class AppRepository(
                 val cn = info.componentName
                 val key = AppKey(cn.packageName, cn.className, serial)
                 val flags = info.applicationInfo.flags
+                val auto = AppCategories.categorize(cn.packageName, info.label.toString(), info.applicationInfo.category)
                 out += AppInfo(
                     key = key,
                     component = cn,
@@ -182,8 +184,8 @@ class AppRepository(
                     label = icons.labelOverride(key) ?: info.label.toString().trim().ifEmpty { cn.packageName },
                     icon = icons.get(info, key, pm),
                     isClock = icons.isClock(key),
-                    autoCategory = AppCategories.categorize(cn.packageName, info.applicationInfo.category),
-                    category = icons.categoryOverride(key) ?: AppCategories.categorize(cn.packageName, info.applicationInfo.category),
+                    autoCategory = auto,
+                    category = icons.categoryOverride(key) ?: auto,
                     isSystem = flags and ApplicationInfo.FLAG_SYSTEM != 0 &&
                         flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP == 0,
                 )

@@ -17,7 +17,9 @@ fun Category.titleRes(): Int = when (this) {
     Category.WELLNESS -> R.string.category_wellness
     Category.FINANCE -> R.string.category_finance
     Category.SHOPPING -> R.string.category_shopping
+    Category.FOOD -> R.string.category_food
     Category.NEWS -> R.string.category_news
+    Category.SERVICES -> R.string.category_services
     Category.TOOLS -> R.string.category_tools
     Category.OTHERS -> R.string.category_others
 }

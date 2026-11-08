@@ -122,6 +122,8 @@ data class LauncherSettings(
     val pairFolders: Set<String> = emptySet(),
     /** Home screen only mode: apps start in category folders; new apps join theirs. */
     val autoCategories: Boolean = false,
+    /** The [io.github.jacomartins.canyonui.model.AppCategories.VERSION] the category folders were last sorted with. */
+    val categoryVersion: Int = 0,
     val iconStyle: IconStyle = IconStyle(),
     /** Per-app label and icon choices, by [io.github.jacomartins.canyonui.model.AppKey] string. */
     val iconOverrides: Map<String, IconOverride> = emptyMap(),
@@ -148,6 +150,7 @@ class SettingsStore(private val context: Context) {
         /** Stage 1 kept one hidden list for everything; it seeds both modes' lists. */
         val LEGACY_HIDDEN = stringSetPreferencesKey("hidden_apps")
         val FIRST_RUN_DONE = booleanPreferencesKey("first_run_done")
+        val CATEGORY_VERSION = intPreferencesKey("category_version")
         val DRAWER_HINT_SEEN = booleanPreferencesKey("drawer_hint_seen")
         val ICON_PACK = stringPreferencesKey("icon_pack")
         val RESIZE_ANY_WIDGET = booleanPreferencesKey("resize_any_widget")
@@ -231,6 +234,7 @@ class SettingsStore(private val context: Context) {
             slideshowStacks = p[Keys.SLIDESHOW_STACKS] ?: emptySet(),
             pairFolders = p[Keys.PAIR_FOLDERS] ?: emptySet(),
             autoCategories = p[Keys.AUTO_CATEGORIES] ?: false,
+            categoryVersion = p[Keys.CATEGORY_VERSION] ?: 0,
             iconStyle = IconStyle(
                 shape = IconShape.fromKey(p[Keys.ICON_SHAPE]),
                 themed = p[Keys.THEMED_ICONS] ?: false,
@@ -439,6 +443,10 @@ class SettingsStore(private val context: Context) {
             if (hidden) set += key else set -= key
             p[Keys.hidden(mode)] = set
         }
+    }
+
+    suspend fun setCategoryVersion(version: Int) {
+        context.dataStore.edit { it[Keys.CATEGORY_VERSION] = version }
     }
 
     suspend fun setFirstRunDone() {

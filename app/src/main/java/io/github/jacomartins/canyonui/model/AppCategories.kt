@@ -1,17 +1,29 @@
 package io.github.jacomartins.canyonui.model
 
+import java.text.Normalizer
+
 /**
  * Sorts apps into home screen categories, offline. A normal launcher has no app store data, so
  * the sources are, in order:
  *
- * 1. A small table of well-known apps (exact package names).
- * 2. The category the app declares itself (`android:appCategory`, Android 8+), passed in as
- *    [declared] using the `ApplicationInfo.CATEGORY_*` values.
- * 3. Package name words (bank, pay, game, ...).
+ * 1. The bundled table (`assets/app_categories.txt`): exact package names, then package
+ *    families (a publisher's prefix, longest first).
+ * 2. A game declares itself well (`android:appCategory`), so that comes next.
+ * 3. A guess from the words in the app's name and package name, in English and Portuguese,
+ *    weighed per category (a word in the name counts more than one in the package).
+ * 4. Whatever else the app declares (Android 8+), passed in as [declared] using the
+ *    `ApplicationInfo.CATEGORY_*` values. "Productivity" is declared by many apps that are not
+ *    (carriers, government apps), which is why it comes after the guess.
  *
- * Apps that none of these place return null: they stay out of the category folders.
+ * Apps that none of these place return null: they go to Others.
  */
 object AppCategories {
+
+    /** Bump when the table or the rules change, so category folders are sorted again once. */
+    const val VERSION = 2
+
+    /** The table, in the app's assets. */
+    const val FILE = "app_categories.txt"
 
     enum class Category(val key: String) {
         COMMUNICATION("communication"),
@@ -24,7 +36,9 @@ object AppCategories {
         WELLNESS("wellness"),
         FINANCE("finance"),
         SHOPPING("shopping"),
+        FOOD("food"),
         NEWS("news"),
+        SERVICES("services"),
         TOOLS("tools"),
 
         /** Where apps without a category go when organizing; never returned by [categorize]. */
@@ -47,184 +61,134 @@ object AppCategories {
     private const val PRODUCTIVITY_DECL = 7
     private const val ACCESSIBILITY = 8
 
-    fun categorize(packageName: String, declared: Int): Category? {
-        KNOWN[packageName]?.let { return it }
-        // Families of packages (Samsung system apps, Google apps) by prefix.
-        PREFIXES.firstOrNull { (prefix, _) -> packageName.startsWith(prefix) }?.let { return it.second }
-        when (declared) {
-            GAME -> return Category.GAMES
-            AUDIO, VIDEO -> return Category.ENTERTAINMENT
-            IMAGE -> return Category.CREATION
-            SOCIAL -> return Category.COMMUNICATION
-            NEWS_DECL -> return Category.NEWS
-            MAPS -> return Category.TRIP
-            PRODUCTIVITY_DECL -> return Category.PRODUCTIVITY
-            ACCESSIBILITY -> return Category.TOOLS
+    // A word found in the app's name weighs more than one in its package name, which often
+    // carries a company name instead. One package word alone is still enough to decide.
+    private const val NAME_WEIGHT = 3
+    private const val PACKAGE_WEIGHT = 2
+    private const val MIN_SCORE = 2
+
+    /** Package words that say nothing about the app. */
+    private val STOP = setOf(
+        "com", "br", "org", "net", "io", "co", "me", "de", "app", "apps", "android", "mobile", "client",
+        "pro", "free", "lite", "prod", "production", "release", "www", "gp", "global", "intl", "beta", "dev",
+    )
+
+    /** The parsed table; see the header of [FILE] for its format. */
+    class Table(
+        val exact: Map<String, Category>,
+        /** Longest prefix first, so a more specific family wins. */
+        val prefixes: List<Pair<String, Category>>,
+        val words: Map<String, List<Category>>,
+        /** (stem, anywhere in a package word, category). */
+        val stems: List<Triple<String, Boolean, Category>>,
+        val phrases: List<Pair<String, Category>>,
+    )
+
+    @Volatile private var table: Table? = null
+
+    /** Reads the table once; [read] returns the text of [FILE]. Cheap after the first call. */
+    fun load(read: () -> String) {
+        if (table != null) return
+        synchronized(this) {
+            if (table == null) table = parse(read())
         }
-        val p = packageName.lowercase()
-        return WORDS.firstOrNull { (words, _) -> words.any { it in p } }?.second
     }
 
-    // Whole words or clear stems only: short fragments ("tv", "med", "bus") match unrelated names.
-    private val WORDS: List<Pair<List<String>, Category>> = listOf(
-        listOf("bank", "banco", "wallet", ".pay", "pay.", "finance", "invest", "crypto") to Category.FINANCE,
-        listOf(".game", "games", "game.") to Category.GAMES,
-        listOf("shopping", ".shop", "shop.") to Category.SHOPPING,
-        listOf("health", "fitness", "workout", "saude", "meditat") to Category.WELLNESS,
-        listOf("music", "podcast", "radio") to Category.ENTERTAINMENT,
-        listOf("messenger", "messag", ".chat", "chat.") to Category.COMMUNICATION,
-        listOf("photo", "camera") to Category.CREATION,
-        listOf("learn", "school", "course", "study") to Category.EDUCATION_AI,
-        listOf("taxi", "transit", "travel", "flight") to Category.TRIP,
-        listOf(".news", "news.") to Category.NEWS,
-    )
+    fun parse(text: String): Table {
+        val exact = HashMap<String, Category>()
+        val prefixes = ArrayList<Pair<String, Category>>()
+        val words = HashMap<String, MutableList<Category>>()
+        val stems = ArrayList<Triple<String, Boolean, Category>>()
+        val phrases = ArrayList<Pair<String, Category>>()
+        var current: Category? = null
+        for (raw in text.lineSequence()) {
+            val line = raw.trim()
+            if (line.isEmpty() || line.startsWith("#")) continue
+            if (line.startsWith("[") && line.endsWith("]")) {
+                current = Category.fromKey(line.substring(1, line.length - 1))
+                continue
+            }
+            val cat = current ?: continue
+            when {
+                line.startsWith("=") -> {
+                    val w = plain(line.substring(1))
+                    when {
+                        w.startsWith("*") && w.endsWith("*") -> stems += Triple(w.trim('*'), true, cat)
+                        w.endsWith("*") -> stems += Triple(w.dropLast(1), false, cat)
+                        ' ' in w -> phrases += " $w " to cat
+                        else -> words.getOrPut(w) { ArrayList() } += cat
+                    }
+                }
+                line.endsWith("*") -> prefixes += line.dropLast(1) to cat
+                // The first line for a package decides (a test keeps the file free of repeats).
+                else -> exact.putIfAbsent(line, cat)
+            }
+        }
+        prefixes.sortByDescending { it.first.length }
+        return Table(exact, prefixes, words, stems, phrases)
+    }
 
-    private val PREFIXES: List<Pair<String, Category>> = listOf(
-        "com.google.android.apps.docs" to Category.PRODUCTIVITY,
-        "com.google.android.apps.tasks" to Category.PRODUCTIVITY,
-        "com.microsoft.office" to Category.PRODUCTIVITY,
-        "com.adobe." to Category.CREATION,
-    )
+    fun categorize(packageName: String, label: String, declared: Int): Category? {
+        val t = table
+        if (t != null) {
+            t.exact[packageName]?.let { return it }
+            t.prefixes.firstOrNull { packageName.startsWith(it.first) }?.let { return it.second }
+        }
+        if (declared == GAME) return Category.GAMES
+        if (t != null) guess(t, packageName, label)?.let { return it }
+        return when (declared) {
+            AUDIO, VIDEO -> Category.ENTERTAINMENT
+            IMAGE -> Category.CREATION
+            SOCIAL -> Category.COMMUNICATION
+            NEWS_DECL -> Category.NEWS
+            MAPS -> Category.TRIP
+            PRODUCTIVITY_DECL -> Category.PRODUCTIVITY
+            ACCESSIBILITY -> Category.TOOLS
+            else -> null
+        }
+    }
 
-    private val KNOWN: Map<String, Category> = buildMap {
-        fun put(c: Category, vararg pkgs: String) = pkgs.forEach { put(it, c) }
-        put(
-            Category.COMMUNICATION,
-            "com.whatsapp", "com.whatsapp.w4b", "org.telegram.messenger", "org.thoughtcrime.securesms",
-            "com.discord", "com.facebook.katana", "com.facebook.orca", "com.instagram.android",
-            "com.instagram.barcelona", "com.linkedin.android", "com.pinterest", "com.reddit.frontpage",
-            "com.zhiliaoapp.musically", "com.ss.android.ugc.trill", "com.twitter.android", "com.snapchat.android",
-            "com.bluesky.app", "xyz.blueskyweb.app", "com.google.android.gm", "com.samsung.android.messaging",
-            "com.google.android.apps.messaging", "com.samsung.android.dialer", "com.google.android.dialer",
-            "com.samsung.android.app.contacts", "com.google.android.contacts", "us.zoom.videomeetings",
-            "com.microsoft.teams", "com.skype.raider", "com.google.android.apps.tachyon",
-        )
-        put(
-            Category.ENTERTAINMENT,
-            "com.spotify.music", "com.google.android.youtube", "com.google.android.apps.youtube.music",
-            "com.netflix.mediaclient", "com.amazon.avod.thirdpartyclient", "com.disney.disneyplus",
-            "com.hbo.hbonow", "tv.twitch.android.app", "deezer.android.app", "com.shazam.android",
-            "com.soundcloud.android", "tv.pluto.android", "com.globo.globotv",
-        )
-        put(
-            Category.CREATION,
-            "com.canva.editor", "com.lemon.lvoverseas", "com.picsart.studio", "com.niksoftware.snapseed",
-            "com.imageline.FLM", "com.github.android", "com.sec.android.app.camera", "com.google.android.GoogleCamera",
-            "com.sec.android.gallery3d", "com.google.android.apps.photos", "com.vsco.cam", "com.instagram.layout",
-            "com.adobe.lrmobile", "com.adobe.spark.post",
-        )
-        put(
-            Category.PRODUCTIVITY,
-            "com.google.android.calendar", "com.samsung.android.calendar", "com.google.android.apps.docs",
-            "notion.id", "com.todoist", "com.ticktick.task", "com.microsoft.todos", "com.evernote",
-            "com.google.android.keep", "com.samsung.android.app.reminder", "com.dropbox.android",
-            "com.microsoft.skydrive", "com.trello", "com.Slack", "com.google.android.googlequicksearchbox",
-            "com.sec.android.app.sbrowser", "com.android.chrome", "org.mozilla.firefox", "com.brave.browser",
-        )
-        put(
-            Category.EDUCATION_AI,
-            "com.openai.chatgpt", "com.google.android.apps.bard", "com.anthropic.claude", "com.deepseek.chat",
-            "ai.perplexity.app.android", "com.microsoft.copilot", "com.google.android.apps.classroom",
-            "com.duolingo", "com.moodle.moodlemobile", "org.khanacademy.android", "com.quizlet.quizletandroid",
-            "com.google.android.apps.labs.language.tailwind",
-        )
-        put(
-            Category.TRIP,
-            "com.ubercab", "com.taxis99", "com.waze", "com.google.android.apps.maps", "com.moovit.android",
-            "com.citymapper.app.release", "com.airbnb.android", "com.booking",
-            "com.google.android.apps.travel.onthego",
-        )
-        put(
-            Category.WELLNESS,
-            "com.sec.android.app.shealth", "com.strava", "com.google.android.apps.fitness", "com.calm.android",
-            "com.getsomeheadspace.android", "com.myfitnesspal.android", "com.samsung.android.forest",
-        )
-        put(
-            Category.FINANCE,
-            "com.nu.production", "com.itau", "br.com.bb.android", "com.bradesco", "com.santander.app",
-            "com.picpay", "com.mercadopago.wallet", "com.paypal.android.p2pmobile", "br.com.intermedium",
-            "com.c6bank.app", "com.google.android.apps.walletnfcrel", "com.samsung.android.spay",
-        )
-        put(
-            Category.SHOPPING,
-            "com.amazon.mShop.android.shopping", "com.alibaba.aliexpresshd", "com.shopee.br", "com.mercadolibre",
-            "com.zzkko", "com.einnovation.temu", "com.samsung.shop",
-        )
-        // Widely used apps, added so most phones need few manual choices.
-        put(
-            Category.COMMUNICATION,
-            "com.google.android.apps.meetings", "com.google.android.apps.dynamite", "com.viber.voip", "jp.naver.line.android",
-            "com.kakao.talk", "com.tencent.mm", "com.microsoft.office.outlook", "com.samsung.android.email.provider",
-            "com.tumblr", "com.quora.android", "com.facebook.lite", "com.instagram.lite", "com.facebook.mlite", "com.truecaller",
-            "com.vkontakte.android",
-        )
-        put(
-            Category.ENTERTAINMENT,
-            "com.amazon.mp3", "com.apple.android.music", "com.google.android.videos", "com.crunchyroll.crunchyroid",
-            "com.hulu.plus", "com.wbd.stream", "com.google.android.apps.youtube.kids", "com.audible.application",
-            "com.pandora.android", "com.aspiro.tidal", "com.samsung.android.tvplus", "com.mxtech.videoplayer.ad",
-            "org.videolan.vlc",
-        )
-        put(
-            Category.GAMES,
-            "com.supercell.clashofclans", "com.supercell.clashroyale", "com.supercell.brawlstars", "com.king.candycrushsaga",
-            "com.mojang.minecraftpe", "com.roblox.client", "com.dts.freefireth", "com.dts.freefiremax", "com.tencent.ig",
-            "com.activision.callofduty.shooter", "com.kiloo.subwaysurf", "com.miniclip.eightballpool",
-            "com.innersloth.spacemafia", "com.chess", "org.lichess.mobileapp", "com.nianticlabs.pokemongo",
-        )
-        put(
-            Category.CREATION,
-            "com.camerasideas.instashot", "com.nexstreaming.app.kinemasterfree", "com.alightcreative.motion", "com.figma.mirror",
-        )
-        put(
-            Category.PRODUCTIVITY,
-            "com.samsung.android.app.notes", "com.adobe.reader", "md.obsidian", "com.anydo", "com.asana.app",
-        )
-        put(
-            Category.EDUCATION_AI,
-            "com.microsoft.bing", "ai.x.grok", "com.microblink.photomath", "co.brainly", "org.coursera.android",
-            "com.udemy.android", "com.babbel.mobile.android.en", "com.memrise.android.memrisecompanion",
-        )
-        put(
-            Category.TRIP,
-            "me.lyft.android", "ee.mtakso.client", "com.expedia.bookings", "com.tripadvisor.tripadvisor", "com.google.earth",
-        )
-        put(
-            Category.WELLNESS,
-            "com.fitbit.FitbitMobile", "com.google.android.apps.healthdata", "com.nike.plusgps", "com.runtastic.android",
-            "org.iggymedia.periodtracker", "com.google.android.apps.wellbeing",
-        )
-        put(
-            Category.FINANCE,
-            "com.binance.dev", "com.coinbase.android", "com.revolut.revolut", "com.transferwise.android", "com.venmo",
-            "com.squareup.cash", "com.google.android.apps.nbu.paisa.user",
-        )
-        put(
-            Category.SHOPPING,
-            "com.ebay.mobile", "com.walmart.android", "com.etsy.android", "com.luizalabs.mlapp", "com.contextlogic.wish",
-            "com.ubercab.eats", "br.com.brainweb.ifood", "com.grability.rappi", "com.dd.doordash", "com.instacart.client",
-        )
-        put(
-            Category.NEWS,
-            "com.nytimes.android", "bbc.mobile.news.ww", "com.cnn.mobile.android.phone", "com.microsoft.amp.apps.bingnews",
-            "wp.wattpad", "com.google.android.apps.books",
-        )
-        put(
-            Category.TOOLS,
-            "com.android.vending", "com.sec.android.app.samsungapps", "com.google.android.apps.authenticator2",
-            "com.x8bit.bitwarden", "com.google.android.apps.translate", "com.google.android.apps.chromecast.app",
-            "com.samsung.android.app.watchmanager", "com.google.android.apps.recorder", "org.zwanoo.android.speedtest",
-            "com.google.android.apps.subscriptions.red",
-        )
-        put(Category.NEWS, "com.google.android.apps.magazines", "flipboard.app", "com.medium.reader", "com.amazon.kindle")
-        put(
-            Category.TOOLS,
-            "com.android.settings", "com.sec.android.app.popupcalculator", "com.google.android.calculator",
-            "com.sec.android.app.clockpackage", "com.google.android.deskclock", "com.sec.android.app.myfiles",
-            "com.google.android.apps.nbu.files", "com.samsung.android.lool", "com.sec.android.app.voicenote",
-            "com.samsung.android.app.smartcapture", "com.samsung.android.oneconnect", "com.sec.android.easyMover",
-            "com.samsung.android.app.galaxyfinder", "com.samsung.android.voc", "com.samsung.android.app.tips",
-            "com.sec.android.daemonapp", "com.samsung.android.app.find",
-        )
+    /** Scores every category by the words of the name and the package; the best one wins. */
+    private fun guess(t: Table, packageName: String, label: String): Category? {
+        val scores = IntArray(Category.entries.size)
+        val nameWords = words(label)
+        val packageWords = words(packageName).filter { it !in STOP }
+
+        for (w in nameWords.toSet()) t.words[w]?.forEach { scores[it.ordinal] += NAME_WEIGHT }
+        for (w in packageWords.toSet()) t.words[w]?.forEach { scores[it.ordinal] += PACKAGE_WEIGHT }
+        for ((stem, anywhere, cat) in t.stems) {
+            if (nameWords.any { it.startsWith(stem) }) scores[cat.ordinal] += NAME_WEIGHT
+            if (packageWords.any { if (anywhere) stem in it else it.startsWith(stem) }) scores[cat.ordinal] += PACKAGE_WEIGHT
+        }
+        val text = nameWords.joinToString(" ", " ", " ")
+        for ((phrase, cat) in t.phrases) if (phrase in text) scores[cat.ordinal] += NAME_WEIGHT
+
+        // Ties go to the category listed first.
+        var best = -1
+        for (i in scores.indices) if (scores[i] >= MIN_SCORE && (best < 0 || scores[i] > scores[best])) best = i
+        return if (best < 0) null else Category.entries[best]
+    }
+
+    /** Lower case, without accents ("Título" → "titulo"), so Portuguese names match plainly. */
+    private fun plain(s: String): String =
+        Normalizer.normalize(s, Normalizer.Form.NFD).replace(MARKS, "").lowercase()
+
+    private val MARKS = Regex("\\p{Mn}+")
+    private val SEPARATORS = Regex("[^\\p{L}\\p{N}]+")
+
+    // Where a joined name splits: "ChatGPT" → Chat|GPT, "zFont3" → z|Font|3.
+    private val CAMEL = Regex("(?<=\\p{Ll})(?=\\p{Lu})|(?<=\\p{L})(?=\\p{N})|(?<=\\p{N})(?=\\p{L})")
+
+    /** The words of a name or package, each also split at case changes ("MyInsta" → myinsta, my, insta). */
+    fun words(text: String): List<String> {
+        val out = ArrayList<String>()
+        val stripped = Normalizer.normalize(text, Normalizer.Form.NFD).replace(MARKS, "")
+        for (raw in stripped.split(SEPARATORS)) {
+            if (raw.isEmpty()) continue
+            out += raw.lowercase()
+            val parts = raw.split(CAMEL).filter { it.isNotEmpty() }
+            if (parts.size > 1) parts.forEach { out += it.lowercase() }
+        }
+        return out
     }
 }

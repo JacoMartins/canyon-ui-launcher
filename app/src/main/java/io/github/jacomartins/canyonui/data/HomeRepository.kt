@@ -779,6 +779,41 @@ class HomeRepository(
         deleteEmptyPages(dao)
     }
 
+    /**
+     * The categorizer got smarter ([AppCategories.VERSION]): apps sitting in a category folder
+     * that no longer matches their category move to the right one (a new folder where the
+     * category has none). Folders left empty go away. Apps the user gave a category keep it.
+     */
+    suspend fun refileCategoryFolders() = edit { dao, st ->
+        val byKey = apps.apps.value?.associateBy { it.key } ?: return@edit
+        val items = dao.itemsNow()
+        val folders = items.filter { it.type == ItemEntity.TYPE_FOLDER && it.category != null }
+        if (folders.isEmpty()) return@edit
+        val target = folders.filter { it.container == Container.DESKTOP }.associateBy { it.category }
+        val toNew = HashMap<AppCategories.Category, MutableList<AppInfo>>()
+        val leaving = ArrayList<Long>()
+        val emptied = HashSet<Long>()
+        for (f in folders) for (kid in dao.children(f.id)) {
+            val app = keyOf(kid)?.let(byKey::get) ?: continue
+            val cat = app.category ?: AppCategories.Category.OTHERS
+            if (cat.key == f.category) continue
+            val into = target[cat.key]
+            if (into != null) {
+                val rank = (dao.children(into.id).maxOfOrNull { it.cellX } ?: -1) + 1
+                dao.updateItem(kid.inFolder(into.id, rank))
+            } else {
+                toNew.getOrPut(cat) { ArrayList() } += app
+                leaving += kid.id
+            }
+            emptied += f.id
+        }
+        if (emptied.isEmpty()) return@edit
+        dao.deleteItems(leaving)
+        emptied.forEach { tidyFolder(dao, it) }
+        fileIntoNewFolders(dao, st, dao.itemsNow().filter { it.container == Container.DESKTOP }, toNew)
+        deleteEmptyPages(dao)
+    }
+
     /** Removes pages with nothing on them, except the home page (the first). */
     private suspend fun deleteEmptyPages(dao: LauncherDao) {
         val pages = dao.pagesNow()
