@@ -512,20 +512,22 @@ private fun FolderPopup(folder: FolderEntry, state: OverlayState, actions: Overl
                                     for ((c, app) in row.withIndex()) {
                                         // The app being dragged leaves a gap where it was.
                                         val m = Modifier.weight(1f).graphicsLayer { alpha = if (state.folderDragId == app.id) 0f else 1f }
-                                        // The apps behind the tile's last cell (in the stack there, all of them
-                                        // once it opens) each slide out of it to their place, one just after
-                                        // the other. The others are already where they are.
+                                        // The apps behind the tile's last cell join the stack there (fanned a
+                                        // little behind its top app, a bigger stack), and it sends them all
+                                        // out at once to their places. The others are already where they are.
                                         val i = r * FOLDER_COLUMNS + c
                                         val cellPx = with(LocalDensity.current) { rowHeight.toPx() }
+                                        val fanPx = with(LocalDensity.current) { STACK_FAN.toPx() }
                                         val entry = if (page != 0 || folder.apps.size <= STACK_CELL + 1 || i <= STACK_CELL) {
                                             null
                                         } else {
+                                            val depth = i - STACK_CELL
                                             StackOut(
                                                 androidx.compose.ui.geometry.Offset(
-                                                    (STACK_CELL % FOLDER_COLUMNS - c) * cellPx,
-                                                    (STACK_CELL / FOLDER_COLUMNS - r) * cellPx,
+                                                    (STACK_CELL % FOLDER_COLUMNS - c) * cellPx + depth * fanPx,
+                                                    (STACK_CELL / FOLDER_COLUMNS - r) * cellPx + depth * fanPx,
                                                 ),
-                                                delay = (i - STACK_CELL - 1) * STACK_STAGGER,
+                                                delay = 0f,
                                             )
                                         }
                                         FolderApp(app, folder, actions, iconSize, m, entry, open)
@@ -604,8 +606,7 @@ private fun FolderApp(
                 .graphicsLayer {
                     val t = open()
                     val e = entry ?: return@graphicsLayer
-                    // In the stack behind its top app at first; slides out of it to its place
-                    // (each a little after the one before).
+                    // In the stack behind its top app at first; slides out of it to its place.
                     val k = ((t - e.delay) / (1f - e.delay)).coerceIn(0f, 1f)
                     val eased = k * k * (3f - 2f * k)
                     translationX = e.from.x * (1f - eased)
@@ -635,8 +636,8 @@ private const val TILE_ROWS = 3
 /** An app hidden in the tile's stack: slides out of it, from [from] (px from its place), after [delay] of the opening. */
 private class StackOut(val from: androidx.compose.ui.geometry.Offset, val delay: Float)
 
-/** How much later each app after the first leaves the stack (a share of the opening). */
-private const val STACK_STAGGER = 0.12f
+/** How far each app behind the stack's top one peeks out (down and to the end). */
+private val STACK_FAN = 3.dp
 
 // ------------------------------------------------------------------------------- snackbar
 
