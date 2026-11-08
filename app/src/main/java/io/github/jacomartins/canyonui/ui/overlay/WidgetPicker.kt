@@ -178,13 +178,14 @@ private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Mod
     val fill = io.github.jacomartins.canyonui.ui.design.searchBarFill()
     val text = io.github.jacomartins.canyonui.ui.design.searchBarText()
     val content = io.github.jacomartins.canyonui.ui.design.searchBarContent()
+    val solid = io.github.jacomartins.canyonui.ui.design.isDarkSurface()
     Surface(
         shape = CircleShape,
-        color = fill.copy(alpha = fill.alpha * io.github.jacomartins.canyonui.ui.design.HOME_BAR_OPACITY),
+        color = if (solid) fill else fill.copy(alpha = fill.alpha * io.github.jacomartins.canyonui.ui.design.HOME_BAR_OPACITY),
         modifier = modifier.fillMaxWidth().height(io.github.jacomartins.canyonui.ui.design.SearchBarHeight).oneDepthBorder(),
     ) {
         Row(
-            Modifier.drawBehind { drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE)) },
+            Modifier.drawBehind { if (!solid) drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE)) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(painterResource(R.drawable.ph_search_bold), contentDescription = null, tint = content, modifier = Modifier.padding(start = 18.dp, end = 12.dp).size(24.dp))

@@ -469,7 +469,7 @@ private fun SearchPill(
     ) {
         Row(
             Modifier.drawBehind {
-                if (blurOn) drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE))
+                if (blurOn && !darkTheme) drawRect(Color(io.github.jacomartins.canyonui.ui.design.Frost.HAZE))
             },
             verticalAlignment = Alignment.CenterVertically,
         ) {

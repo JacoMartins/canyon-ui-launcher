@@ -17,12 +17,12 @@ import androidx.compose.ui.unit.dp
 /** How much darker than the theme's highest container the bar is in light mode. */
 private const val DARKEN_LIGHT = 0.12f
 
-/** The search bars' fill: black in dark mode, a light field in light mode (home's bar takes it a little see-through). */
+/** The search bars' fill: solid black in dark mode, a light field in light mode (home's bar takes it a little see-through). */
 @Composable
-fun searchBarFill(): Color = backdropColor(
-    if (isDarkSurface()) Color.Black.copy(alpha = 0.92f)
-    else lerp(MaterialTheme.colorScheme.surfaceContainerHighest, Color.Black, DARKEN_LIGHT).copy(alpha = 0.92f),
-)
+fun searchBarFill(): Color =
+    // Dark mode: true black, solid (no see-through, no frost), as asked.
+    if (isDarkSurface()) Color.Black
+    else backdropColor(lerp(MaterialTheme.colorScheme.surfaceContainerHighest, Color.Black, DARKEN_LIGHT).copy(alpha = 0.92f))
 
 /** The placeholder, the mic and clear icons on the bars. */
 @Composable

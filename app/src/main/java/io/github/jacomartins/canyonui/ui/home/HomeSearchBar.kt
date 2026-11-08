@@ -31,6 +31,7 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
     private val path = Path()
     private val ring = DepthRingPainter(d)
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var solid = false
     private val haze = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = io.github.jacomartins.canyonui.ui.design.Frost.HAZE }
     // The field's text: 16sp in the phone's font, medium weight (the theme's titleMedium).
     private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -82,7 +83,9 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
             gradEnd = a1
             gradSize = -1
         }
-        val a = ((fill ushr 24) * OPACITY).toInt().coerceIn(0, 255)
+        // Dark mode's bar is solid black: no see-through and no frost over it.
+        solid = dark
+        val a = if (dark) 255 else ((fill ushr 24) * OPACITY).toInt().coerceIn(0, 255)
         this.fill.color = (a shl 24) or (fill and 0xFFFFFF)
         applyContent(content)
         invalidate()
@@ -145,7 +148,7 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         if (!plain) WallpaperBackdrop.draw(canvas, this, path, r)
         canvas.drawRoundRect(rect, r, r, fill)
         // The frost: a faint haze over the effect.
-        canvas.drawRoundRect(rect, r, r, haze)
+        if (!solid) canvas.drawRoundRect(rect, r, r, haze)
         ring.draw(canvas, rect, r, darkBehind)
         // The field's layout: a 24dp search icon 18dp in (in its gradient), the text 12dp after
         // it, a 20dp microphone 18dp from the end.
