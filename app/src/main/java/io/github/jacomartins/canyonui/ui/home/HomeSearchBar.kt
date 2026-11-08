@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.core.content.ContextCompat
 import io.github.jacomartins.canyonui.R
+import kotlin.math.roundToInt
 import io.github.jacomartins.canyonui.ui.design.DepthRingPainter
 import io.github.jacomartins.canyonui.ui.design.WallpaperBackdrop
 
@@ -148,13 +149,15 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         ring.draw(canvas, rect, r, darkBehind)
         // The field's layout: a 24dp search icon 18dp in (in its gradient), the text 12dp after
         // it, a 20dp microphone 18dp from the end.
-        val iconSize = (24 * d).toInt()
-        val left = (18 * d).toInt()
+        // Rounded to whole pixels as the search field's layout rounds dp (to the nearest, not
+        // down), so the two bars line up to the pixel.
+        val iconSize = (24 * d).roundToInt()
+        val left = (18 * d).roundToInt()
         drawSearchIcon(canvas, left, (height - iconSize) / 2, iconSize)
         val baseline = height / 2f - (text.descent() + text.ascent()) / 2f
-        canvas.drawText(label, left + iconSize + 12 * d, baseline, text)
+        canvas.drawText(label, (left + iconSize + (12 * d).roundToInt()).toFloat(), baseline, text)
         if (voice) {
-            val size = (20 * d).toInt()
+            val size = (20 * d).roundToInt()
             val top = (height - size) / 2
             val right = width - (18 * d).toInt()
             mic.setBounds(right - size, top, right, top + size)
