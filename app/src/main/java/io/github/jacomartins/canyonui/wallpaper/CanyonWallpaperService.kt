@@ -262,8 +262,11 @@ class CanyonWallpaperService : WallpaperService() {
         }
 
         private fun drawDayGradient(canvas: Canvas) {
-            val minute = CanyonWallpaper.minuteNow()
             val e = introProgress()
+            // Opening: the last hours of the day play in fast forward and settle on now, so the
+            // colours travel into place (dawn's warmth through to the day's blue, say) instead of
+            // only fading in.
+            val minute = CanyonWallpaper.minuteNow() - INTRO_REWIND_MIN * (1f - e)
             if (Build.VERSION.SDK_INT >= 33 && !shaderBroken) {
                 val s = (shader as? RuntimeShader) ?: try {
                     RuntimeShader(if (scene == Scene.DAY_LINEAR) DayGradient.LINEAR_SHADER else DayGradient.SHADER).also { shader = it }
@@ -355,15 +358,18 @@ class CanyonWallpaperService : WallpaperService() {
         const val SMALL_W = 120
         const val LINEAR_REDRAW_MS = 5_000L
         const val COLOR_STEP_MIN = 60
-        const val INTRO_MS = 1_800L
-        const val INTRO_SHADE = 0.2f
+        const val INTRO_MS = 2_400L
+        const val INTRO_SHADE = 0.1f
+
+        /** The day gradients' opening starts this many minutes ago and runs up to now. */
+        const val INTRO_REWIND_MIN = 150f
         const val INTRO_ZOOM = 0.12f
 
         // The day gradients' opening: at its start the glow is this much stronger, this much
         // smaller (its size, 1 = at rest), and this much sharper-edged; the linear blend this narrow.
-        const val INTRO_BOOST = 0.5f
-        const val INTRO_RADIUS = 0.75f
-        const val INTRO_HARD = 3f
+        const val INTRO_BOOST = 0.35f
+        const val INTRO_RADIUS = 0.8f
+        const val INTRO_HARD = 2f
         const val INTRO_EDGE = 0.2f
     }
 }

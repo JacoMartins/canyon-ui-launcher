@@ -54,7 +54,7 @@ class ScenesTest {
     @Test fun dayGradientFollowsTheDay() {
         // At a key moment, exactly that sky.
         val noon = DayGradient.at(678f)
-        assertEquals(0x5A9CF0, noon.top)
+        assertEquals(0x4FA2F6, noon.top)
         assertEquals(0.45f, noon.gx, 1e-6f)
         // Wraps round midnight, and is continuous there.
         assertEquals(DayGradient.at(10f), DayGradient.at(10f + 1440f))

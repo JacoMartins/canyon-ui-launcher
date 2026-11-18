@@ -40,10 +40,12 @@ object DayGradient {
         200 to Sky(0x0C0C3A, 0x101A3C, 0x1C4E58, 0.35f, 1.25f, 1.00f, 1.10f), // 03:20 dark, the teal glow fading
         280 to Sky(0x0C0C3A, 0x101A3C, 0x1A2A4A, 0.00f, -0.05f, 1.05f, 0.94f), // 04:40 darkest, no glow
         320 to Sky(0x4E7A9A, 0x7E7A86, 0xC8735E, 0.80f, -0.05f, 1.05f, 0.94f), // 05:20 first light, coral low left
-        354 to Sky(0x1F86A8, 0x66B7A6, 0xE0A050, 0.90f, -0.10f, 0.55f, 0.74f), // 05:54 teal sky, orange sun left
-        507 to Sky(0x3C9EE6, 0x4AA6E2, 0x9ED23C, 0.90f, 0.20f, 0.18f, 0.68f), // 08:27 blue, lime top left
-        678 to Sky(0x5A9CF0, 0x5EA4E6, 0x7EE08A, 0.80f, 0.45f, 0.15f, 0.74f), // 11:18 blue, green top
-        798 to Sky(0x3C74D8, 0x7A90B8, 0xF2924A, 0.85f, 0.80f, 0.20f, 0.68f), // 13:18 orange top right
+        354 to Sky(0x2A8FB8, 0x7CC4A8, 0xF0A858, 0.90f, -0.10f, 0.55f, 0.74f), // 05:54 teal sky, orange sun left
+        // Morning warms through peach before the clear day: the sky's colours travel, not only fade.
+        420 to Sky(0x3A96DC, 0xE8A28E, 0xF4C062, 0.90f, 0.02f, 0.38f, 0.72f), // 07:00 blue over peach, gold sun left
+        507 to Sky(0x3AA2F0, 0x62BCE2, 0xA8DA48, 0.85f, 0.20f, 0.18f, 0.68f), // 08:27 sky blue over aqua, lime top left
+        678 to Sky(0x4FA2F6, 0x70BEDC, 0x8EE2A8, 0.70f, 0.45f, 0.15f, 0.74f), // 11:18 blue over teal, mint top
+        798 to Sky(0x3C7CE0, 0x8AA0D4, 0xF2924A, 0.85f, 0.80f, 0.20f, 0.68f), // 13:18 orange top right
         918 to Sky(0x4A52C8, 0x6A6AD0, 0xF0806E, 0.90f, 1.00f, 0.25f, 0.88f), // 15:18 violet blue, coral
         1038 to Sky(0x3A1A50, 0x6A2E28, 0xA0503A, 0.90f, 1.10f, 0.35f, 0.94f), // 17:18 purple over brown
         // After the orange the light goes down quickly, dimmer and greyer: dusk, not more sunset.
@@ -99,13 +101,16 @@ object DayGradient {
         val h = ha + dh * k
         // The lift is for the day's clear colours; dusk and night stay as dim as they are.
         val light = lerp(x[0], y[0], k)
-        val lift = TRANSITION_LIFT * ((light - 0.35f) / 0.35f).coerceIn(0f, 1f)
+        // Only colours far apart in hue need the lift (they would pass through grey); two
+        // close ones would turn electric with it.
+        val turn = (kotlin.math.abs(dh) / (PI.toFloat() / 3f)).coerceIn(0f, 1f)
+        val lift = TRANSITION_LIFT * turn * ((light - 0.35f) / 0.35f).coerceIn(0f, 1f)
         val c = lerp(ca, cb, k) * (1f + lift * sin(PI.toFloat() * k))
         return Oklab.toInt(Oklab.rgb(lerp(x[0], y[0], k), c * cos(h), c * sin(h)))
     }
 
     private const val GREY = 0.02f
-    private const val TRANSITION_LIFT = 0.3f
+    private const val TRANSITION_LIFT = 0.4f
 
     /** Colours more vivid all round (OKLab colourfulness), within what the screen shows. */
     private const val CHROMA = 1.12f
