@@ -21,8 +21,9 @@ object Frost {
 object SearchIconGradient {
     // Violet at the lens's top left, through blue, to teal at the handle (diagonal); a little
     // deeper in light mode so it holds against a light field.
-    private val LIGHT = intArrayOf(0xFF8A6CF2.toInt(), 0xFF3F7FE6.toInt(), 0xFF14B3A0.toInt())
-    private val DARK = intArrayOf(0xFFA48CFB.toInt(), 0xFF5C93F2.toInt(), 0xFF2BD3BC.toInt())
+    // Bright and saturated (asked: the first ones read too dark).
+    private val LIGHT = intArrayOf(0xFF9A66FF.toInt(), 0xFF2F8CFF.toInt(), 0xFF00C9A8.toInt())
+    private val DARK = intArrayOf(0xFFB07CFF.toInt(), 0xFF45A6FF.toInt(), 0xFF1AF0CE.toInt())
 
     fun colors(dark: Boolean): IntArray = if (dark) DARK else LIGHT
 }
