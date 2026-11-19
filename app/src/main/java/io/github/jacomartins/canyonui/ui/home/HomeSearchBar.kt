@@ -40,7 +40,7 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
     }
     // Bold here (asked for, the one exception to the regular icons), as in the search field.
     private val icon = ContextCompat.getDrawable(context, R.drawable.ph_search_bold)!!.mutate()
-    private val mic = ContextCompat.getDrawable(context, R.drawable.ph_mic)!!.mutate()
+    private val mic = ContextCompat.getDrawable(context, R.drawable.ph_mic_fill)!!.mutate()
     private val label = resources.getString(R.string.search)
 
     /** Shows the microphone (when the phone has voice search). */
@@ -77,10 +77,9 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
      */
     fun setStyle(fill: Int, content: Int, dark: Boolean) {
         styled = true
-        val (a0, a1) = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.of(dark)
-        if (a0 != gradStart || a1 != gradEnd) {
-            gradStart = a0
-            gradEnd = a1
+        val g = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.colors(dark)
+        if (!g.contentEquals(gradColors)) {
+            gradColors = g
             gradSize = -1
         }
         // The field's own opacity (the "Search bar opacity" setting); dark mode has no frost.
@@ -97,8 +96,7 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
     }
 
     // The search icon: white, then the gradient laid over it (kept to its shape).
-    private var gradStart = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.DARK_START
-    private var gradEnd = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.DARK_END
+    private var gradColors = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.colors(dark = true)
     private var gradSize = -1
     private val gradPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         xfermode = android.graphics.PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
@@ -109,7 +107,7 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         icon.setBounds(left, top, left + size, top + size)
         if (gradSize != size) {
             gradSize = size
-            gradPaint.shader = android.graphics.LinearGradient(0f, 0f, size.toFloat(), size.toFloat(), gradStart, gradEnd, android.graphics.Shader.TileMode.CLAMP)
+            gradPaint.shader = android.graphics.LinearGradient(0f, 0f, size.toFloat(), size.toFloat(), gradColors, null, android.graphics.Shader.TileMode.CLAMP)
         }
         val layer = canvas.saveLayer(left.toFloat(), top.toFloat(), (left + size).toFloat(), (top + size).toFloat(), null)
         icon.draw(canvas)

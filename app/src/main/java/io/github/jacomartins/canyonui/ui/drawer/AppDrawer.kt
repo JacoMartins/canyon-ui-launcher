@@ -421,7 +421,7 @@ private fun SearchPill(
     // The text as home's bar draws it (16sp medium, centred by the font itself, no extra
     // letter spacing), so the bar and this field look the same.
     val barText = io.github.jacomartins.canyonui.ui.design.searchBarText()
-    val (gradStart, gradEnd) = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.of(darkTheme)
+    val gradColors = io.github.jacomartins.canyonui.ui.design.SearchIconGradient.colors(darkTheme).map { Color(it) }
     // Home's bar wears this look.
     androidx.compose.runtime.SideEffect { model.onPillStyle?.invoke(pillFill.toArgb(), pillContent.toArgb(), darkTheme) }
     Surface(
@@ -484,7 +484,7 @@ private fun SearchPill(
                     .drawWithContent {
                         drawContent()
                         drawRect(
-                            androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(gradStart), Color(gradEnd))),
+                            androidx.compose.ui.graphics.Brush.linearGradient(gradColors),
                             blendMode = androidx.compose.ui.graphics.BlendMode.SrcIn,
                         )
                     },
@@ -516,7 +516,7 @@ private fun SearchPill(
                     Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = pillContent, modifier = Modifier.size(20.dp))
                 }
                 voiceSearch != null -> IconButton(onClick = voiceSearch, modifier = Modifier.padding(end = 4.dp)) {
-                    Icon(painterResource(R.drawable.ph_mic), contentDescription = stringResource(R.string.voice_search), tint = pillContent, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(R.drawable.ph_mic_fill), contentDescription = stringResource(R.string.voice_search), tint = pillContent, modifier = Modifier.size(20.dp))
                 }
                 else -> Spacer(Modifier.width(20.dp))
             }

@@ -19,10 +19,10 @@ object Frost {
  * blue to teal in light mode, deeper tones of them in dark mode. ARGB, from the top-left.
  */
 object SearchIconGradient {
-    const val LIGHT_START = 0xFF4FC3F7.toInt()
-    const val LIGHT_END = 0xFF26A69A.toInt()
-    const val DARK_START = 0xFF3D9BDB.toInt()
-    const val DARK_END = 0xFF22A392.toInt()
+    // Violet at the lens's top left, through blue, to teal at the handle (diagonal); a little
+    // deeper in light mode so it holds against a light field.
+    private val LIGHT = intArrayOf(0xFF8A6CF2.toInt(), 0xFF3F7FE6.toInt(), 0xFF14B3A0.toInt())
+    private val DARK = intArrayOf(0xFFA48CFB.toInt(), 0xFF5C93F2.toInt(), 0xFF2BD3BC.toInt())
 
-    fun of(dark: Boolean): Pair<Int, Int> = if (dark) DARK_START to DARK_END else LIGHT_START to LIGHT_END
+    fun colors(dark: Boolean): IntArray = if (dark) DARK else LIGHT
 }
