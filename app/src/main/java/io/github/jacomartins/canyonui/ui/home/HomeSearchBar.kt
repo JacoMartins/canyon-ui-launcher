@@ -86,6 +86,7 @@ class HomeSearchBar(context: Context, private val plain: Boolean = false) : View
         solid = dark
         this.fill.color = fill
         applyContent(content)
+        mic.colorFilter = PorterDuffColorFilter(io.github.jacomartins.canyonui.ui.design.searchBarMic(content), PorterDuff.Mode.SRC_IN)
         invalidate()
     }
 

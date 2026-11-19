@@ -42,6 +42,12 @@ fun searchBarFill(): Color {
 @Composable
 fun searchBarContent(): Color = if (isDarkSurface()) Color(0xFFBDBDC2) else MaterialTheme.colorScheme.onSurfaceVariant
 
+/** How much nearer white the microphone is than the placeholder (asked lighter). */
+const val MIC_LIGHTEN = 0.45f
+
+/** The microphone's colour on the bars: the placeholder's, lighter. */
+fun searchBarMic(content: Int): Int = androidx.core.graphics.ColorUtils.blendARGB(content, 0xFFFFFFFF.toInt(), MIC_LIGHTEN)
+
 /** Typed text on the bars. */
 @Composable
 fun searchBarInk(): Color = if (isDarkSurface()) Color(0xFFF2F2F4) else MaterialTheme.colorScheme.onSurface

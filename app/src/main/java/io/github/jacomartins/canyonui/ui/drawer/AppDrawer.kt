@@ -516,7 +516,7 @@ private fun SearchPill(
                     Icon(painterResource(R.drawable.ph_close), contentDescription = stringResource(R.string.clear_search), tint = pillContent, modifier = Modifier.size(20.dp))
                 }
                 voiceSearch != null -> IconButton(onClick = voiceSearch, modifier = Modifier.padding(end = 4.dp)) {
-                    Icon(painterResource(R.drawable.ph_mic_fill), contentDescription = stringResource(R.string.voice_search), tint = pillContent, modifier = Modifier.size(20.dp))
+                    Icon(painterResource(R.drawable.ph_mic_fill), contentDescription = stringResource(R.string.voice_search), tint = Color(io.github.jacomartins.canyonui.ui.design.searchBarMic(pillContent.toArgb())), modifier = Modifier.size(20.dp))
                 }
                 else -> Spacer(Modifier.width(20.dp))
             }
