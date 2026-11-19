@@ -78,16 +78,22 @@ class CanyonWallpaperService : WallpaperService() {
                 if (introStartMs >= 0) Choreographer.getInstance().postFrameCallback(this)
             }
         }
-        /** How far the opening has come, eased: 0 at its start, 1 when it is over (or none). */
+        /**
+         * How far the opening has come, eased: 0 at its start, 1 when it is over (or none).
+         * It holds still for [INTRO_HOLD_MS] (often still under the closing app or the unlock,
+         * which would hide the start), then goes slow, fast, slow (ease in and out), so the
+         * biggest change happens where it is seen. Measured on recordings: an ease-out spent most
+         * of its change before the wallpaper was even uncovered.
+         */
         private fun introProgress(): Float {
             if (introStartMs < 0) return 1f
-            val k = (SystemClock.uptimeMillis() - introStartMs) / INTRO_MS.toFloat()
-            if (k >= 1f) {
+            val t = SystemClock.uptimeMillis() - introStartMs
+            if (t >= INTRO_HOLD_MS + INTRO_MS) {
                 introStartMs = -1L
                 return 1f
             }
-            val r = 1f - k
-            return 1f - r * r * r
+            val k = ((t - INTRO_HOLD_MS) / INTRO_MS.toFloat()).coerceIn(0f, 1f)
+            return if (k < 0.5f) 4f * k * k * k else 1f - (-2f * k + 2f).let { it * it * it } / 2f
         }
 
         /** The opening's dimming over the whole picture, fading out as it ends. */
@@ -358,7 +364,8 @@ class CanyonWallpaperService : WallpaperService() {
         const val SMALL_W = 120
         const val LINEAR_REDRAW_MS = 5_000L
         const val COLOR_STEP_MIN = 60
-        const val INTRO_MS = 2_400L
+        const val INTRO_MS = 2_000L
+        const val INTRO_HOLD_MS = 300L
         const val INTRO_SHADE = 0.1f
 
         /** The day gradients' opening starts this many minutes ago and runs up to now. */
